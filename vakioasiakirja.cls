@@ -32,16 +32,13 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Markup
 
-% \newcommand*{\author}[1]{\gdef\@author{#1}} 
 \newcommand{\address}[1]{\gdef\@address{#1}}
 
 \newcommand{\type}[1]{\gdef\@type{#1}}
-% \newcommand*{\date}[1]{\gdef\@date{#1}} 
 
 \newcommand{\recipient}[1]{\gdef\@recipient{#1}}
 
 \newcommand{\lead}[1]{\gdef\@lead{#1}}
-% \newcommand*{\title}[1]{\gdef\@title{#1}} 
 
 \newcommand{\signature}[2]{
   \vspace{2\baselineskip}
