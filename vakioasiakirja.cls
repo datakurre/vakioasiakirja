@@ -12,7 +12,7 @@
 % Typeface and layout
 %
 
-\LoadClass[a4paper,12pt,oneside,final,notitlepage,openany,onecolumn]{article}
+\LoadClass[a4paper,12pt,oneside,final,notitlepage,onecolumn]{article}
 % \RequirePackage[left=65.72mm,right=10mm,top=6mm,bottom=10mm,includehead,nofoot]{geometry} % See the end of "Header and footer"
 \RequirePackage{mathpazo}
 \RequirePackage{microtype}
