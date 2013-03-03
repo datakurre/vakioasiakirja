@@ -2,22 +2,39 @@
 
 \author{Erkki Esimerkki}
 \address{
-  Mallikatu 2 A 10\\
+  Mallikatu 2 A 10
+}
+% Now date is on second row. Not hanging on third.
+
+% Nyt päiväys on toisella rivillä, eikä roiku kolmannella.
+\addressrest{
   12345 Hukkapiilo
 }
-
+\telephone{
+  Puh: +358 12 345 6789
+}
 \recipient{
   Hannu ja Kerttu\\
   Piparkakkutalo \\
   67890 Karkkimetsä
 }
-
+\email{
+  user@internetz
+}
 \type{Muistio}
 \date{1.1.2009}
 
 \lead{Keskustelustamme 31.12.2008 Kekkoslovakian Saunapirtissä}
 \title{Zen ja tennispallojen raidoituksen värit}
+% Header height originaly 73 pt. pdflatex warning, it should be 113 pt
+% 113 pt - 73 pt = 40 pt \vfill breaks layout, if these arent' touched.
 
+% Ylätunnisteen korkeus oli aluksi 73 pt ja pdflatex varoitti, että sen
+% tulisiolla 113 pt Siitä siis muutos. Jos näitä ei muuta \vfill työntää
+% alaosan pois sivulta.
+\setlength{\headheight}{113pt}
+\addtolength\textheight{-40pt}
+\newcommand{\newpara}{\vspace{2ex}\noindent}
 \begin{document}
 
 \maketitle
@@ -26,17 +43,25 @@
 
 \align All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
 
-All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+ All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
 
 \section{Sitten}
 
-\align All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+\align All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. 
 
-All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
 
 \section{Lopuksi}
 
-\align All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+\align All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+
+\newpara This paragragh has vertical space and no indent.\\
+Tässä kappaleessa on pystyväli ja ei sisennystä.\\
+All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
+
+This doesn't. \textbackslash newpara is the magic.\\
+Tässä ei ole.  \textbackslash newpara tekee sen.\\
+All work no play makes Jack a dull boy. All work no play makes Jack a dull boy.
 
 \signature{Jyväskylässä}{\today}
 
