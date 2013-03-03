@@ -34,6 +34,12 @@
 
 \newcommand{\address}[1]{\gdef\@address{#1}}
 
+\newcommand{\addressrest}[1]{\gdef\@addressrest{#1}}
+
+\newcommand{\telephone}[1]{\gdef\@telephone{#1}}
+
+\newcommand{\email}[1]{\gdef\@email{#1}}
+
 \newcommand{\type}[1]{\gdef\@type{#1}}
 
 \newcommand{\recipient}[1]{\gdef\@recipient{#1}}
@@ -58,10 +64,10 @@
 \RequirePackage{totpages}
 \RequirePackage{ifthen}
 
-\pagestyle{fancy} 
+\pagestyle{fancy}
 
 \newcommand{\pagenum}{\thepage (\ref{TotPages})}
-\newcommand{\nopagenum}{\renewcommand{\pagenum}{}}
+\newcommand{\nopagenum}{\ifnum\value{TotPages}=1\relax\else\renewcommand\pagenum{}\fi}
 
 \newcommand{\ts}{\hspace{22.86mm}}
 
@@ -72,7 +78,10 @@
 \begin{tabbing}
   \ts          \= \ts \= \ts \= \ts \= \ts        \= \ts \= \ts \= \kill
   \bf \@author \>     \>     \>     \> \bf \@type \>     \>     \> \bf \pagenum \\
-  \@address    \>     \>     \>     \> \@date                           
+  \@address    \>     \>     \>     \> \@date                           \\
+  \@addressrest\\
+  \@telephone\\
+  \@email
 \end{tabbing}
 }
 \rhead{}
@@ -96,7 +105,7 @@
     \noindent\hspace{-45.72mm}\parbox[t][][t]{\linewidth}{\@recipient}
 
     \vspace{2\baselineskip}
-  
+
   }{}
   \ifthenelse{\not\isundefined{\@lead}}{
     \noindent\hspace{-45.72mm}\textit{\@lead}
