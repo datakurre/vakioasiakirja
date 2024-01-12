@@ -59,7 +59,7 @@
 \RequirePackage{totpages}
 \RequirePackage{ifthen}
 
-\pagestyle{fancy} 
+\pagestyle{fancy}
 
 \newcommand{\pagenum}{\thepage (\ref{TotPages})}
 \newcommand{\nopagenum}{\renewcommand{\pagenum}{}}
@@ -73,7 +73,7 @@
 \begin{tabbing}
   \ts          \= \ts \= \ts \= \ts \= \ts        \= \ts \= \ts \= \kill
   \bf \@author \>     \>     \>     \> \bf \@type \>     \>     \> \bf \pagenum \\
-  \@address    \>     \>     \>     \> \@date                           
+  \@address    \>     \>     \>     \> \@date
 \end{tabbing}
 }
 \rhead{}
@@ -97,7 +97,7 @@
     \noindent\hspace{-45.72mm}\parbox[t][][t]{\linewidth}{\@recipient}
 
     \vspace{2\baselineskip}
-  
+
   }{}
   \ifthenelse{\not\isundefined{\@lead}}{
     \noindent\hspace{-45.72mm}\textit{\@lead}
