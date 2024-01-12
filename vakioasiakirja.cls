@@ -18,7 +18,8 @@
 \RequirePackage{microtype}
 
 \setlength{\baselineskip}{13pt} % 4.233mm
-\setlength{\parindent}{\baselineskip}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{\baselineskip}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Language
