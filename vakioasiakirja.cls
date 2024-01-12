@@ -121,7 +121,7 @@
   \setbox0=\hbox{\quad}%
   \@startsection {subsection}{2}{\z@}{\baselineskip}{\baselineskip}{\noindent\hspace{-45.72mm}\hspace{-\wd0}}}
 
-\newcommand{\align}{\vspace{-2\baselineskip}\noindent}
+\newcommand{\align}{\vspace{-3\baselineskip}\noindent}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Figures and Tables
