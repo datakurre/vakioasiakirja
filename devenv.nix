@@ -8,7 +8,9 @@
         caption
         enumitem
         everyshi
+        helvetic
         hyperref
+        hyphen-finnish
         preview
         latex
         latexmk
@@ -16,6 +18,7 @@
         metafont
         metapost
         microtype
+        ragged2e
         totpages;
     })
     pkgs.curl

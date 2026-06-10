@@ -11,3 +11,4 @@ devenv.local.yaml
 *.log
 *.out
 *.pdf
+!logo-*.pdf
