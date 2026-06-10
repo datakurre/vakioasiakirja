@@ -1,7 +1,13 @@
 *.aux
 *.bbl
 *.blg
+.devenv*
+.devcontainer.json
+devenv.local.nix
+devenv.local.yaml
+*.fdb_latexmk
+*.fls
+*.gz
 *.log
 *.out
-*.gz
 *.pdf
