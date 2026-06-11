@@ -8,8 +8,7 @@ The class lays out the standard's information areas (tietoalueet)
 automatically: basic metadata 9,2 cm from the left margin with a `1 (2)`
 page number, body text on the 2,3 cm column grid, headings hanging at the
 left margin, and the metadata block repeated as a page header from page 2
-onward. A separate class, `sfs-2487-2000.cls`, implements the older year
-2000 revision of the standard.
+onward.
 
 ## Quick start
 

@@ -1,4 +1,4 @@
-TEXFILE ?= example-2000
+TEXFILE ?= example-2024
 
 .PHONY: all
 all: build
