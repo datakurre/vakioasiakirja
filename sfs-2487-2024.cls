@@ -6,7 +6,7 @@
 % area 9,2 cm from the left margin, body text 2,3 cm from the left margin.
 
 \def\filedate{2026/06/11}
-\def\fileversion{1.2}
+\def\fileversion{1.3}
 \def\fileinfo{Vakioasiakirja SFS 2487:2024}
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{sfs-2487-2024}[\filedate\space\fileversion\space\fileinfo]
@@ -88,6 +88,19 @@
   skip=\smallskipamount}
 \captionsetup[table]{position=above}
 
+% Used in the text flow (outside any float or minipage), caption's \captionof
+% resets \parskip for the rest of the document, silently dropping below the
+% 10pt minimum paragraph gap of 6.4.3; scope it in a group. caption defines
+% \captionof in its own begin-document code, so this must run after it.
+\AddToHook{begindocument/end}{%
+  \let\sfs@captionof\captionof
+  \RenewDocumentCommand{\captionof}{s m o m}{%
+    \begingroup
+    \IfBooleanTF{#1}
+      {\sfs@captionof*{#2}{#4}}
+      {\IfNoValueTF{#3}{\sfs@captionof{#2}{#4}}{\sfs@captionof{#2}[#3]{#4}}}%
+    \endgroup}}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Language
 %
@@ -158,10 +171,32 @@
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 
+% Tagged-PDF support (saavutettavuus, liite D): documents opt in with
+% \DocumentMetadata{lang=fi-FI, tagging=on} before \documentclass. The
+% helpers below no-op in untagged documents; in tagged ones they suspend
+% the automatic paragraph tagging around the \maketitle information areas
+% (whose parboxes would otherwise nest structure inside a stray P) and tag
+% each area explicitly instead.
+\newcommand{\sfs@tagoff}{\ifdefined\tagpdfparaOff\tagpdfparaOff\fi}
+\newcommand{\sfs@tagon}{\ifdefined\tagpdfparaOn\tagpdfparaOn\fi}
+
+% pdfTeX's real interword-space glyphs (enabled by tagging) render reordered
+% and overlapping with this class's layout on TeX Live 2025, so they are
+% disabled; word boundaries remain recoverable from glyph positioning.
+\AddToHook{begindocument/before}{%
+  \ifdefined\tagpdfsetup\tagpdfsetup{interwordspace=false}\fi}
+\newcommand{\sfs@struct}[2]{%
+  \ifdefined\tagstructbegin
+    \tagstructbegin{tag=#1}\tagmcbegin{tag=#1}#2\tagmcend\tagstructend
+  \else#2\fi}
+
 % Grow the header to fit the metadata block (e.g. a tall logo), taking the
 % extra space from the text height so the body never overlaps the header.
+% The measuring box must not emit document structure in tagged documents.
 \AtBeginDocument{%
+  \ifdefined\tagstop\tagstop\fi
   \sbox\@tempboxa{\sfs@metadatablock}%
+  \ifdefined\tagstart\tagstart\fi
   \@tempdima=\dimexpr\ht\@tempboxa+\dp\@tempboxa+\baselineskip\relax
   \ifdim\@tempdima>\headheight
     \addtolength{\textheight}{\dimexpr\headheight-\@tempdima\relax}%
@@ -178,20 +213,33 @@
 \renewcommand{\maketitle}{%
   \thispagestyle{empty}%
   \vspace*{\dimexpr-\headheight-\headsep-\parskip-\topskip+\ht\strutbox\relax}%
+  \sfs@tagoff
   \noindent\hspace*{-\sfs@column}\sfs@metadatablock\par
+  % Between stacked information-area boxes the interline mechanics absorb a
+  % few points of the \parskip glue, so the rendered gap falls short of the
+  % paragraph gap that 5.2 requires (one before the extra metadata, at least
+  % two before the subject and title when there is no extra metadata); the
+  % extra half/full \parskip below restores the rendered gap to the required
+  % size at any base font size.
   \ifx\sfs@extrametadata\@empty
-    \vspace{\parskip}%
+    \vspace{1.5\parskip}%
   \else
+    \vspace{.5\parskip}%
     \noindent\hspace*{\dimexpr\sfs@metaindent-\sfs@column\relax}%
     \parbox[t]{\dimexpr\textwidth+\sfs@column-\sfs@metaindent\relax}{\sfs@extrametadata}\par
+    \vspace{.5\parskip}%
   \fi
   \ifx\sfs@recipient\@empty\else
     \noindent\hspace*{-\sfs@column}\parbox[t]{\textwidth}{\sfs@recipient}\par
+    \vspace{.5\parskip}%
   \fi
+  % The main title is the document's level-1 heading (5.2, Taulukko 2);
+  % in tagged documents the title parbox becomes a Title structure element.
   \noindent\hspace*{-\sfs@column}%
-  \parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
+  \sfs@struct{Title}{\parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
-    {\sfs@titlefont\@title}}\par
+    {\sfs@titlefont\@title}}}\par
+  \sfs@tagon
 }
 
 % The main title is bold and 3pt larger than the body text, inside the
@@ -230,6 +278,12 @@
 \renewcommand{\section}{\sfs@makesection{section}{1}{.5\parskip}}
 \renewcommand{\subsection}{\sfs@makesection{subsection}{2}{1sp}}
 \renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}{1sp}}
+
+% The standard recommends at most three heading levels (6.4); article's
+% run-in \paragraph and \subparagraph would break the hanging-heading
+% layout, so deeper levels degrade to unnumbered display headings instead.
+\renewcommand{\paragraph}{\sfs@makesection{paragraph}{4}{1sp}}
+\renewcommand{\subparagraph}{\sfs@makesection{subparagraph}{5}{1sp}}
 
 % Unnumbered regular-weight label at the left margin ("Aika ja paikka"),
 % with the following content at the body indent.

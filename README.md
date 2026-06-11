@@ -246,12 +246,38 @@ to the clauses of SFS 2487:2024.
 | 6.9 Ala- ja loppuviitteet | Superscript numeric reference marks with running numbering | Standard LaTeX `\footnote` already complies |
 | 6.10 Sisällysluettelo | Optional table of contents built from the heading styles, placed right after the main title | `\tableofcontents` after `\maketitle`; the class headings feed it automatically |
 
-Left to the author: writing the date in the correct format, keeping
-visible metadata consistent with reality (clause 5.1), and the
-accessibility requirements of liite D — pdfLaTeX output is not tagged
-PDF, so e.g. the logo's alternative text (6.1) cannot be embedded; for
-strictly WCAG-conformant electronic documents, post-process or use a
-tagging-capable engine.
+Left to the author: writing the date in the correct format and keeping
+visible metadata consistent with reality (clause 5.1). For the
+accessibility requirements of liite D, see below.
+
+## Accessibility (liite D): tagged PDF
+
+Documents can opt in to tagged PDF — the structure tree that liite D's
+WCAG criteria build on — by adding one line *before* `\documentclass`:
+
+```latex
+\DocumentMetadata{lang=fi-FI, pdfversion=2.0, tagging=on}
+\documentclass{sfs-2487-2024}
+```
+
+With tagging on, the output gets a full structure tree: the main title as
+a `Title` element (the level-1 heading of clause 5.2), sections as
+`H1`–`H3` under `Sect`, paragraphs, bullet and numbered lists (`L`/`LI`),
+tables (`TR`/`TD`), footnotes (`Note`), the table of contents
+(`TOC`/`TOCI`), link annotations, and the logo as a `Figure`. The
+repeated page-2+ header is marked as an artifact so assistive technology
+reads the metadata once. Give the logo an alternative text (6.1, D):
+
+```latex
+\logo{\includegraphics[alt={Organisaatio Oy:n logo}]{logo-organisaatio}}
+```
+
+Known limitations: a table's header row is tagged `TD` like other cells
+(mark it visually bold per 6.5.1); and the class disables pdfTeX's real
+interword-space glyphs under tagging because they render corrupted with
+this layout on TeX Live 2025 — word boundaries remain recoverable from
+glyph positioning. Untagged builds are byte-for-byte unaffected by any
+of this.
 
 ## Examples in this repository
 

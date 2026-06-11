@@ -18,8 +18,10 @@
         metafont
         metapost
         microtype
+        pdfmanagement-testphase
         pgf
         ragged2e
+        tagpdf
         totpages
         xcolor;
     })
