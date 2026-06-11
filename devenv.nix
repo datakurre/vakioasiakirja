@@ -11,6 +11,7 @@
         helvetic
         hyperref
         hyphen-finnish
+        l3build
         preview
         latex
         latexmk

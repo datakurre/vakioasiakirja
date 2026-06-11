@@ -15,3 +15,6 @@ devenv.local.yaml
 result
 docs/pdf/
 site/
+build/
+*.curlopt
+sfs-2487-2024*.zip

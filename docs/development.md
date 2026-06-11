@@ -20,6 +20,9 @@ make clean                              # remove build artifacts
 ```
 Pöytäkirjat/
 ├── sfs-2487-2024.cls           # The LaTeX document class
+├── sfs-2487-2024-doc.tex       # User manual (typeset with l3build doc)
+├── build.lua                   # l3build packaging configuration
+├── LICENSE                     # MIT
 ├── flake.nix                   # Markdown-to-PDF converter (nix run .)
 ├── pandoc/
 │   ├── sfs-2487-2024.latex     # Pandoc template: frontmatter → class commands
@@ -48,6 +51,30 @@ nix shell .#docsEnv --command mkdocs serve  # live-preview the docs
 (gitignored) so the [Examples](examples.md) page can link to them. A
 GitHub Actions workflow builds and publishes the site to GitHub Pages on
 every push to `main`.
+
+## Packaging and releasing
+
+The class is packaged for distribution with
+[l3build](https://ctan.org/pkg/l3build) (available in the devenv
+shell), configured by `build.lua` at the repository root:
+
+```bash
+l3build doc          # typeset the user manual sfs-2487-2024-doc.pdf
+l3build install      # install the class into your TEXMF tree (~/texmf)
+l3build tag <x.y>    # bump the version and date in the .cls and manual
+l3build ctan         # build sfs-2487-2024-ctan.zip + sfs-2487-2024.tds.zip
+```
+
+The CTAN package ships the class, the English user manual, README and
+LICENSE, and the invented example documents (`esimerkki-kokouskutsu`,
+`esimerkki-raportti`, `esimerkki-kayttoohje` with their logo files).
+`esimerkki-poytakirja` and `esimerkki-tarjous` replicate the standard's
+own model documents and stay out of the package, as does the
+proprietary spec PDF — always check `unzip -l sfs-2487-2024-ctan.zip`
+before distributing. Uploading to CTAN is a separate, manual step at
+[ctan.org/upload](https://ctan.org/upload).
+
+All l3build work happens under `build/` (gitignored, safe to delete).
 
 ## Verifying against the standard
 

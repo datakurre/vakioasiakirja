@@ -95,6 +95,15 @@ make examples     # build every examples/latex/esimerkki-*.tex
 make markdown     # build every examples/markdown/esimerkki-*.md via the flake
 ```
 
+## Installing the class
+
+For use outside this repository, the class can be installed into your
+own TEXMF tree with [l3build](https://ctan.org/pkg/l3build):
+
+```bash
+l3build install     # copies sfs-2487-2024.cls into ~/texmf
+```
+
 ## Development
 
 The development environment is managed with nix/devenv; see
@@ -106,3 +115,7 @@ make TEXFILE=esimerkki-poytakirja build # build a document (also the default tar
 make docs                               # build the documentation site into site/
 make clean                              # remove build artifacts
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 Asko Soukka.

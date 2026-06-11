@@ -4,6 +4,13 @@
 % Implements the SFS 2487:2024 standard "Asiakirjan asettelu ja metatiedot":
 % information areas (tietoalueet) on a 2,3 cm column grid, basic metadata
 % area 9,2 cm from the left margin, body text 2,3 cm from the left margin.
+%
+% Copyright (c) 2026 Asko Soukka <asko.soukka@iki.fi>
+%
+% SPDX-License-Identifier: MIT
+%
+% This work is distributed under the MIT License; the full license text is
+% in the accompanying LICENSE file and at https://opensource.org/license/mit
 
 \def\sfs@filedate{2026/06/11}
 \def\sfs@fileversion{2.0}

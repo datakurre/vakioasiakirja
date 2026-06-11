@@ -1,0 +1,337 @@
+% Documentation for the sfs-2487-2024 LaTeX document class.
+%
+% Copyright (c) 2026 Asko Soukka <asko.soukka@iki.fi>
+%
+% SPDX-License-Identifier: MIT
+%
+% This work is distributed under the MIT License; the full license text is
+% in the accompanying LICENSE file and at https://opensource.org/license/mit
+
+% Kept in sync with the class by `l3build tag <version>`.
+\def\clsversion{2.0}
+\def\clsdate{2026/06/11}
+
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{mathpazo}
+% expansion=false: the T1 typewriter font in this minimal TeX Live is
+% bitmap-only, and pdfTeX cannot expand non-scalable fonts.
+\usepackage[expansion=false]{microtype}
+\usepackage{enumitem}
+\usepackage[a4paper,margin=25mm]{geometry}
+\usepackage[bookmarksopen,bookmarksnumbered,hidelinks]{hyperref}
+
+\newcommand{\cls}{\textsf{sfs-2487-2024}}
+\newcommand{\cmd}[1]{\texttt{\textbackslash #1}}
+\newcommand{\opt}[1]{\texttt{[#1]}}
+
+\setlist[description]{font=\normalfont\ttfamily, style=nextline,
+  itemsep=.5\baselineskip}
+
+\title{The \cls\ class\\
+  \large Finnish standard office documents per SFS 2487:2024}
+\author{Asko Soukka\\\texttt{asko.soukka@iki.fi}}
+\date{Version \clsversion\ (\clsdate)}
+
+\hypersetup{pdftitle={The sfs-2487-2024 class},
+  pdfauthor={Asko Soukka}, pdflang={en}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+The \cls\ class typesets Finnish office documents --- letters, memos,
+minutes, quotations and the like (kirjeet, muistiot, pöytäkirjat,
+tarjoukset) --- following the Finnish standard \emph{SFS 2487:2024
+Asiakirjan asettelu ja metatiedot} (document layout and metadata). The
+class lays out the standard's information areas (tietoalueet)
+automatically: the basic metadata area 9,2\,cm from the left margin with
+\mbox{``1 (2)''} page numbering, body text on the 2,3\,cm column grid,
+headings hanging at the left margin, and the metadata block repeated as a
+page header from page~2 onward.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+
+SFS 2487 is the Finnish standard specifying the layout, information areas
+and metadata of formal office documents; the 2024 edition is its current
+revision. Documents following it share a fixed geometry: a 2,3\,cm column
+grid starting 2\,cm from the paper's left edge, a basic metadata area
+(document type, date, identifier, confidentiality, page number) starting
+9,2\,cm from the left margin, and body text indented one grid column with
+headings hanging at the margin.
+
+The \cls\ class implements these rules on top of the standard
+\textsf{article} class so that the author writes only content and
+metadata; positioning, fonts, spacing, page numbering and the repeated
+continuation-page header all follow from the class. The implementation
+has been verified against the standard's own model documents (its
+appendices Liite~A and~B).
+
+A minimal document:
+
+\begin{verbatim}
+\documentclass{sfs-2487-2024}
+
+\doctype{Pöytäkirja}
+\date{15.5.2024}
+\author{Virve Virtanen}
+\title{Asiakaspalautteet ja etusivun uudistaminen}
+
+\begin{document}
+\maketitle
+
+\section{Kokouksen avaus}
+
+Puheenjohtaja avasi kokouksen ja toivotti kaikki
+tervetulleiksi.
+
+\end{document}
+\end{verbatim}
+
+Build with \texttt{latexmk -pdf}, which automatically runs the extra pass
+needed for the total page count in the ``1~(2)'' page number.
+
+\section{Class options}
+
+\begin{description}
+\item[(default)] Palatino body font at 11\,pt, bold headings numbered
+  \mbox{``1 Otsikko''}.
+\item[agenda] Meeting-agenda heading numbering with a trailing period,
+  \mbox{``1. Otsikko''} --- an established alternative the standard
+  permits (clause 6.4.1). Headings stay bold either way, as clause 6.4
+  requires bold or a larger font size.
+\item[sansserif] A Helvetica-like sans serif throughout, matching the
+  look of the standard's own example renderings.
+\item[12pt, \ldots] Any other option is passed through to
+  \textsf{article}, e.g.\ a larger base font size.
+\end{description}
+
+Options combine: \verb|\documentclass[agenda,sansserif]{sfs-2487-2024}|.
+
+\section{Metadata commands}
+
+Set these in the preamble, before \verb|\begin{document}|. Only
+\cmd{doctype}, \cmd{date}, \cmd{author} and \cmd{title} are usually
+needed; everything else is optional and omitted from the output when
+unset.
+
+\begin{description}
+\item[\textbackslash doctype\{Pöytäkirja\}] The document type
+  (asiakirjatyyppi), shown bold at the start of the basic metadata area.
+\item[\textbackslash date\{15.5.2024\}] The date (päivämäärä). Write as
+  \texttt{d.m.yyyy} without leading zeros, per SFS 4175.
+\item[\textbackslash author\{Virve Virtanen\}] The author (laatija), part
+  of the standard's required minimum metadata (clause 5.2); stored in the
+  PDF Author property. To show it on the document itself, add a line to
+  \cmd{extrametadata}.
+\item[\textbackslash docid\{Dnro 123/2024\}] The document identifier
+  (asiakirjan yksilöivä tunnus). Optional.
+\item[\textbackslash confidentiality\{Luottamuksellinen\}] The
+  confidentiality marking (luottamuksellisuus). Optional.
+\item[\textbackslash extrametadata\{Hankenumero 123456\textbackslash\textbackslash{}Asiakasnumero 987654\}]
+  Extra metadata lines (lisämetatiedot), separated by \verb|\\|, placed
+  below the basic metadata. Optional.
+\item[\textbackslash logo\{\ldots\}] The organization logo, as any box:
+  \verb|\includegraphics{...}| or text such as
+  \verb|\textsf{\textbf{Yritys Oy}}|. Placed top-left; the page header
+  grows automatically to fit a tall logo.
+\item[\textbackslash recipient\{Oy Yritys Ab\textbackslash\textbackslash{}\ldots\}]
+  The recipient information area (vastaanottajan tietoalue), lines
+  separated by \verb|\\|, placed at the left margin below the metadata.
+  Optional.
+\item[\textbackslash subject\{Digiprojekti\}] The subject (aihe), a bold
+  line directly above the main title. Optional.
+\item[\textbackslash title\{Verkkosivujen uudistaminen\}] The main title
+  (pääotsikko), bold and 3\,pt larger than the body text.
+\item[\textbackslash contactinfo\{Organisaatio Oy\}\{Katuosoite\textbackslash\textbackslash{}\ldots\}]
+  Organization contact details for \cmd{makecontactinfo}; the first
+  argument is the bolded organization name, the second the remaining
+  lines separated by \verb|\\|.
+\end{description}
+
+The metadata is also written into the PDF document properties --- title,
+subject, author and document language \texttt{fi} --- for accessibility
+and document management.
+
+\section{Body commands}
+
+\subsection{\textbackslash maketitle}
+
+Renders the standard's information areas 1--5 on the first page: logo,
+basic metadata (document type, date, identifier, confidentiality, page
+number), extra metadata, recipient, and subject + main title. The same
+metadata block repeats automatically as a header on every following
+page.
+
+\subsection{Headings}
+
+\begin{verbatim}
+\section{Kokouksen avaus}      % 1 Kokouksen avaus
+\subsection{Tarkennus}         % 1.1 Tarkennus
+\subsubsection{Yksityiskohta}  % 1.1.1 Yksityiskohta
+\section*{Esityslista}         % unnumbered, still bold
+\end{verbatim}
+
+Headings hang at the left margin; body text after them returns to the
+2,3\,cm indent. Up to three numbered levels are available, as the
+standard recommends; with the \opt{agenda} class option the numbers get
+a trailing period (\mbox{``1. Otsikko''}).
+
+\subsection{\textbackslash marginlabel}
+
+An unnumbered, regular-weight label at the left margin with the
+following content at the body indent --- for rows like \emph{Aika ja
+paikka} or \emph{Osallistujat}:
+
+\begin{verbatim}
+\marginlabel{Osallistujat}
+
+Marja Mäkinen, puheenjohtaja\\
+Virve Virtanen, sihteeri
+\end{verbatim}
+
+\subsection{Signatures}
+
+An electronic signature block (sähköinen allekirjoitus) produces the
+standard's lead-in sentence ``Tämä asiakirja on sähköisesti
+allekirjoitettu.''\ followed by name/email pairs:
+
+\begin{verbatim}
+\begin{esignatures}
+  \esignee{Marja Mäkinen, puheenjohtaja}{marja.makinen@yritys.fi}
+  \esignee{Virve Virtanen, sihteeri}{virve.virtanen@yritys.fi}
+\end{esignatures}
+\end{verbatim}
+
+A handwritten signature (omakätinen allekirjoitus) reserves empty space
+for signing above the printed ``Name, role'' line, stackable for several
+signers:
+
+\begin{verbatim}
+\handsignature{Marja Mäkinen, puheenjohtaja}
+\handsignature{Virve Virtanen, sihteeri}
+\end{verbatim}
+
+\subsection{Attachments, distribution, for information}
+
+\begin{verbatim}
+\attachments{Yhteenveto palautteesta\\Ehdotus muutoksista}
+\distribution{Digiprojektin ohjausryhmä}
+\forinformation{Johtoryhmä}
+\end{verbatim}
+
+Each renders its label (\emph{Liitteet}, \emph{Jakelu}, \emph{Tiedoksi})
+at the left margin with the items, one per line, at the body indent. Use
+them in this order after the signatures, per the standard.
+
+The class's fixed strings are renewable per the usual
+\cmd{refname}/\cmd{contentsname} convention, so a document in another
+language keeps the SFS 2487 layout: \cmd{attachmentsname},
+\cmd{distributionname}, \cmd{forinformationname} for the labels above,
+and \cmd{esignaturestext} for the electronic-signature lead-in
+sentence, e.g.\ \verb|\renewcommand{\attachmentsname}{Bilagor}|.
+
+\subsection{\textbackslash makecontactinfo}
+
+Prints the organization contact block set with \cmd{contactinfo} at the
+left margin --- place it at the end of the document. The standard
+requires contact details in the body area, not only in a footer.
+
+\subsection{Tables and figures}
+
+Captions are styled by the class per clauses 6.5.1--6.5.2: left-aligned
+at the text indent, never centered, with the label (\emph{Taulukko~1},
+\emph{Kuva~1}) separated by a quad. The standard prefers material placed
+in the text flow --- use \cmd{captionof} instead of floating
+environments, with the table caption \emph{above} the table and the
+figure caption next to the figure:
+
+\begin{verbatim}
+\captionof{table}{Vastaukset palautekanavittain}
+\begin{tabular}{@{}lrr@{}}
+  \textbf{Kanava} & \textbf{Vastauksia} & \textbf{Osuus} \\
+  ...
+\end{tabular}
+
+\includegraphics{kuva}
+\captionof{figure}{Logon perusversio}
+\end{verbatim}
+
+The floating \texttt{table}/\texttt{figure} environments work too and
+get the same caption styling. Mark the table's top row as a header row
+with bold text (clause 6.5.1), and remember an alternative text or a
+body-text description for images (clause 6.5.2).
+
+\subsection{Lists and page breaks}
+
+Bullet lists are preconfigured (bullet markers, tight item spacing, one
+paragraph gap around the list). For looser spacing pass
+\textsf{enumitem} options:
+
+\begin{verbatim}
+\begin{itemize}[itemsep=\parskip]
+  \item 20.5.2024 toimituksen kokoustilassa
+  \item 27.5.2024 verkossa
+\end{itemize}
+\end{verbatim}
+
+Use \cmd{clearpage} to force a page break, e.g.\ before the attachments
+area.
+
+\section{Accessibility: tagged PDF}
+
+Documents can opt in to tagged PDF --- the structure tree that the
+standard's accessibility appendix (liite~D) builds on --- by adding one
+line \emph{before} \cmd{documentclass}:
+
+\begin{verbatim}
+\DocumentMetadata{lang=fi-FI, pdfversion=2.0, tagging=on}
+\documentclass{sfs-2487-2024}
+\end{verbatim}
+
+With tagging on, the output gets a full structure tree: the main title
+as a \texttt{Title} element, sections as \texttt{H1}--\texttt{H3},
+paragraphs, lists, tables, footnotes, the table of contents, link
+annotations, and the logo as a \texttt{Figure}. The repeated page-2+
+header is marked as an artifact so assistive technology reads the
+metadata once. Give the logo an alternative text:
+
+\begin{verbatim}
+\logo{\includegraphics[alt={Organisaatio Oy:n logo}]%
+  {logo-organisaatio}}
+\end{verbatim}
+
+Untagged builds are byte-for-byte unaffected.
+
+\section{Demo files}
+
+The package ships example documents exercising the class API:
+
+\begin{description}
+\item[esimerkki-kokouskutsu.tex] A meeting invitation with an agenda,
+  using the \opt{agenda} class option.
+\item[esimerkki-raportti.tex] A multi-page report with a table of
+  contents, a table and a footnote.
+\item[esimerkki-kayttoohje.tex] A manual with captioned figures, using
+  the \opt{sansserif} class option.
+\item[logo-*.tex] Invented TikZ logos used by the examples.
+\end{description}
+
+The project repository additionally provides a Markdown front end (a
+pandoc template and Lua filter), Markdown twins of all examples, and the
+full user documentation as a website.
+
+\section{License}
+
+Copyright \textcopyright{} 2026 Asko Soukka. The class and its
+documentation are distributed under the MIT License; see the LICENSE
+file included in the package.
+
+\end{document}
