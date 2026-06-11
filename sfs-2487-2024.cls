@@ -236,9 +236,13 @@
   % The main title is the document's level-1 heading (5.2, Taulukko 2);
   % in tagged documents the title parbox becomes a Title structure element.
   \noindent\hspace*{-\sfs@column}%
+  % \sfs@titlefont is deliberately not grouped: its \baselineskip must be
+  % in effect at the parbox's closing \par so that the gap between the
+  % subject and title baselines is the title leading, as in the standard's
+  % model documents (Liite A and B), not the smaller body leading.
   \sfs@struct{Title}{\parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
-    {\sfs@titlefont\@title}}}\par
+    \sfs@titlefont\@title}}\par
   \sfs@tagon
 }
 
@@ -246,7 +250,10 @@
 % 2-4pt band that 5.2.1 recommends at any base font size; the heading
 % rules of 6.4 (no justification, no hyphenation) apply to it as well.
 \newcommand{\sfs@titlefont}{%
-  \fontsize{\dimexpr\f@size pt+3pt}{\dimexpr(\f@size pt+3pt)*12/10}%
+  % \f@size must be evaluated before \fontsize runs, or the second argument
+  % would see the already-enlarged size and inflate the title leading.
+  \@tempdima=\dimexpr\f@size pt+3pt\relax
+  \fontsize{\@tempdima}{1.2\@tempdima}%
   \selectfont\bfseries\sfs@nohyphens}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

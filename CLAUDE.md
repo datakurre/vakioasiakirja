@@ -19,7 +19,6 @@ This document provides Claude Code-specific guidance for working on this project
 ## Available Skills
 
 - **`/nix-tools`** — How to get any tool with nix ad-hoc or permanently. Invoke when you need a language, library, or utility not in devenv.
-- **`/latex-packaging`** — How to package the class for distribution: CTAN layout, l3build, TDS zips, release workflow. Invoke for "release", "publish", "CTAN", or "package this" tasks.
 
 ## Common Tasks
 
