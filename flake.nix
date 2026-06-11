@@ -21,6 +21,13 @@
             booktabs soul upquote fancyvrb framed;
         };
 
+        # Documentation site tooling: mkdocs with the material theme, used
+        # by `make docs` and the GitHub Pages workflow.
+        docsEnv = pkgs.python3.withPackages (ps: [
+          ps.mkdocs
+          ps.mkdocs-material
+        ]);
+
         # Only the class, template and filter end up in the runtime closure,
         # not the whole repository.
         support = pkgs.runCommandLocal "sfs-2487-2024-support" { } ''

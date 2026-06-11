@@ -10,7 +10,7 @@ This document provides Claude Code-specific guidance for working on this project
 
 2. **Edit the class file**: `sfs-2487-2024.cls`
 
-3. **Build and test**: `make examples` builds every `esimerkki-*.tex` (or `make TEXFILE=esimerkki-poytakirja build` for one)
+3. **Build and test**: `make examples` builds every `examples/latex/esimerkki-*.tex` (or `make TEXFILE=esimerkki-poytakirja build` for one); `make markdown` builds the `examples/markdown/esimerkki-*.md` twins via the nix flake
 
 4. **Inspect**: Open the generated PDF in the IDE or a viewer to verify output matches the standard
 
@@ -19,6 +19,7 @@ This document provides Claude Code-specific guidance for working on this project
 ## Available Skills
 
 - **`/nix-tools`** — How to get any tool with nix ad-hoc or permanently. Invoke when you need a language, library, or utility not in devenv.
+- **`/latex-packaging`** — How to package the class for distribution: CTAN layout, l3build, TDS zips, release workflow. Invoke for "release", "publish", "CTAN", or "package this" tasks.
 
 ## Common Tasks
 
@@ -43,7 +44,8 @@ Or add to `devenv.nix` if you'll use it repeatedly, then `devenv shell --no-eval
 
 ### I need to verify output against the spec
 
-`esimerkki-poytakirja.tex` and `esimerkki-tarjous.tex` replicate the
+`examples/latex/esimerkki-poytakirja.tex` and
+`examples/latex/esimerkki-tarjous.tex` replicate the
 standard's own model documents (Liite A and B in `SFS-2487-2024.pdf`),
 so build them and compare against the spec figures. For exact
 measurements use `pdftotext -bbox`: left margin elements at 56.69 pt
@@ -82,9 +84,10 @@ devenv shell --no-eval-cache -- latexmk -pdf myfile.tex
 
 Before completing a task:
 
-1. Confirm every example builds without errors: `make examples`
-2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf` (Liite A ↔ `esimerkki-poytakirja.pdf`, Liite B ↔ `esimerkki-tarjous.pdf`)
-3. Clean up artifacts: `make clean`
+1. Confirm every example builds without errors: `make examples` and `make markdown`
+2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf` (Liite A ↔ `examples/latex/esimerkki-poytakirja.pdf`, Liite B ↔ `examples/latex/esimerkki-tarjous.pdf`)
+3. Check Markdown/LaTeX parity: `diff` the `pdftotext -layout` text of each `examples/markdown/esimerkki-*.pdf` against its LaTeX twin
+4. Clean up artifacts: `make clean`
 
 ## Troubleshooting
 

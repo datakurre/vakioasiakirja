@@ -4,7 +4,7 @@
 
 **Pöytäkirjat** implements and maintains `sfs-2487-2024.cls`, a LaTeX document class for Finnish office documents (kirjeet, muistiot, pöytäkirjat, tarjoukset, …) following the **SFS 2487:2024** standard *Asiakirjan asettelu ja metatiedot*.
 
-SFS 2487 is a Finnish standard specifying the layout, information areas and metadata of formal office documents. The class enforces the standard's formatting rules automatically; see `README.md` for the full user documentation, including a clause-by-clause mapping of the standard to class features.
+SFS 2487 is a Finnish standard specifying the layout, information areas and metadata of formal office documents. The class enforces the standard's formatting rules automatically. Documents can also be written in Markdown and converted with the bundled nix flake (pandoc template + Lua filter in `pandoc/`). The full user documentation lives in `docs/` (an mkdocs site published to GitHub Pages, including the clause-by-clause mapping of the standard to class features); `README.md` is the short landing page.
 
 ## Current State
 
@@ -21,16 +21,20 @@ SFS 2487 is a Finnish standard specifying the layout, information areas and meta
 
 ## Examples
 
-Five committed `esimerkki-*.tex` documents exercise the whole class API; `esimerkki-poytakirja.tex` and `esimerkki-tarjous.tex` replicate the standard's own model documents (Liite A and B), so their output can be compared against the spec PDF directly. See the examples table in `README.md`.
+Five committed example documents exercise the whole class API, each in two source formats: a LaTeX original in `examples/latex/esimerkki-*.tex` and a Markdown twin in `examples/markdown/esimerkki-*.md` that must produce the same layout via the pandoc front end. `esimerkki-poytakirja` and `esimerkki-tarjous` replicate the standard's own model documents (Liite A and B), so their output can be compared against the spec PDF directly. See `docs/examples.md`.
+
+**Parity rule:** when adding a class feature, support it in both formats — add the LaTeX command to `sfs-2487-2024.cls` and its Markdown mapping to `pandoc/sfs-2487-2024.latex` (frontmatter) or `pandoc/sfs-2487-2024.lua` (body), and exercise it in both example variants.
 
 ## Build & Development
 
 ### Build LaTeX Documents
 
 ```bash
-make build                              # Build esimerkki-poytakirja.tex (default)
+make build                              # Build examples/latex/esimerkki-poytakirja.tex (default)
 make TEXFILE=esimerkki-raportti build   # Build a specific document
-make examples                           # Build every esimerkki-*.tex
+make examples                           # Build every examples/latex/esimerkki-*.tex
+make markdown                           # Build every examples/markdown/esimerkki-*.md via the flake
+make docs                               # Build the mkdocs documentation site into site/
 make clean                              # Remove build artifacts
 make watch                              # Watch mode: rebuild on changes
 make help                               # Show all targets
@@ -77,38 +81,54 @@ See `.claude/skills/nix-tools.md` for detailed examples and patterns.
 Pöytäkirjat/
 ├── AGENTS.md                   # This file: AI agent orientation
 ├── CLAUDE.md                   # Claude Code-specific guidance
-├── README.md                   # User documentation for the class
+├── README.md                   # Short landing page (full docs in docs/)
 ├── Makefile                    # Build targets
+├── flake.nix                   # Markdown-to-PDF converter + docsEnv (mkdocs)
 ├── devenv.nix                  # Nix development environment config
 ├── devenv.local.nix            # Local overrides (not committed)
+├── mkdocs.yml                  # Documentation site configuration
+├── .github/
+│   └── workflows/
+│       └── docs.yml            # CI: build examples + docs, deploy to GitHub Pages
 ├── .claude/
 │   └── skills/
 │       └── nix-tools.md        # Skill: acquiring tools with nix
 ├── sfs-2487-2024.cls           # The LaTeX document class
-├── esimerkki-poytakirja.tex    # Example: minutes (spec Liite A)
-├── esimerkki-tarjous.tex       # Example: quotation (spec Liite B)
-├── esimerkki-kokouskutsu.tex   # Example: meeting invitation ([agenda])
-├── esimerkki-raportti.tex      # Example: multi-page report (TOC, table, footnote)
-├── esimerkki-kayttoohje.tex    # Example: manual with captioned figures ([sansserif])
-├── logo-organisaatio.tex       # Invented TikZ logo: Organisaatio Oy
-├── logo-firma.tex              # Invented TikZ logo: Oy Firma Ab
-├── logo-suoja-alue.tex         # Invented TikZ figure: logo clearance area
+├── pandoc/
+│   ├── sfs-2487-2024.latex     # Pandoc template: frontmatter → class commands
+│   └── sfs-2487-2024.lua       # Pandoc filter: body conventions → class commands
+├── examples/
+│   ├── latex/
+│   │   ├── esimerkki-poytakirja.tex   # Example: minutes (spec Liite A)
+│   │   ├── esimerkki-tarjous.tex      # Example: quotation (spec Liite B)
+│   │   ├── esimerkki-kokouskutsu.tex  # Example: meeting invitation ([agenda])
+│   │   ├── esimerkki-raportti.tex     # Example: multi-page report (TOC, table, footnote)
+│   │   └── esimerkki-kayttoohje.tex   # Example: manual with captioned figures ([sansserif])
+│   ├── markdown/
+│   │   └── esimerkki-*.md      # Markdown twins of the LaTeX examples
+│   ├── logo-organisaatio.tex   # Invented TikZ logo: Organisaatio Oy
+│   ├── logo-firma.tex          # Invented TikZ logo: Oy Firma Ab
+│   └── logo-suoja-alue.tex     # Invented TikZ figure: logo clearance area
+├── docs/                       # User documentation (mkdocs site, published to Pages)
 └── SFS-2487-2024.pdf           # Spec (gitignored, not distributed)
 ```
 
 ## Workflow
 
 1. Read the relevant clause of the spec PDF to understand the requirement
-2. Edit `sfs-2487-2024.cls`
-3. Build the examples: `make examples`
-4. Inspect the output PDFs — compare `esimerkki-poytakirja.pdf` and `esimerkki-tarjous.pdf` against the spec's Liite A/B figures; `pdftotext -bbox` gives exact positions (left margin 56.69 pt = 20 mm, body indent 121.9 pt = 43 mm, metadata 317.5 pt = 112 mm)
-5. Iterate until the output matches the standard
-6. `make clean` before finishing
+2. Edit `sfs-2487-2024.cls` (and the pandoc template/filter for the Markdown mapping)
+3. Build the examples: `make examples` and `make markdown`
+4. Inspect the output PDFs — compare `examples/latex/esimerkki-poytakirja.pdf` and `examples/latex/esimerkki-tarjous.pdf` against the spec's Liite A/B figures; `pdftotext -bbox` gives exact positions (left margin 56.69 pt = 20 mm, body indent 121.9 pt = 43 mm, metadata 317.5 pt = 112 mm)
+5. Check Markdown/LaTeX parity: the text of `examples/markdown/esimerkki-*.pdf` should match its LaTeX twin (`diff` the `pdftotext -layout` outputs)
+6. Iterate until the output matches the standard
+7. `make clean` before finishing
 
 ## Technologies
 
 - **LaTeX** — Document markup and typesetting
+- **pandoc** — Markdown front end (template + Lua filter in `pandoc/`)
 - **Nix** — Functional package manager for reproducible environments
 - **devenv** — Declarative development environments via Nix
 - **latexmk** — Automated LaTeX build tool
+- **mkdocs (material)** — Documentation site, published via GitHub Pages
 - **Makefile** — Build automation

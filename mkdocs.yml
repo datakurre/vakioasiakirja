@@ -1,0 +1,28 @@
+site_name: sfs-2487-2024
+site_description: >-
+  LaTeX document class and Markdown-to-PDF converter for Finnish office
+  documents following SFS 2487:2024
+
+theme:
+  name: material
+  language: en
+  palette:
+    primary: blue grey
+  features:
+    - navigation.footer
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - def_list
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Writing in Markdown: markdown.md
+  - Writing in LaTeX: latex.md
+  - The standard, clause by clause: standard.md
+  - Accessibility: accessibility.md
+  - Examples: examples.md
+  - Development: development.md

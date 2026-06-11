@@ -13,3 +13,5 @@ devenv.local.yaml
 *.pdf
 *.toc
 result
+docs/pdf/
+site/
