@@ -15,7 +15,7 @@ onward.
 ```latex
 \documentclass{sfs-2487-2024}
 
-\logo{\includegraphics{logo-palikkaharrastajat}} % or any text/box
+\logo{\includegraphics{logo-organisaatio}} % or any text/box
 \doctype{Pöytäkirja}
 \date{15.5.2024}
 \author{Virve Virtanen}
@@ -178,7 +178,7 @@ table and the figure caption next to the figure:
   ...
 \end{tabular}
 
-\includegraphics[height=4\baselineskip]{logo-palikkaharrastajat}
+\includegraphics{logo-organisaatio}
 \captionof{figure}{Logon perusversio}
 ```
 
@@ -263,8 +263,10 @@ tagging-capable engine.
 | `esimerkki-raportti.tex` | Multi-page report: table of contents (6.10), table with its caption above (6.5.1), footnote (6.9), three heading levels |
 | `esimerkki-kayttoohje.tex` | `sansserif` manual with captioned figures in the text flow (6.5.2) and numbered step lists |
 
-Build them all with `make examples`. `logo-palikkaharrastajat.pdf` is a
-sample vector logo used by the quick start snippet and the examples.
+Build them all with `make examples`. The invented sample graphics the
+examples use — the *Organisaatio Oy* and *Oy Firma Ab* logos and the
+logo clearance-area figure — are drawn with TikZ in `logo-*.tex` and
+built into `logo-*.pdf` automatically as part of the build.
 
 ## Development
 

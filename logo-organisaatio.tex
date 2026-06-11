@@ -1,0 +1,21 @@
+% Keksitty esimerkkilogo: Organisaatio Oy. Rakennetaan TikZillä ja
+% rajataan preview-paketilla tiukasti sisältöön; logo-organisaatio.pdf
+% on muiden esimerkkien käyttämä vektorilogo.
+\documentclass{article}
+\usepackage[active,tightpage]{preview}
+\usepackage{helvet}
+\usepackage{tikz}
+\setlength{\PreviewBorder}{1pt}
+\PreviewEnvironment{tikzpicture}
+
+\begin{document}
+\begin{tikzpicture}
+  % Merkki: kolme limittäistä ympyrää, "yhteistyö"
+  \fill[cyan!75!blue,opacity=.8]  (0,0)     circle (3.4mm);
+  \fill[blue!65!cyan,opacity=.8]  (3.4mm,0) circle (3.4mm);
+  \fill[blue!55!black,opacity=.8] (6.8mm,0) circle (3.4mm);
+  % Nimilogo
+  \node[anchor=west,text=blue!50!black,
+        font=\sffamily\bfseries\large] at (11.6mm,0) {Organisaatio Oy};
+\end{tikzpicture}
+\end{document}

@@ -90,7 +90,9 @@ Pöytäkirjat/
 ├── esimerkki-kokouskutsu.tex   # Example: meeting invitation ([agenda])
 ├── esimerkki-raportti.tex      # Example: multi-page report (TOC, table, footnote)
 ├── esimerkki-kayttoohje.tex    # Example: manual with captioned figures ([sansserif])
-├── logo-palikkaharrastajat.pdf # Sample vector logo used by the examples
+├── logo-organisaatio.tex       # Invented TikZ logo: Organisaatio Oy
+├── logo-firma.tex              # Invented TikZ logo: Oy Firma Ab
+├── logo-suoja-alue.tex         # Invented TikZ figure: logo clearance area
 └── SFS-2487-2024.pdf           # Spec (gitignored, not distributed)
 ```
 

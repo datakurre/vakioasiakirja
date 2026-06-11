@@ -1,0 +1,22 @@
+% Keksitty esimerkkilogo: Oy Firma Ab. Rakennetaan TikZillä ja rajataan
+% preview-paketilla tiukasti sisältöön; logo-firma.pdf on
+% esimerkki-tarjous.tex-asiakirjan käyttämä vektorilogo.
+\documentclass{article}
+\usepackage[active,tightpage]{preview}
+\usepackage{helvet}
+\usepackage{tikz}
+\setlength{\PreviewBorder}{1pt}
+\PreviewEnvironment{tikzpicture}
+
+\begin{document}
+\begin{tikzpicture}
+  % Merkki: neljä kärjelleen käännettyä neliötä
+  \fill[red!65!black]    (0mm,1.9mm)  -- (1.9mm,3.8mm) -- (3.8mm,1.9mm) -- (1.9mm,0mm)  -- cycle;
+  \fill[red!45!black]    (4.2mm,1.9mm) -- (6.1mm,3.8mm) -- (8mm,1.9mm)   -- (6.1mm,0mm) -- cycle;
+  \fill[orange!75!black] (2.1mm,4mm)  -- (4mm,5.9mm)   -- (5.9mm,4mm)   -- (4mm,2.1mm) -- cycle;
+  \fill[red!75!black]    (2.1mm,-0.2mm) -- (4mm,1.7mm) -- (5.9mm,-0.2mm) -- (4mm,-2.1mm) -- cycle;
+  % Nimilogo
+  \node[anchor=west,text=red!40!black,
+        font=\sffamily\bfseries\large] at (11mm,1.9mm) {Oy Firma Ab};
+\end{tikzpicture}
+\end{document}

@@ -1,5 +1,6 @@
 TEXFILE ?= esimerkki-poytakirja
 EXAMPLES := $(patsubst %.tex,%.pdf,$(wildcard esimerkki-*.tex))
+LOGOS := $(patsubst %.tex,%.pdf,$(wildcard logo-*.tex))
 
 .PHONY: all
 all: build
@@ -14,6 +15,9 @@ help:
 	@latexmk -g -pdf -recorder -interaction=nonstopmode -shell-escape -use-make -quiet $<
 
 build: $(TEXFILE).pdf  ## Build the final PDF
+
+# Example documents include the generated logo graphics
+$(EXAMPLES): $(LOGOS)
 
 .PHONY: examples
 examples: $(EXAMPLES)  ## Build every esimerkki-*.tex document

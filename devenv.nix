@@ -18,8 +18,10 @@
         metafont
         metapost
         microtype
+        pgf
         ragged2e
-        totpages;
+        totpages
+        xcolor;
     })
     pkgs.curl
     pkgs.ghostscript

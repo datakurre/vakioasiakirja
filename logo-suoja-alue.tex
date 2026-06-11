@@ -1,0 +1,36 @@
+% Keksitty graafisen ohjeiston kuva: Organisaatio Oy:n logon suoja-alue.
+% Suoja-alueen leveys x on logon merkkiosan korkeus. Rajataan
+% preview-paketilla; logo-suoja-alue.pdf on esimerkki-kayttoohje.tex-
+% asiakirjan käyttämä kuva.
+\documentclass{article}
+\usepackage[active,tightpage]{preview}
+\usepackage{helvet}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+\setlength{\PreviewBorder}{1pt}
+\PreviewEnvironment{tikzpicture}
+
+\begin{document}
+\begin{tikzpicture}
+  % Logo (sama piirros kuin logo-organisaatio.tex:ssä)
+  \begin{scope}[local bounding box=logo]
+    \fill[cyan!75!blue,opacity=.8]  (0,0)     circle (3.4mm);
+    \fill[blue!65!cyan,opacity=.8]  (3.4mm,0) circle (3.4mm);
+    \fill[blue!55!black,opacity=.8] (6.8mm,0) circle (3.4mm);
+    \node[anchor=west,text=blue!50!black,
+          font=\sffamily\bfseries\large] at (11.6mm,0) {Organisaatio Oy};
+  \end{scope}
+  % Suoja-alueen raja: x = merkin korkeus 6,8 mm joka suuntaan
+  \draw[gray,dashed]
+    ($(logo.south west)+(-6.8mm,-6.8mm)$) rectangle
+    ($(logo.north east)+(6.8mm,6.8mm)$);
+  % Mittanuolet
+  \draw[gray,<->] ($(logo.west)+(-6.8mm,0)$) -- (logo.west)
+    node[midway,above,font=\sffamily\scriptsize,text=gray] {x};
+  \draw[gray,<->] (logo.north) -- ($(logo.north)+(0,6.8mm)$)
+    node[midway,right,font=\sffamily\scriptsize,text=gray] {x};
+  % Mitan määritelmä: x = merkin korkeus
+  \draw[gray,<->] ($(logo.south east)+(2.5mm,0)$) -- ($(logo.north east)+(2.5mm,0)$)
+    node[midway,right,font=\sffamily\scriptsize,text=gray] {x};
+\end{tikzpicture}
+\end{document}
