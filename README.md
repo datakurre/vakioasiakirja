@@ -48,6 +48,107 @@ make TEXFILE=mydocument build
 (or `latexmk -pdf mydocument.tex` inside `devenv shell`; latexmk runs the
 extra pass needed for the total page count automatically).
 
+## Writing in Markdown (pandoc + nix)
+
+No LaTeX needed: write the document as Markdown with YAML frontmatter and
+build it with the bundled nix flake — pandoc, TeX Live and the class are
+all provided, the only requirement is [nix](https://nixos.org) with
+flakes enabled:
+
+```bash
+nix run . -- oma-poytakirja.md     # writes oma-poytakirja.pdf next to it
+```
+
+(note the `--` separating the file from nix's own options; outside this
+repository use `nix run <flake-url> -- …`).
+
+### Frontmatter
+
+The YAML frontmatter carries the metadata; `doctype` and `title` are
+required, everything else is optional. Multi-line fields are YAML lists,
+one line per item.
+
+```yaml
+---
+doctype: Pöytäkirja                  # \doctype — required
+title: Asiakaspalautteet             # \title — required
+date: 15.5.2024                      # \date, as d.m.yyyy
+author: Virve Virtanen               # \author (laatija)
+subject: Digiprojekti                # \subject
+docid: Dnro 123/2024                 # \docid
+confidentiality: Luottamuksellinen   # \confidentiality
+logo: logo-organisaatio.pdf          # image path, or text such as "**Yritys Oy**"
+recipient: [Oy Yritys Ab, Esimerkkitie 1, 12345 Esimerkkipaikkakunta]
+extrametadata: [Hankenumero 123456, Asiakasnumero 987654]
+contact:                             # \contactinfo + \makecontactinfo at the end
+  name: Organisaatio Oy
+  lines: [Katuosoite, 12345 Postitoimipaikka, www-osoite]
+attachments: [Yhteenveto asiakaspalautteesta]   # Liitteet
+distribution: [Digiprojektin ohjausryhmä]       # Jakelu
+forinformation: [Johtoryhmä]                    # Tiedoksi
+agenda: true                         # class options …
+sansserif: true
+fontsize: 12pt
+toc: true                            # \tableofcontents after the title
+---
+```
+
+The attachment, distribution and for-information lists and the contact
+block are placed after the body in the standard's order. They start on a
+fresh page whenever any of the three lists is present (like the
+standard's pöytäkirja example); set `endmatter-newpage: false`/`true` to
+override.
+
+### Body conventions
+
+Standard Markdown works as expected: `#`–`###` headings (at most three
+levels, as the standard recommends — deeper headings are an error),
+paragraphs, bullet and numbered lists, footnotes, pipe tables (caption
+above via `: Caption text`), images with captions placed in the text
+flow, and `"quotes"` rendered as Finnish `”quotes”`. Raw LaTeX passes
+through for anything exotic.
+
+Margin labels (*Aika ja paikka*, *Osallistujat*, …) are definition
+lists:
+
+```markdown
+Aika ja paikka
+:   13.5.2024 klo 12.30--13.45\
+    Verkkokokous
+```
+
+(the trailing backslash forces a line break). When the label's content is
+something a definition list cannot hold, such as a nested list, use a
+fenced div instead:
+
+```markdown
+::: {.marginlabel label="Huomiot"}
+- ensimmäinen huomio
+:::
+```
+
+Electronic signatures are a fenced div with one signee per list item,
+email as an autolink:
+
+```markdown
+::: esignatures
+- Marja Mäkinen, puheenjohtaja <marja.makinen@yritys.fi>
+- Virve Virtanen, sihteeri <virve.virtanen@yritys.fi>
+:::
+```
+
+A handwritten signature reserves the signing space above the printed
+`Name, role` lines:
+
+```markdown
+::: handsignature
+Matti Meikäläinen, titteli
+:::
+```
+
+See `esimerkki-markdown.md` for a complete document — the markdown
+rendition of `esimerkki-poytakirja.tex`, producing the same layout.
+
 ## Class options
 
 | Option | Effect |
@@ -288,6 +389,7 @@ of this.
 | `esimerkki-kokouskutsu.tex` | Meeting invitation with an agenda, using the `agenda` option's `1.` numbering |
 | `esimerkki-raportti.tex` | Multi-page report: table of contents (6.10), table with its caption above (6.5.1), footnote (6.9), three heading levels |
 | `esimerkki-kayttoohje.tex` | `sansserif` manual with captioned figures in the text flow (6.5.2) and numbered step lists |
+| `esimerkki-markdown.md` | The Liite A minutes written in Markdown instead of LaTeX; built with `nix run . -- esimerkki-markdown.md` (or `make markdown`) |
 
 Build them all with `make examples`. The invented sample graphics the
 examples use — the *Organisaatio Oy* and *Oy Firma Ab* logos and the
@@ -303,6 +405,7 @@ for details.
 make shell                              # enter the devenv shell (TeX Live, latexmk, …)
 make TEXFILE=esimerkki-poytakirja build # build a document (also the default target)
 make examples                           # build every esimerkki-*.tex
+make markdown                           # build esimerkki-markdown.md via the flake
 make watch                              # rebuild on changes
 make clean                              # remove build artifacts
 ```

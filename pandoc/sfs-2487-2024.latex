@@ -1,0 +1,96 @@
+% Pandoc template for sfs-2487-2024.cls — SFS 2487:2024 vakioasiakirja.
+%
+% Maps YAML frontmatter to the class's metadata commands. The class itself
+% provides the typeface, babel, graphicx, caption and hyperref setup, so
+% only support for pandoc-generated body code is added here. Multi-line
+% fields (recipient, extrametadata, contact.lines, attachments, …) are YAML
+% lists joined with line breaks.
+\documentclass[$if(fontsize)$$fontsize$,$endif$$if(agenda)$agenda,$endif$$if(sansserif)$sansserif,$endif$$for(classoption)$$classoption$,$endfor$]{sfs-2487-2024}
+
+% Macros that pandoc-generated body code may reference
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{#1}
+$if(tables)$
+\usepackage{longtable,booktabs,array,calc}
+% Tables start at the body indent like the rest of the content instead of
+% longtable's default centering.
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{\fill}
+% Align longtable captions with the class's caption style (6.5.1); the
+% longtable caption type only exists once caption's ltcaption support has
+% loaded at \begin{document}.
+\AddToHook{begindocument/end}{%
+  \captionsetup[longtable]{
+    justification=RaggedRight,singlelinecheck=false,labelsep=quad}}
+$endif$
+$if(strikeout)$
+\usepackage{soul}
+$endif$
+$if(verbatim-in-note)$
+\usepackage{fancyvrb}
+\VerbatimFootnotes
+$endif$
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\doctype{$doctype$}
+$if(date)$
+\date{$date$}
+$endif$
+$if(author)$
+\author{$author$}
+$endif$
+\title{$title$}
+$if(subject)$
+\subject{$subject$}
+$endif$
+$if(docid)$
+\docid{$docid$}
+$endif$
+$if(confidentiality)$
+\confidentiality{$confidentiality$}
+$endif$
+$if(logo)$
+\logo{$logo$}
+$endif$
+$if(recipient)$
+\recipient{$for(recipient)$$recipient$$sep$\\$endfor$}
+$endif$
+$if(extrametadata)$
+\extrametadata{$for(extrametadata)$$extrametadata$$sep$\\$endfor$}
+$endif$
+$if(contact)$
+\contactinfo{$contact.name$}{$for(contact.lines)$$contact.lines$$sep$\\$endfor$}
+$endif$
+
+\begin{document}
+
+\maketitle
+
+$if(toc)$
+\tableofcontents
+$endif$
+$body$
+$if(endmatter-newpage)$
+\clearpage
+$endif$
+$if(attachments)$
+\attachments{$for(attachments)$$attachments$$sep$\\$endfor$}
+$endif$
+$if(distribution)$
+\distribution{$for(distribution)$$distribution$$sep$\\$endfor$}
+$endif$
+$if(forinformation)$
+\forinformation{$for(forinformation)$$forinformation$$sep$\\$endfor$}
+$endif$
+$if(contact)$
+\vspace{\parskip}
+
+\makecontactinfo
+$endif$
+
+\end{document}

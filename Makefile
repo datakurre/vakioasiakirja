@@ -22,6 +22,10 @@ $(EXAMPLES): $(LOGOS)
 .PHONY: examples
 examples: $(EXAMPLES)  ## Build every esimerkki-*.tex document
 
+.PHONY: markdown
+markdown: $(LOGOS)  ## Build the markdown example with the nix flake
+	nix run . -- esimerkki-markdown.md
+
 .PHONY: watch
 watch:  ## Develop PDF and watch for changes
 	@latexmk -pvc -pdf -recorder -interaction=nonstopmode -shell-escape -use-make $(TEXFILE)
