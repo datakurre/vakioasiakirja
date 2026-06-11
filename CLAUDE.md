@@ -92,6 +92,8 @@ Before completing a task:
 
 **LaTeX build fails**: Check the log output. Most issues are missing packages (add to `devenv.nix`) or syntax errors in the `.cls` file.
 
+**Build fails with `tikz.sty`/`ragged2e.sty` not found**: You ran `make` outside the devenv shell — the `latexmk` on PATH is a different TeX Live without the class's packages. Run `devenv shell --no-eval-cache -- make examples` instead.
+
 **Can't find a tool**: Use `nix search nixpkgs <query>` to find it, then add or use ad-hoc with `nix shell nixpkgs#<pkg> --command <tool>`.
 
 **After editing `devenv.nix`, changes don't take effect**: Use `devenv shell --no-eval-cache` to force a re-evaluation.
