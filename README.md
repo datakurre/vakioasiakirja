@@ -52,15 +52,37 @@ extra pass needed for the total page count automatically).
 
 No LaTeX needed: write the document as Markdown with YAML frontmatter and
 build it with the bundled nix flake — pandoc, TeX Live and the class are
-all provided, the only requirement is [nix](https://nixos.org) with
-flakes enabled:
+all provided, the only requirement is [nix](https://nixos.org):
 
 ```bash
 nix run . -- oma-poytakirja.md     # writes oma-poytakirja.pdf next to it
 ```
 
-(note the `--` separating the file from nix's own options; outside this
-repository use `nix run <flake-url> -- …`).
+The `--` separates the document from nix's own options. The PDF is
+written next to the markdown file, and relative paths in the document
+(`logo:`, images) resolve against the markdown file's location — the
+command can be run from any directory:
+
+```bash
+nix run /polku/Pöytäkirjat -- ~/asiakirjat/muistio.md   # this checkout
+nix run github:<owner>/<repo> -- muistio.md             # a hosted copy, no clone needed
+```
+
+If `nix run` complains about experimental features, enable flakes for
+the invocation:
+
+```bash
+nix --extra-experimental-features 'nix-command flakes' run . -- oma-poytakirja.md
+```
+
+For frequent use, install the converter as a regular command:
+
+```bash
+nix profile install .              # then: vakioasiakirja oma-poytakirja.md
+```
+
+The first run downloads and builds the TeX Live closure; later runs
+start instantly from the nix store.
 
 ### Frontmatter
 
