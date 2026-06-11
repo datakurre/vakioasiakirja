@@ -10,49 +10,36 @@ page number, body text on the 2,3 cm column grid, headings hanging at the
 left margin, and the metadata block repeated as a page header from page 2
 onward.
 
-## Quick start
+The recommended way to use it is to **write the document in Markdown**
+and let the bundled nix flake render the PDF — no LaTeX knowledge or TeX
+installation needed. The class can of course also be used directly from
+LaTeX; see [Writing in LaTeX](#writing-in-latex).
 
-```latex
-\documentclass{sfs-2487-2024}
+## Quick start: Markdown
 
-\logo{\includegraphics{logo-organisaatio}} % or any text/box
-\doctype{Pöytäkirja}
-\date{15.5.2024}
-\author{Virve Virtanen}
-\confidentiality{Luottamuksellinen}
+Write the document as Markdown with YAML frontmatter:
 
-\subject{Digiprojekti}
-\title{Asiakaspalautteet ja etusivun uudistaminen}
+```markdown
+---
+doctype: Pöytäkirja
+title: Asiakaspalautteet ja etusivun uudistaminen
+subject: Digiprojekti
+date: 15.5.2024
+author: Virve Virtanen
+confidentiality: Luottamuksellinen
+---
 
-\begin{document}
-\maketitle
+Aika ja paikka
+:   13.5.2024 klo 12.30--13.45\
+    Verkkokokous
 
-\marginlabel{Aika ja paikka}
-
-13.5.2024 klo 12.30--13.45\\
-Verkkokokous
-
-\section{Kokouksen avaus}
+# Kokouksen avaus
 
 Puheenjohtaja avasi kokouksen ja toivotti kaikki tervetulleiksi.
-
-\end{document}
 ```
 
-Build with:
-
-```bash
-make TEXFILE=mydocument build
-```
-
-(or `latexmk -pdf mydocument.tex` inside `devenv shell`; latexmk runs the
-extra pass needed for the total page count automatically).
-
-## Writing in Markdown (pandoc + nix)
-
-No LaTeX needed: write the document as Markdown with YAML frontmatter and
-build it with the bundled nix flake — pandoc, TeX Live and the class are
-all provided, the only requirement is [nix](https://nixos.org):
+and build it with the flake — pandoc, TeX Live and the class are all
+provided, the only requirement is [nix](https://nixos.org):
 
 ```bash
 nix run . -- oma-poytakirja.md     # writes oma-poytakirja.pdf next to it
@@ -78,11 +65,12 @@ nix --extra-experimental-features 'nix-command flakes' run . -- oma-poytakirja.m
 For frequent use, install the converter as a regular command:
 
 ```bash
-nix profile install .              # then: vakioasiakirja oma-poytakirja.md
+nix profile add .                  # then: vakioasiakirja oma-poytakirja.md
 ```
 
-The first run downloads and builds the TeX Live closure; later runs
-start instantly from the nix store.
+(on older nix releases the subcommand is `nix profile install`). The
+first run downloads and builds the TeX Live closure; later runs start
+instantly from the nix store.
 
 ### Frontmatter
 
@@ -170,6 +158,49 @@ Matti Meikäläinen, titteli
 
 See `esimerkki-markdown.md` for a complete document — the markdown
 rendition of `esimerkki-poytakirja.tex`, producing the same layout.
+
+## Writing in LaTeX
+
+The class can also be used directly, with the full power of LaTeX:
+
+```latex
+\documentclass{sfs-2487-2024}
+
+\logo{\includegraphics{logo-organisaatio}} % or any text/box
+\doctype{Pöytäkirja}
+\date{15.5.2024}
+\author{Virve Virtanen}
+\confidentiality{Luottamuksellinen}
+
+\subject{Digiprojekti}
+\title{Asiakaspalautteet ja etusivun uudistaminen}
+
+\begin{document}
+\maketitle
+
+\marginlabel{Aika ja paikka}
+
+13.5.2024 klo 12.30--13.45\\
+Verkkokokous
+
+\section{Kokouksen avaus}
+
+Puheenjohtaja avasi kokouksen ja toivotti kaikki tervetulleiksi.
+
+\end{document}
+```
+
+Build with:
+
+```bash
+make TEXFILE=mydocument build
+```
+
+(or `latexmk -pdf mydocument.tex` inside `devenv shell`; latexmk runs the
+extra pass needed for the total page count automatically).
+
+The sections below are the LaTeX reference; the Markdown frontmatter
+keys and body constructs above map onto these same commands.
 
 ## Class options
 
@@ -375,8 +406,9 @@ accessibility requirements of liite D, see below.
 
 ## Accessibility (liite D): tagged PDF
 
-Documents can opt in to tagged PDF — the structure tree that liite D's
-WCAG criteria build on — by adding one line *before* `\documentclass`:
+LaTeX documents can opt in to tagged PDF — the structure tree that
+liite D's WCAG criteria build on — by adding one line *before*
+`\documentclass`:
 
 ```latex
 \DocumentMetadata{lang=fi-FI, pdfversion=2.0, tagging=on}
@@ -406,12 +438,12 @@ of this.
 
 | File | Demonstrates |
 |---|---|
+| `esimerkki-markdown.md` | The Liite A minutes written in Markdown; built with `nix run . -- esimerkki-markdown.md` (or `make markdown`) |
 | `esimerkki-poytakirja.tex` | The standard's own Liite A example: two-page minutes with electronic signatures, attachment lists, distribution and contact info |
 | `esimerkki-tarjous.tex` | The standard's own Liite B example: quotation with document id, extra metadata, recipient area, closing greeting (6.5.4) and handwritten signature (6.6.1) |
 | `esimerkki-kokouskutsu.tex` | Meeting invitation with an agenda, using the `agenda` option's `1.` numbering |
 | `esimerkki-raportti.tex` | Multi-page report: table of contents (6.10), table with its caption above (6.5.1), footnote (6.9), three heading levels |
 | `esimerkki-kayttoohje.tex` | `sansserif` manual with captioned figures in the text flow (6.5.2) and numbered step lists |
-| `esimerkki-markdown.md` | The Liite A minutes written in Markdown instead of LaTeX; built with `nix run . -- esimerkki-markdown.md` (or `make markdown`) |
 
 Build them all with `make examples`. The invented sample graphics the
 examples use — the *Organisaatio Oy* and *Oy Firma Ab* logos and the
