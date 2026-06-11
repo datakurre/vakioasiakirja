@@ -5,7 +5,7 @@
 --   ::: {.marginlabel label=""} -> \marginlabel for content a definition
 --                                  list cannot hold (e.g. nested lists)
 --   ::: esignatures             -> esignatures environment + \esignee
---   ::: handsignature           -> \handsignature{name}{role}
+--   ::: handsignature           -> \handsignature{line} per line
 -- and validates frontmatter (doctype/title required, logo image paths
 -- wrapped in \includegraphics, at most three heading levels).
 
@@ -59,14 +59,13 @@ function Meta(meta)
   end
   -- The pöytäkirja model document starts its end matter on a fresh page;
   -- contact info alone stays inline (tarjous model document). Frontmatter
-  -- endmatter-newpage overrides either way; the endmatter flag lets the
-  -- template add the inline paragraph gap instead of the page break.
-  local has_endmatter = meta.attachments ~= nil or meta.distribution ~= nil
-    or meta.forinformation ~= nil
+  -- endmatter-newpage overrides either way; the class itself separates the
+  -- inline end matter from the body by a paragraph gap.
   if meta['endmatter-newpage'] == nil then
-    meta['endmatter-newpage'] = pandoc.MetaBool(has_endmatter)
+    meta['endmatter-newpage'] = pandoc.MetaBool(
+      meta.attachments ~= nil or meta.distribution ~= nil
+      or meta.forinformation ~= nil)
   end
-  meta.endmatter = pandoc.MetaBool(has_endmatter)
   return meta
 end
 
@@ -128,13 +127,7 @@ local function handsignature(div)
   for _, block in ipairs(div.content) do
     if block.t == 'Para' or block.t == 'Plain' then
       for _, line in ipairs(lines_of(block.content)) do
-        local signee = tex(line)
-        local name, role = signee:match('^(.+),%s*(.+)$')
-        if not name then
-          error('sfs-2487-2024: handsignature-rivin pitää olla muotoa ' ..
-                "'Nimi, rooli' (expected 'Name, role'): '" .. signee .. "'\n")
-        end
-        blocks:insert(rawblock('\\handsignature{%s}{%s}', name, role))
+        blocks:insert(rawblock('\\handsignature{%s}', tex(line)))
       end
     end
   end

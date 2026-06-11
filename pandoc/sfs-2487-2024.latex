@@ -77,9 +77,6 @@ $endif$
 $body$
 $if(endmatter-newpage)$
 \clearpage
-$elseif(endmatter)$
-\vspace{\parskip}
-
 $endif$
 $if(attachments)$
 \attachments{$for(attachments)$$attachments$$sep$\\$endfor$}
@@ -91,8 +88,6 @@ $if(forinformation)$
 \forinformation{$for(forinformation)$$forinformation$$sep$\\$endfor$}
 $endif$
 $if(contact)$
-\vspace{\parskip}
-
 \makecontactinfo
 $endif$
 

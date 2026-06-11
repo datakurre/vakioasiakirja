@@ -1,16 +1,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% SFS 2487:2024 vakioasiakirja.cls by Asko Soukka <asko.soukka@iki.fi>.
+% sfs-2487-2024.cls by Asko Soukka <asko.soukka@iki.fi>.
 %
 % Implements the SFS 2487:2024 standard "Asiakirjan asettelu ja metatiedot":
 % information areas (tietoalueet) on a 2,3 cm column grid, basic metadata
 % area 9,2 cm from the left margin, body text 2,3 cm from the left margin.
 
-\def\filedate{2026/06/11}
-\def\fileversion{1.3}
-\def\fileinfo{Vakioasiakirja SFS 2487:2024}
+\def\sfs@filedate{2026/06/11}
+\def\sfs@fileversion{2.0}
+\def\sfs@fileinfo{Vakioasiakirja SFS 2487:2024}
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesClass{sfs-2487-2024}[\filedate\space\fileversion\space\fileinfo]
-\typeout{sfs-2487-2024 <\filedate:\fileversion> - SFS 2487:2024}
+\ProvidesClass{sfs-2487-2024}[\sfs@filedate\space\sfs@fileversion\space\sfs@fileinfo]
+\typeout{sfs-2487-2024 <\sfs@filedate:\sfs@fileversion> - SFS 2487:2024}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Options
@@ -106,9 +106,15 @@
 %
 
 \RequirePackage[T1]{fontenc}
-\RequirePackage{textcomp}
-\RequirePackage[utf8]{inputenc}
 \RequirePackage[english,finnish]{babel}
+
+% The class's fixed strings, renewable per the \refname/\contentsname
+% convention — a document in another language keeps the SFS 2487 layout
+% with e.g. \renewcommand{\attachmentsname}{Bilagor} in its preamble.
+\newcommand{\attachmentsname}{Liitteet}
+\newcommand{\distributionname}{Jakelu}
+\newcommand{\forinformationname}{Tiedoksi}
+\newcommand{\esignaturestext}{Tämä asiakirja on sähköisesti allekirjoitettu.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Metadata commands (asiakirjan metatiedot)
@@ -148,7 +154,9 @@
 \RequirePackage{fancyhdr}
 \RequirePackage{totpages}
 
-\newcommand{\sfs@pagenum}{\thepage\ (\ref{TotPages})}
+% \ref* (hyperref) keeps the total-page reference from becoming a link
+% annotation in every page header.
+\newcommand{\sfs@pagenum}{\thepage\ (\ref*{TotPages})}
 
 \newcommand{\sfs@metadatablock}{%
   \ifx\sfs@logo\@empty\else
@@ -244,6 +252,9 @@
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
     \sfs@titlefont\@title}}\par
   \sfs@tagon
+  % One-shot, like article's \maketitle: a second call is a no-op instead
+  % of rendering the information areas again.
+  \global\let\maketitle\relax
 }
 
 % The main title is bold and 3pt larger than the body text, inside the
@@ -300,34 +311,42 @@
 % Signatures (allekirjoituksen tietoalue)
 %
 
-% Electronic signature: fixed lead-in sentence, then one \esignee per signer.
+% Electronic signature: the \esignaturestext lead-in sentence, then one
+% \esignee per signer.
 \newenvironment{esignatures}{%
-  \par Tämä asiakirja on sähköisesti allekirjoitettu.%
+  \par\esignaturestext
 }{\par}
 \newcommand{\esignee}[2]{\par #1\\#2}
 
 % Handwritten signature: reserve space (the standard allows 3-5 paragraph
-% gaps) above the printed name and role.
-\newcommand{\handsignature}[2]{\par\vspace{3\parskip}\noindent #1, #2\par}
+% gaps) above the printed "Name, role" line, given verbatim as in \esignee.
+\newcommand{\handsignature}[1]{\par\vspace{3\parskip}\noindent #1\par}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Attachments, distribution and for-information lists
 % (liitteet, jakelu ja tiedoksi -tietoalue)
 %
 
+% The first of these lists is separated from the preceding content by an
+% extra paragraph gap (6.7); the gap glue vanishes when the end matter
+% starts a fresh page after \clearpage, so no special case is needed.
+\newif\ifsfs@endmatter
 \newcommand{\sfs@marginlist}[2]{%
-  \par\noindent\hspace*{-\sfs@column}#1\par\nopagebreak
-  #2\par}
-\newcommand{\attachments}[1]{\sfs@marginlist{Liitteet}{#1}}
-\newcommand{\distribution}[1]{\sfs@marginlist{Jakelu}{#1}}
-\newcommand{\forinformation}[1]{\sfs@marginlist{Tiedoksi}{#1}}
+  \ifsfs@endmatter\else\vspace{\parskip}\global\sfs@endmattertrue\fi
+  \marginlabel{#1}#2\par}
+\newcommand{\attachments}[1]{\sfs@marginlist{\attachmentsname}{#1}}
+\newcommand{\distribution}[1]{\sfs@marginlist{\distributionname}{#1}}
+\newcommand{\forinformation}[1]{\sfs@marginlist{\forinformationname}{#1}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Organization contact information (organisaation yhteystietojen tietoalue)
 %
 
+% Separated from the preceding content by an extra paragraph gap, like the
+% end-matter lists; add \vspace for more, as in the standard's Liite A.
 \newcommand{\makecontactinfo}{%
-  \par\noindent\hspace*{-\sfs@column}%
+  \par\vspace{\parskip}%
+  \noindent\hspace*{-\sfs@column}%
   \parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
     \textbf{\sfs@contactname}%
     \ifx\sfs@contactlines\@empty\else\\\sfs@contactlines\fi}\par}
@@ -336,10 +355,11 @@
 % Hyperlinks and document properties
 %
 
+% Empty properties are skipped rather than set to empty strings. This hook
+% runs before any \AtBeginDocument code from the document preamble, so a
+% document overrides these with \AtBeginDocument{\hypersetup{...}}.
 \RequirePackage[bookmarksopen,bookmarksnumbered,hidelinks]{hyperref}
 \AtBeginDocument{%
-  \hypersetup{
-    pdflang={fi},
-    pdftitle={\@title},
-    pdfsubject={\sfs@subject},
-    pdfauthor={\@author}}}
+  \hypersetup{pdflang={fi},pdftitle={\@title}}%
+  \ifx\sfs@subject\@empty\else\hypersetup{pdfsubject={\sfs@subject}}\fi
+  \ifx\@author\@empty\else\hypersetup{pdfauthor={\@author}}\fi}

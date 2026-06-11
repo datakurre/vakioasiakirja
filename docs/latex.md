@@ -75,7 +75,12 @@ from the output when unset.
 
 The metadata is also written into the PDF document properties — title,
 subject, author (laatija from `\author`) and document language `fi` — for
-accessibility and document management.
+accessibility and document management. To override a property, set it
+inside `\AtBeginDocument` (a plain preamble `\hypersetup` runs too early):
+
+```latex
+\AtBeginDocument{\hypersetup{pdflang={sv}}}
+```
 
 ## Body commands
 
@@ -127,15 +132,16 @@ Electronic signature (sähköinen allekirjoitus):
 ```
 
 produces the standard's lead-in sentence *"Tämä asiakirja on sähköisesti
-allekirjoitettu."* followed by name/email pairs.
+allekirjoitettu."* (renewable as `\esignaturestext`, see
+[Other languages](#other-languages)) followed by name/email pairs.
 
 Handwritten signature (omakätinen allekirjoitus) — reserves empty space
-for signing above the printed name and role, stackable for several
-signers:
+for signing above the printed line, stackable for several signers. The
+argument is printed verbatim, so the role is optional:
 
 ```latex
-\handsignature{Marja Mäkinen}{puheenjohtaja}
-\handsignature{Virve Virtanen}{sihteeri}
+\handsignature{Marja Mäkinen, puheenjohtaja}
+\handsignature{Virve Virtanen, sihteeri}
 ```
 
 ### Attachments, distribution, for information
@@ -146,15 +152,21 @@ signers:
 \forinformation{Johtoryhmä}
 ```
 
-Each renders its label (*Liitteet*, *Jakelu*, *Tiedoksi*) at the left
-margin with the items, one per line, at the body indent. Use them in this
-order after the signatures, per the standard.
+Each renders its label (*Liitteet*, *Jakelu*, *Tiedoksi* — renewable as
+`\attachmentsname`, `\distributionname`, `\forinformationname`) at the
+left margin with the items, one per line, at the body indent. Use them in
+this order after the signatures, per the standard. The first of them
+separates itself from the body by an extra paragraph gap automatically
+(after a `\clearpage` the gap disappears, so the end matter may also
+start a fresh page).
 
 ### `\makecontactinfo`
 
 Prints the organization contact block set with `\contactinfo` at the left
 margin — place it at the end of the document. The standard requires
-contact details in the body area (not only in a footer).
+contact details in the body area (not only in a footer). An extra
+paragraph gap above it is added automatically; `\vspace{...\parskip}`
+before it adds more.
 
 ### Tables and figures
 
@@ -195,3 +207,18 @@ spacing, one paragraph gap around the list). For looser spacing pass
 ```
 
 Use `\clearpage` to force a page break, e.g. before the attachments area.
+
+## Other languages
+
+The class's fixed strings are renewable commands, so a document in
+another language keeps the SFS 2487 layout:
+
+```latex
+\renewcommand{\attachmentsname}{Bilagor}        % Liitteet
+\renewcommand{\distributionname}{Sändlista}     % Jakelu
+\renewcommand{\forinformationname}{För kännedom}% Tiedoksi
+\renewcommand{\esignaturestext}{Detta dokument har undertecknats elektroniskt.}
+```
+
+From Markdown the same commands go into the
+[`header-includes` frontmatter key](markdown.md#frontmatter).

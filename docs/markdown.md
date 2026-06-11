@@ -73,8 +73,17 @@ The attachment, distribution and for-information lists and the contact
 block are placed after the body in the standard's order. They start on a
 fresh page whenever any of the three lists is present (like the
 standard's pöytäkirja example); set `endmatter-newpage: false`/`true` to
-override. When they stay on the same page, the converter separates them
+override. When they stay on the same page, the class separates them
 from the body with an extra paragraph gap.
+
+For a document in another language, renew the class's fixed strings via
+the `header-includes` key:
+
+```yaml
+header-includes:
+  - \renewcommand{\attachmentsname}{Bilagor}
+  - \renewcommand{\esignaturestext}{Detta dokument har undertecknats elektroniskt.}
+```
 
 ## Body conventions
 
@@ -137,7 +146,7 @@ email as an autolink:
 ```
 
 A handwritten signature reserves the signing space above the printed
-`Name, role` lines:
+lines (usually `Name, role`, but each line is printed verbatim):
 
 ```markdown
 ::: handsignature
