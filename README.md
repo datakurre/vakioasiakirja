@@ -162,6 +162,31 @@ Prints the organization contact block set with `\contactinfo` at the left
 margin — place it at the end of the document. The standard requires
 contact details in the body area (not only in a footer).
 
+### Tables and figures
+
+Captions are styled by the class per clauses 6.5.1–6.5.2: left-aligned
+at the text indent, never centered, with the label (*Taulukko 1*,
+*Kuva 1*) separated by a quad like the standard's own captions. The
+standard prefers material placed in the text flow — use `\captionof`
+instead of floating environments, with the table caption **above** the
+table and the figure caption next to the figure:
+
+```latex
+\captionof{table}{Vastaukset palautekanavittain}
+\begin{tabular}{@{}lrr@{}}   % @{} starts the table exactly at the indent
+  \textbf{Kanava} & \textbf{Vastauksia} & \textbf{Osuus} \\
+  ...
+\end{tabular}
+
+\includegraphics[height=4\baselineskip]{logo-palikkaharrastajat}
+\captionof{figure}{Logon perusversio}
+```
+
+The floating `table`/`figure` environments work too and get the same
+caption styling. Mark the table's top row as a header row with bold
+text (6.5.1), and remember an alternative text or a body-text
+description for images (6.5.2).
+
 ### Lists and page breaks
 
 Bullet lists are preconfigured (`\textbullet` markers, tight item
@@ -208,11 +233,12 @@ to the clauses of SFS 2487:2024.
 | 6.1 Logo | Logo (or organization/person name as text) in the top-left corner; layout must adapt to the logo's size | `\logo{}` accepts any box — an `\includegraphics` image or styled text; the page header height grows automatically to fit a tall logo, shrinking the text area accordingly |
 | 6.2 Päivämäärä | Finnish date format day.month.year without leading zeros (SFS 4175) | `\date{15.5.2024}` takes the date verbatim — write it in the required format |
 | 6.3 Vastaanottajan tietoalue | Recipient name, organization and address after the metadata areas | `\recipient{...\\...}` rendered at the left margin by `\maketitle` |
-| 6.4 Otsikointi ja jäsentely | Headings hang at the left margin and must stand out from body text; at most three levels recommended; running numbering from 1, no trailing period — though an established trailing-period style is also permitted | `\section`, `\subsection`, `\subsubsection` (numbering depth 3) hang into the margin, bold, never hyphenated, numbered `1`, `1.1`, `1.1.1`; the `agenda` option switches to the permitted alternative `1.` numbering; `\section*` for unnumbered bold headings; `\marginlabel` for unnumbered regular-weight labels |
+| 6.4 Otsikointi ja jäsentely | Headings hang at the left margin and must stand out from body text; at most three levels recommended; running numbering from 1, no trailing period — though an established trailing-period style is also permitted; typically more space above top-level headings than below | `\section`, `\subsection`, `\subsubsection` (numbering depth 3) hang into the margin, bold, never hyphenated, numbered `1`, `1.1`, `1.1.1`; the `agenda` option switches to the permitted alternative `1.` numbering; `\section*` for unnumbered bold headings; `\marginlabel` for unnumbered regular-weight labels; top-level headings get half a paragraph gap of extra space above |
 | 6.4.2 Leipäteksti | Left-aligned (ragged right) single column; body indented 2,3 cm from the left margin; line width at most 15,7 cm; font size 11–12 pt; line spacing typically 1,1–1,2 | Text width is exactly 15,7 cm at the 2,3 cm indent; ragged right via *ragged2e* (body hyphenation kept, as the standard allows); 11 pt default / `12pt` option; leading tightened to 13,2 pt = 1,2 line spacing (1,17 at 12 pt), inside the typical band |
 | 6.4.3 Kappaleväli | Paragraphs separated by paragraph spacing of at least 10 pt, not by blank lines; no first-line indent; page breaks by feature, not empty lines | Paragraph gap is 0,88 lines ≈ 11,6 pt of glue (`\parskip`), first-line indent 0; use `\clearpage` for manual breaks |
+| 6.5.1–6.5.2 Taulukot, kuvat ja kaaviot | Real (not image) tables with the top row as a header row, caption above the table; figures in the text flow at the text indent with the caption in their immediate proximity | Captions via the *caption* package: ragged, never centered, label separated by a quad, table captions configured above; `\captionof{table}`/`\captionof{figure}` for in-flow material |
 | 6.5.3 Luettelot | Lists made with the list tool, indented, separated from text by at least one paragraph gap, at least one space after the marker | Preconfigured *enumitem* lists: one paragraph gap above/below, indented bullet items; spacing overridable per list |
-| 6.5.4 Lopputervehdys | Closing greeting at the body indent, capitalized, no comma, organization name below after a gap | Plain body paragraphs — no markup needed; see `example-2024.tex` |
+| 6.5.4 Lopputervehdys | Closing greeting at the body indent, capitalized, no comma, organization name below after a gap | Plain body paragraphs — no markup needed; see `esimerkki-tarjous.tex` |
 | 6.6.1 Omakätinen allekirjoitus | Reserve 3–5 paragraph gaps for a handwritten signature; name + comma + role below; multiple signers stacked | `\handsignature{Name}{role}` reserves three paragraph gaps and prints `Name, role`; repeat to stack |
 | 6.6.2 Sähköinen allekirjoitus | The sentence "Tämä asiakirja on sähköisesti allekirjoitettu." followed by each signer's name, role and email | `esignatures` environment emits the sentence; one `\esignee{Name, role}{email}` per signer |
 | 6.7 Liitteet, jakelu ja tiedoksi | After the signatures, in this order, each label with its items one per line, groups separated by paragraph gaps | `\attachments`, `\distribution`, `\forinformation` render the *Liitteet* / *Jakelu* / *Tiedoksi* labels at the margin with the listed items at the body indent |
@@ -231,10 +257,14 @@ tagging-capable engine.
 
 | File | Demonstrates |
 |---|---|
-| `example-2024.tex` | The standard's own Liite A example (minutes with electronic signatures, attachments, distribution and contact info) |
+| `esimerkki-poytakirja.tex` | The standard's own Liite A example: two-page minutes with electronic signatures, attachment lists, distribution and contact info |
+| `esimerkki-tarjous.tex` | The standard's own Liite B example: quotation with document id, extra metadata, recipient area, closing greeting (6.5.4) and handwritten signature (6.6.1) |
+| `esimerkki-kokouskutsu.tex` | Meeting invitation with an agenda, using the `agenda` option's `1.` numbering |
+| `esimerkki-raportti.tex` | Multi-page report: table of contents (6.10), table with its caption above (6.5.1), footnote (6.9), three heading levels |
+| `esimerkki-kayttoohje.tex` | `sansserif` manual with captioned figures in the text flow (6.5.2) and numbered step lists |
 
-`logo-palikkaharrastajat.pdf` is a sample vector logo used by the quick
-start snippet above.
+Build them all with `make examples`. `logo-palikkaharrastajat.pdf` is a
+sample vector logo used by the quick start snippet and the examples.
 
 ## Development
 
@@ -242,12 +272,9 @@ The development environment is managed with nix/devenv; see `AGENTS.md`
 for details.
 
 ```bash
-make shell                        # enter the devenv shell (TeX Live, latexmk, …)
-make TEXFILE=example-2024 build   # build a document
-make watch                        # rebuild on changes
-make clean                        # remove build artifacts
+make shell                              # enter the devenv shell (TeX Live, latexmk, …)
+make TEXFILE=esimerkki-poytakirja build # build a document (also the default target)
+make examples                           # build every esimerkki-*.tex
+make watch                              # rebuild on changes
+make clean                              # remove build artifacts
 ```
-
-Note: the Makefile tracks only the `.tex` file, so after editing the
-`.cls` force a rebuild with `latexmk -g -pdf <file>.tex` or `make clean`
-first.

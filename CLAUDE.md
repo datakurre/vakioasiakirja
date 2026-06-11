@@ -6,11 +6,11 @@ This document provides Claude Code-specific guidance for working on this project
 
 ## Quick Start
 
-1. **Before starting**: Read `SFS-2487-2024.pdf` to understand what the 2024 standard requires. (It's not committed; it's available locally.)
+1. **Before starting**: Read the relevant clause of `SFS-2487-2024.pdf` to understand what the standard requires. (It's not committed; it's available locally.)
 
-2. **Edit the class file**: `sfs-2487-2024.cls` (or `sfs-2487-2000.cls` if fixing the 2000 version)
+2. **Edit the class file**: `sfs-2487-2024.cls`
 
-3. **Build and test**: `make TEXFILE=example-2024 build` to generate the PDF
+3. **Build and test**: `make examples` builds every `esimerkki-*.tex` (or `make TEXFILE=esimerkki-poytakirja build` for one)
 
 4. **Inspect**: Open the generated PDF in the IDE or a viewer to verify output matches the standard
 
@@ -41,13 +41,18 @@ nix shell nixpkgs#nodejs --command node index.js
 
 Or add to `devenv.nix` if you'll use it repeatedly, then `devenv shell --no-eval-cache`.
 
-### I need to compare the old and new standard
+### I need to verify output against the spec
 
-Both PDFs are available locally:
-- `SFS-2487-2000.pdf` — Year 2000 version (reference for existing implementation)
-- `SFS-2487-2024.pdf` — Year 2024 version (target spec for new implementation)
+`esimerkki-poytakirja.tex` and `esimerkki-tarjous.tex` replicate the
+standard's own model documents (Liite A and B in `SFS-2487-2024.pdf`),
+so build them and compare against the spec figures. For exact
+measurements use `pdftotext -bbox`: left margin elements at 56.69 pt
+(20 mm), body text at 121.9 pt (43 mm), basic metadata at 317.5 pt
+(112 mm). `mutool draw -F stext` (nixpkgs#mupdf-headless) reveals
+per-line font name and size, e.g. to check heading boldness.
 
-Extract and compare key sections with pdftotext, or open both side-by-side.
+Note: latexmk `.log` files are ISO-8859 encoded and plain `grep`
+prints nothing on them — pipe through `strings file.log | grep …`.
 
 ### I need to find what package provides a tool
 
@@ -77,10 +82,9 @@ devenv shell --no-eval-cache -- latexmk -pdf myfile.tex
 
 Before completing a task:
 
-1. Confirm the `.cls` builds without errors: `make TEXFILE=example-2024 build`
-2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf`
-3. If implementing a new version, also test that the old example still builds: `make TEXFILE=example-2000 build`
-4. Clean up artifacts: `make clean`
+1. Confirm every example builds without errors: `make examples`
+2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf` (Liite A ↔ `esimerkki-poytakirja.pdf`, Liite B ↔ `esimerkki-tarjous.pdf`)
+3. Clean up artifacts: `make clean`
 
 ## Troubleshooting
 

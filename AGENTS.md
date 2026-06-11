@@ -2,45 +2,41 @@
 
 ## Project Overview
 
-**Pöytäkirjat** implements and maintains LaTeX document classes for Finnish office documents (minutes, memos) following the **SFS 2487 standard**.
+**Pöytäkirjat** implements and maintains `sfs-2487-2024.cls`, a LaTeX document class for Finnish office documents (kirjeet, muistiot, pöytäkirjat, tarjoukset, …) following the **SFS 2487:2024** standard *Asiakirjan asettelu ja metatiedot*.
 
-SFS 2487 is a Finnish standard specifying the layout and typography of formal office documents. This project provides `.cls` files (LaTeX document classes) that enforce the standard's formatting rules automatically.
+SFS 2487 is a Finnish standard specifying the layout, information areas and metadata of formal office documents. The class enforces the standard's formatting rules automatically; see `README.md` for the full user documentation, including a clause-by-clause mapping of the standard to class features.
 
 ## Current State
 
-- **`sfs-2487-2000.cls`** — Complete implementation for SFS 2487-2000 (year 2000 revision)
-  - Handles page layout, headers/footers, fonts, section formatting, signature blocks
-  - Uses Mathpazo font family and microtype for typography
-  - See `example-2000.tex` for usage example
-  - Tested and working
+- **`sfs-2487-2024.cls`** — Complete implementation of SFS 2487:2024
+  - Information areas on the 2,3 cm column grid, basic metadata 9,2 cm from the left margin, `1 (2)` page numbering, metadata repeated as a header from page 2 on
+  - Class options: `agenda` (trailing-period heading numbers), `sansserif` (Helvetica look), plus pass-through `article` options such as `12pt`
+  - Verified against the spec PDF; maintained, not under construction
 
-## Next Goal
+## Spec PDF
 
-- **`sfs-2487-2024.cls`** — Implement the 2024 revision of the SFS 2487 standard
-  - Start by reading `SFS-2487-2024.pdf` (available locally, not distributed) to understand what changed
-  - Reference `SFS-2487-2000.pdf` to understand the existing implementation approach
-  - Update the document class to match the new requirements
+- **`SFS-2487-2024.pdf`** — The target specification, available locally in this directory.
 
-## Spec PDFs
+**Important:** The spec PDF is **gitignored** and **must not be committed**. It contains proprietary content and cannot be legally distributed. Agents can read it to understand requirements but should never commit it.
 
-Two specification documents are available in this directory:
+## Examples
 
-- **`SFS-2487-2000.pdf`** — Reference specification (year 2000 revision)
-- **`SFS-2487-2024.pdf`** — Target specification (year 2024 revision)
-
-**Important:** These PDFs are **gitignored** and **must not be committed** to the repository. They contain proprietary content and cannot be legally distributed. Agents can read them to understand requirements but should never commit them.
+Five committed `esimerkki-*.tex` documents exercise the whole class API; `esimerkki-poytakirja.tex` and `esimerkki-tarjous.tex` replicate the standard's own model documents (Liite A and B), so their output can be compared against the spec PDF directly. See the examples table in `README.md`.
 
 ## Build & Development
 
 ### Build LaTeX Documents
 
 ```bash
-make build                      # Build example-2000.tex → example-2000.pdf
-make TEXFILE=example-2024 build # Build example-2024.tex → example-2024.pdf
-make clean                      # Remove build artifacts
-make watch                      # Watch mode: rebuild on changes
-make help                       # Show all targets
+make build                              # Build esimerkki-poytakirja.tex (default)
+make TEXFILE=esimerkki-raportti build   # Build a specific document
+make examples                           # Build every esimerkki-*.tex
+make clean                              # Remove build artifacts
+make watch                              # Watch mode: rebuild on changes
+make help                               # Show all targets
 ```
+
+PDFs depend on `sfs-2487-2024.cls`, so editing the class triggers rebuilds.
 
 ### Development Environment
 
@@ -79,29 +75,33 @@ See `.claude/skills/nix-tools.md` for detailed examples and patterns.
 
 ```
 Pöytäkirjat/
-├── AGENTS.md              # This file: AI agent orientation
-├── CLAUDE.md              # Claude Code-specific guidance
-├── Makefile               # Build targets
-├── devenv.nix             # Nix development environment config
-├── devenv.local.nix       # Local overrides (not committed)
+├── AGENTS.md                   # This file: AI agent orientation
+├── CLAUDE.md                   # Claude Code-specific guidance
+├── README.md                   # User documentation for the class
+├── Makefile                    # Build targets
+├── devenv.nix                  # Nix development environment config
+├── devenv.local.nix            # Local overrides (not committed)
 ├── .claude/
 │   └── skills/
-│       └── nix-tools.md   # Skill: acquiring tools with nix
-├── example-2000.tex       # Example SFS 2487-2000 document
-├── example-2024.tex       # Example SFS 2487-2024 document (to be created)
-├── sfs-2487-2000.cls      # LaTeX class for SFS 2487-2000
-├── sfs-2487-2024.cls      # LaTeX class for SFS 2487-2024 (to be created)
-├── SFS-2487-2000.pdf      # Spec (gitignored, not distributed)
-└── SFS-2487-2024.pdf      # Spec (gitignored, not distributed)
+│       └── nix-tools.md        # Skill: acquiring tools with nix
+├── sfs-2487-2024.cls           # The LaTeX document class
+├── esimerkki-poytakirja.tex    # Example: minutes (spec Liite A)
+├── esimerkki-tarjous.tex       # Example: quotation (spec Liite B)
+├── esimerkki-kokouskutsu.tex   # Example: meeting invitation ([agenda])
+├── esimerkki-raportti.tex      # Example: multi-page report (TOC, table, footnote)
+├── esimerkki-kayttoohje.tex    # Example: manual with captioned figures ([sansserif])
+├── logo-palikkaharrastajat.pdf # Sample vector logo used by the examples
+└── SFS-2487-2024.pdf           # Spec (gitignored, not distributed)
 ```
 
 ## Workflow
 
-1. Read the relevant PDF spec to understand requirements
-2. Edit the `.cls` file to implement the standard
-3. Test with an example `.tex` file: `make TEXFILE=example-2024 build`
-4. Inspect the output PDF in the IDE or preview
+1. Read the relevant clause of the spec PDF to understand the requirement
+2. Edit `sfs-2487-2024.cls`
+3. Build the examples: `make examples`
+4. Inspect the output PDFs — compare `esimerkki-poytakirja.pdf` and `esimerkki-tarjous.pdf` against the spec's Liite A/B figures; `pdftotext -bbox` gives exact positions (left margin 56.69 pt = 20 mm, body indent 121.9 pt = 43 mm, metadata 317.5 pt = 112 mm)
 5. Iterate until the output matches the standard
+6. `make clean` before finishing
 
 ## Technologies
 
