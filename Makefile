@@ -21,7 +21,7 @@ watch:  ## Develop PDF and watch for changes
 .PHONY: clean
 clean:
 	@latexmk -C -quiet
-	@rm -f *.nav *.snm *.fls *.vrb _minted-$(TEXFILE)/*
+	@rm -f *.nav *.snm *.fls *.vrb missfont.log _minted-$(TEXFILE)/*
 	@if [ -d _minted-$(TEXFILE) ]; then rmdir _minted-$(TEXFILE); fi
 
 .PHONY: shell

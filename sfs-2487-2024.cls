@@ -5,8 +5,8 @@
 % information areas (tietoalueet) on a 2,3 cm column grid, basic metadata
 % area 9,2 cm from the left margin, body text 2,3 cm from the left margin.
 
-\def\filedate{2026/06/10}
-\def\fileversion{1.0}
+\def\filedate{2026/06/11}
+\def\fileversion{1.1}
 \def\fileinfo{Vakioasiakirja SFS 2487:2024}
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{sfs-2487-2024}[\filedate\space\fileversion\space\fileinfo]
@@ -16,8 +16,9 @@
 % Options
 %
 % [agenda] switches numbered headings from the standard's default figure
-% style ("1 Otsikko", bold) to the established alternative the standard
-% also permits ("1. Otsikko", regular weight), as used in meeting agendas.
+% style ("1 Otsikko") to the trailing-period numbering ("1. Otsikko") that
+% the standard also permits as an established convention (6.4.1). Headings
+% stay bold either way, as 6.4 requires bold or a larger font size.
 %
 % [sansserif] typesets the document in a Helvetica-like sans serif, matching
 % the look of the standard's own example renderings, instead of Palatino.
@@ -58,9 +59,11 @@
 \RequirePackage[a4paper,left=43mm,right=10mm,top=10mm,bottom=20mm,
                 includehead,headheight=60pt,headsep=24pt,nofoot]{geometry}
 
-% Palatino at 11pt has \baselineskip 13.6pt = 1.24 line spacing, at the loose
-% edge of the standard's 1,1-1,2 band. The paragraph gap (kappaleväli) of
-% 0.88 lines = 12pt exceeds the required 10pt minimum.
+% LaTeX's default \baselineskip at 11pt is 13.6pt = 1.24 line spacing, just
+% above the standard's 1,1-1,2 band; 0.9706 tightens it to 13.2pt = 1.2
+% (and 14.07pt = 1.17 with the 12pt option). The paragraph gap (kappaleväli)
+% of 0.88 lines = 11.6pt exceeds the required 10pt minimum.
+\linespread{0.9706}
 \AtBeginDocument{%
   \RaggedRight
   \setlength{\parindent}{0pt}%
@@ -84,6 +87,10 @@
 % Metadata commands (asiakirjan metatiedot)
 %
 
+% Laatija (spec 5.2 minimum metadata) comes from the standard \author
+% command; article's default \@author would emit a warning when expanded
+% into the PDF properties, so it is blanked here.
+\let\@author\@empty
 \let\sfs@doctype\@empty
 \let\sfs@docid\@empty
 \let\sfs@confidentiality\@empty
@@ -170,8 +177,15 @@
   \noindent\hspace*{-\sfs@column}%
   \parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
-    {\Large\bfseries\@title}}\par
+    {\sfs@titlefont\@title}}\par
 }
+
+% The main title is bold and 3pt larger than the body text, inside the
+% 2-4pt band that 5.2.1 recommends at any base font size; the heading
+% rules of 6.4 (no justification, no hyphenation) apply to it as well.
+\newcommand{\sfs@titlefont}{%
+  \fontsize{\dimexpr\f@size pt+3pt}{\dimexpr(\f@size pt+3pt)*12/10}%
+  \selectfont\bfseries\sfs@nohyphens}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Sections (asiasisällön otsikointi)
@@ -183,17 +197,19 @@
 
 \ifsfs@agenda
   \renewcommand{\@seccntformat}[1]{\csname the#1\endcsname.\space}
-  \newcommand{\sfs@sectfont}{\normalfont\normalsize}
 \else
   \renewcommand{\@seccntformat}[1]{\csname the#1\endcsname\space}
-  \newcommand{\sfs@sectfont}{\normalfont\normalsize\bfseries}
 \fi
+
+% Headings are not justified (global \RaggedRight) nor hyphenated (6.4).
+\newcommand{\sfs@nohyphens}{\hyphenpenalty\@M\exhyphenpenalty\@M}
+\newcommand{\sfs@sectfont}{\normalfont\normalsize\bfseries\sfs@nohyphens}
 
 % The 1sp before/after skips keep the heading a display heading while the
 % standard's "at least one paragraph gap" around it comes from \parskip.
 \newcommand{\sfs@makesection}[2]{%
   \@ifstar
-    {\@startsection{#1}{#2}{-\sfs@column}{1sp}{1sp}{\normalfont\normalsize\bfseries}*}%
+    {\@startsection{#1}{#2}{-\sfs@column}{1sp}{1sp}{\sfs@sectfont}*}%
     {\@startsection{#1}{#2}{-\sfs@column}{1sp}{1sp}{\sfs@sectfont}}}
 \renewcommand{\section}{\sfs@makesection{section}{1}}
 \renewcommand{\subsection}{\sfs@makesection{subsection}{2}}
@@ -243,9 +259,10 @@
 % Hyperlinks and document properties
 %
 
-\RequirePackage[pdftex,bookmarksopen,bookmarksnumbered,hidelinks]{hyperref}
+\RequirePackage[bookmarksopen,bookmarksnumbered,hidelinks]{hyperref}
 \AtBeginDocument{%
   \hypersetup{
+    pdflang={fi},
     pdftitle={\@title},
     pdfsubject={\sfs@subject},
-    pdfauthor={\sfs@contactname}}}
+    pdfauthor={\@author}}}
