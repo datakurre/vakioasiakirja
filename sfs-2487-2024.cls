@@ -6,7 +6,7 @@
 % area 9,2 cm from the left margin, body text 2,3 cm from the left margin.
 
 \def\filedate{2026/06/11}
-\def\fileversion{1.1}
+\def\fileversion{1.2}
 \def\fileinfo{Vakioasiakirja SFS 2487:2024}
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{sfs-2487-2024}[\filedate\space\fileversion\space\fileinfo]
@@ -73,6 +73,20 @@
 
 \setlist[itemize]{label=\textbullet,topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
 \setlist[enumerate]{topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
+
+% Captions for tables, figures and charts (6.5.1-6.5.2): left-aligned at the
+% text indent like the spec's own "Taulukko 1 Otsikko" / "Kuva 1 Teksti"
+% captions, never centered nor justified. Table captions belong above the
+% table (6.5.1), figure captions in the figure's immediate proximity (6.5.2);
+% \captionof{table}/\captionof{figure} supports the spec's preference for
+% material placed in the text flow rather than floated.
+\RequirePackage{caption}
+\captionsetup{
+  justification=RaggedRight,
+  singlelinecheck=false,
+  labelsep=quad,
+  skip=\smallskipamount}
+\captionsetup[table]{position=above}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Language
@@ -207,13 +221,15 @@
 
 % The 1sp before/after skips keep the heading a display heading while the
 % standard's "at least one paragraph gap" around it comes from \parskip.
-\newcommand{\sfs@makesection}[2]{%
+% Top-level headings get half a paragraph gap extra above, following the
+% 6.4 note that there is typically more space above them than below.
+\newcommand{\sfs@makesection}[3]{%
   \@ifstar
-    {\@startsection{#1}{#2}{-\sfs@column}{1sp}{1sp}{\sfs@sectfont}*}%
-    {\@startsection{#1}{#2}{-\sfs@column}{1sp}{1sp}{\sfs@sectfont}}}
-\renewcommand{\section}{\sfs@makesection{section}{1}}
-\renewcommand{\subsection}{\sfs@makesection{subsection}{2}}
-\renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}}
+    {\@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}*}%
+    {\@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}}}
+\renewcommand{\section}{\sfs@makesection{section}{1}{.5\parskip}}
+\renewcommand{\subsection}{\sfs@makesection{subsection}{2}{1sp}}
+\renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}{1sp}}
 
 % Unnumbered regular-weight label at the left margin ("Aika ja paikka"),
 % with the following content at the body indent.
