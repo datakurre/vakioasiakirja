@@ -1,4 +1,5 @@
-TEXFILE ?= example-2024
+TEXFILE ?= esimerkki-poytakirja
+EXAMPLES := $(patsubst %.tex,%.pdf,$(wildcard esimerkki-*.tex))
 
 .PHONY: all
 all: build
@@ -9,10 +10,13 @@ help:
 %.nav: %.tex
 	@latexmk -shell-escape -quiet $<
 
-%.pdf: %.tex
-	@latexmk -pdf -recorder -interaction=nonstopmode -shell-escape -use-make -quiet $<
+%.pdf: %.tex sfs-2487-2024.cls
+	@latexmk -g -pdf -recorder -interaction=nonstopmode -shell-escape -use-make -quiet $<
 
 build: $(TEXFILE).pdf  ## Build the final PDF
+
+.PHONY: examples
+examples: $(EXAMPLES)  ## Build every esimerkki-*.tex document
 
 .PHONY: watch
 watch:  ## Develop PDF and watch for changes
