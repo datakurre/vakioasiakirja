@@ -1,13 +1,13 @@
 ---
-# Markdown-versio esimerkki-poytakirja.tex-asiakirjasta: sama sisältö
-# kirjoitettuna pandocin YAML-metatietoina ja markdown-merkintöinä.
+# Markdown-versio ../latex/esimerkki-poytakirja.tex-asiakirjasta: sama
+# sisältö kirjoitettuna pandocin YAML-metatietoina ja markdown-merkintöinä.
 doctype: Pöytäkirja
 date: 15.5.2024
 author: Virve Virtanen
 confidentiality: Luottamuksellinen
 subject: Digiprojekti
 title: Asiakaspalautteet ja etusivun uudistaminen
-logo: logo-organisaatio.pdf
+logo: ../logo-organisaatio.pdf
 contact:
   name: Organisaatio Oy
   lines:

@@ -59,12 +59,14 @@ function Meta(meta)
   end
   -- The pöytäkirja model document starts its end matter on a fresh page;
   -- contact info alone stays inline (tarjous model document). Frontmatter
-  -- endmatter-newpage overrides either way.
+  -- endmatter-newpage overrides either way; the endmatter flag lets the
+  -- template add the inline paragraph gap instead of the page break.
+  local has_endmatter = meta.attachments ~= nil or meta.distribution ~= nil
+    or meta.forinformation ~= nil
   if meta['endmatter-newpage'] == nil then
-    meta['endmatter-newpage'] = pandoc.MetaBool(
-      meta.attachments ~= nil or meta.distribution ~= nil
-        or meta.forinformation ~= nil)
+    meta['endmatter-newpage'] = pandoc.MetaBool(has_endmatter)
   end
+  meta.endmatter = pandoc.MetaBool(has_endmatter)
   return meta
 end
 
