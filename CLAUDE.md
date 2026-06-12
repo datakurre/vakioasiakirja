@@ -80,6 +80,50 @@ To run a one-off command in the devenv shell without entering it:
 devenv shell --no-eval-cache -- latexmk -pdf myfile.tex
 ```
 
+## Cloud Sandbox (Claude Code on the web)
+
+Remote sandbox sessions run in a plain Ubuntu container: `nix`,
+`devenv` and TeX are **not** installed, and the network policy blocks
+`nixos.org` (HTTP 403 `host_not_allowed`), so nix cannot be installed
+either. The nix-based instructions above don't apply there — fall back
+to apt, which does work:
+
+```bash
+sudo apt-get update   # required first: the baked-in index is stale (404s)
+sudo apt-get install -y texlive-latex-recommended texlive-latex-extra \
+  texlive-lang-european latexmk poppler-utils pandoc librsvg2-bin
+```
+
+(`apt-get update` reports a 403 for an unrelated `ondrej/php` PPA —
+harmless, ignore it.)
+
+After that `make examples` works directly. `make markdown` does not
+(it needs `nix run`), so replicate the flake's pipeline (see
+`flake.nix`) manually per file:
+
+```bash
+input="$(realpath examples/markdown/esimerkki-poytakirja.md)"
+dir="$(dirname "$input")"; base="$(basename "$input" .md)"
+tmp="$(mktemp -d)"; export SFS_2487_TMPDIR="$tmp"
+(cd "$dir" && pandoc --standalone \
+  --template "$PWD/../../pandoc/sfs-2487-2024.latex" \
+  --lua-filter "$PWD/../../pandoc/sfs-2487-2024.lua" \
+  --output "$tmp/document.tex" "$input" && \
+ TEXINPUTS="$dir:$PWD/../..:" latexmk -pdf -interaction=nonstopmode \
+   -quiet -output-directory="$tmp" "$tmp/document.tex" && \
+ cp "$tmp/document.pdf" "$dir/$base.pdf")
+rm -rf "$tmp"
+```
+
+**Parity-check caveat:** Ubuntu's TeX Live 2023 and pandoc 3.1.3 differ
+from the flake's pinned toolchain, so the `pdftotext -layout` parity
+diff shows small whitespace-only differences in some pairs (e.g.
+`esimerkki-poytakirja`, `esimerkki-raportti`). Before blaming your
+change, rebuild from a pristine checkout (`git stash`) and diff that
+baseline — if the baseline shows the same differences, they are
+environmental, not regressions. `pdftotext -bbox` position checks
+(en dash / item numbers at 121.89 pt, etc.) remain reliable.
+
 ## Verification Workflow
 
 Before completing a task:

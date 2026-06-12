@@ -79,6 +79,16 @@ When you need a tool not in `devenv.nix`:
 
 See `.claude/skills/nix-tools.md` for detailed examples and patterns.
 
+### Sandboxes without nix
+
+Cloud sandboxes (e.g. Claude Code on the web) have neither nix nor
+devenv, and their network policy may block installing nix. Use apt
+instead — `sudo apt-get update`, then install the TeX Live packages,
+latexmk, poppler-utils, pandoc and librsvg2-bin — and replicate the
+`make markdown` flake pipeline manually with pandoc + latexmk. See
+"Cloud Sandbox" in `CLAUDE.md` for the exact commands and the
+parity-check caveat that comes with the different toolchain versions.
+
 ## File Structure
 
 ```
