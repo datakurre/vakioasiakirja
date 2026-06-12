@@ -38,6 +38,26 @@ local function check_image_exists(src)
   f:close()
 end
 
+-- pdflatex can include these formats (SVG after rsvg-convert). Anything
+-- else — say the TikZ .tex source of a logo instead of its built .pdf —
+-- would fail inside pdflatex, so reject it with a clear message.
+local image_formats = {
+  pdf = true, eps = true, png = true, jpg = true, jpeg = true, svg = true,
+}
+
+local function image_format(src)
+  return src:lower():match('%.(%w+)$')
+end
+
+local function check_image_format(src)
+  local ext = image_format(src)
+  if ext and not image_formats[ext] then
+    error(('sfs-2487-2024: kuvamuotoa .%s ei tueta (unsupported image ' ..
+           'format): %s — tuetut muodot (supported formats): ' ..
+           'pdf, png, jpg, eps, svg\n'):format(ext, src))
+  end
+end
+
 -- Convert an SVG to PDF next to the build's other temporary files (the
 -- flake exports SFS_2487_TMPDIR; standalone pandoc runs fall back to the
 -- working directory, which is the markdown file's directory).
@@ -81,15 +101,21 @@ function Meta(meta)
   -- the filename.
   if meta.logo then
     local logo = pandoc.utils.stringify(meta.logo)
-    if logo:lower():match('%.svg$') or logo:lower():match('%.pdf$')
-        or logo:lower():match('%.eps$') or logo:lower():match('%.png$')
-        or logo:lower():match('%.jpe?g$') then
+    if image_formats[image_format(logo) or ''] then
       check_image_exists(logo)
-      if logo:lower():match('%.svg$') then
+      if image_format(logo) == 'svg' then
         logo = svg_to_pdf(logo)
       end
       meta.logo = pandoc.MetaInlines({
         pandoc.RawInline('latex', '\\includegraphics{' .. logo .. '}')})
+    else
+      -- A value naming an existing file was meant as an image, not as
+      -- markdown text for the logo area, so its format must be usable.
+      local f = io.open(logo, 'r')
+      if f then
+        f:close()
+        check_image_format(logo)
+      end
     end
   end
   -- The pöytäkirja model document starts its end matter on a fresh page;
@@ -189,7 +215,8 @@ end
 -- Body images may be SVG too; pdflatex needs them converted. Extensionless
 -- names are left for graphicx to resolve (it searches TEXINPUTS as well).
 function Image(image)
-  if image.src:lower():match('%.[a-z]+$') then
+  if image_format(image.src) then
+    check_image_format(image.src)
     check_image_exists(image.src)
   end
   if image.src:lower():match('%.svg$') then
