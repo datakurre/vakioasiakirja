@@ -17,7 +17,7 @@ contact:
     - it@organisaatio.fi
 forinformation:
   - Johtoryhmä
-endmatter-newpage: false
+features: [no-endmatter-newpage]
 ---
 
 Vastaanottajat

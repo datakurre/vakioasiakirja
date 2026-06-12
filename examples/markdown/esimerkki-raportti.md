@@ -12,7 +12,7 @@ keywords: [asiakaspalaute, kysely, digiprojekti]
 subject: Digiprojekti
 title: Asiakaspalautekyselyn tulokset 2024
 logo: ../logo-organisaatio.pdf
-toc: true
+features: [toc, no-endmatter-newpage]
 contact:
   name: Organisaatio Oy
   lines:
@@ -27,7 +27,6 @@ distribution:
   - Digiprojektin ohjausryhmä
 forinformation:
   - Johtoryhmä
-endmatter-newpage: false
 ---
 
 # Johdanto
