@@ -26,6 +26,18 @@ local function rawblock(fmt, ...)
   return pandoc.RawBlock('latex', fmt:format(...))
 end
 
+-- Image paths resolve against the markdown file's directory. A missing
+-- file would only surface later as a pdflatex error that latexmk's quiet
+-- mode reduces to unrelated undefined-reference noise, so fail early.
+local function check_image_exists(src)
+  local f = io.open(src, 'r')
+  if not f then
+    error(('sfs-2487-2024: kuvatiedostoa ei löydy ' ..
+           '(image file not found): %s\n'):format(src))
+  end
+  f:close()
+end
+
 -- Convert an SVG to PDF next to the build's other temporary files (the
 -- flake exports SFS_2487_TMPDIR; standalone pandoc runs fall back to the
 -- working directory, which is the markdown file's directory).
@@ -69,11 +81,13 @@ function Meta(meta)
   -- the filename.
   if meta.logo then
     local logo = pandoc.utils.stringify(meta.logo)
-    if logo:lower():match('%.svg$') then
-      logo = svg_to_pdf(logo)
-    end
-    if logo:lower():match('%.pdf$') or logo:lower():match('%.eps$')
-        or logo:lower():match('%.png$') or logo:lower():match('%.jpe?g$') then
+    if logo:lower():match('%.svg$') or logo:lower():match('%.pdf$')
+        or logo:lower():match('%.eps$') or logo:lower():match('%.png$')
+        or logo:lower():match('%.jpe?g$') then
+      check_image_exists(logo)
+      if logo:lower():match('%.svg$') then
+        logo = svg_to_pdf(logo)
+      end
       meta.logo = pandoc.MetaInlines({
         pandoc.RawInline('latex', '\\includegraphics{' .. logo .. '}')})
     end
@@ -172,8 +186,12 @@ function Div(div)
   if div.classes:includes('marginlabel') then return marginlabel(div) end
 end
 
--- Body images may be SVG too; pdflatex needs them converted.
+-- Body images may be SVG too; pdflatex needs them converted. Extensionless
+-- names are left for graphicx to resolve (it searches TEXINPUTS as well).
 function Image(image)
+  if image.src:lower():match('%.[a-z]+$') then
+    check_image_exists(image.src)
+  end
   if image.src:lower():match('%.svg$') then
     image.src = svg_to_pdf(image.src)
     return image

@@ -67,9 +67,15 @@
               --template "${support}/pandoc/sfs-2487-2024.latex" \
               --lua-filter "${support}/pandoc/sfs-2487-2024.lua" \
               --output "$tmp/document.tex" "$input"
-            TEXINPUTS="$dir:${support}/tex/latex/sfs-2487-2024:" \
+            # -quiet keeps successful builds readable but also hides TeX
+            # errors, so surface them from the log when latexmk fails.
+            if ! TEXINPUTS="$dir:${support}/tex/latex/sfs-2487-2024:" \
               latexmk -pdf -interaction=nonstopmode -quiet \
-                -output-directory="$tmp" "$tmp/document.tex"
+                -output-directory="$tmp" "$tmp/document.tex"; then
+              echo >&2
+              grep -a -A 2 '^!' "$tmp/document.log" >&2 || true
+              exit 1
+            fi
             cp "$tmp/document.pdf" "$dir/$base.pdf"
             echo "Wrote $dir/$base.pdf"
           '';
