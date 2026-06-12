@@ -19,7 +19,7 @@ contact:
     - viestinta@organisaatio.fi
 forinformation:
   - Viestintäosasto
-endmatter-newpage: false
+features: [no-endmatter-newpage]
 ---
 
 # Logon perusversio

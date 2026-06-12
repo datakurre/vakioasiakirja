@@ -7,9 +7,10 @@
 --   ::: esignatures             -> esignatures environment + \esignee
 --   ::: handsignature           -> \handsignature{line} per line
 -- and validates frontmatter (doctype/title required, logo image paths
--- wrapped in \includegraphics, at most three heading levels). SVG images
--- (logo or body) are converted to PDF with rsvg-convert, which the nix
--- flake provides; pdflatex cannot read SVG directly.
+-- wrapped in \includegraphics, the features list expanded into per-feature
+-- booleans, at most three heading levels). SVG images (logo or body) are
+-- converted to PDF with rsvg-convert, which the nix flake provides;
+-- pdflatex cannot read SVG directly.
 
 -- Render inlines as LaTeX so special characters survive the trip into
 -- raw \marginlabel/\esignee arguments.
@@ -89,6 +90,51 @@ local function lines_of(inlines)
   return lines
 end
 
+-- Optional features come in a single frontmatter list; the template cannot
+-- test list membership, so expand the tokens into per-feature sfs-* booleans
+-- the template reads. A 'no-' prefix turns a feature off — needed because
+-- endmatter-newpage defaults to true whenever attachments, distribution or
+-- forinformation are present (the pöytäkirja model document starts its end
+-- matter on a fresh page; contact info alone stays inline, as in the tarjous
+-- model document; the class itself separates inline end matter from the body
+-- by a paragraph gap).
+local feature_names = pandoc.List({'agenda', 'toc', 'endmatter-newpage'})
+
+local function parse_features(meta)
+  for _, name in ipairs(feature_names) do
+    if meta[name] ~= nil then
+      error(("sfs-2487-2024: metatieto '%s:' on korvattu features-" ..
+             "luettelolla (top-level key replaced by the features list): " ..
+             "kirjoita (write) features: [%s] tai (or) features: [no-%s]\n")
+            :format(name, name, name))
+    end
+  end
+  local features = {}
+  if meta.features ~= nil then
+    local list = meta.features
+    -- A bare scalar (features: agenda) arrives as MetaInlines, not MetaList.
+    if pandoc.utils.type(list) ~= 'List' then list = pandoc.List({list}) end
+    for _, item in ipairs(list) do
+      local token = pandoc.utils.stringify(item)
+      local name = token:match('^no%-(.+)$') or token
+      if not feature_names:includes(name) then
+        error(("sfs-2487-2024: tuntematon ominaisuus (unknown feature) " ..
+               "'%s' — tuetut (supported): agenda, toc, endmatter-newpage; " ..
+               "no-etuliite poistaa käytöstä (a no- prefix disables one)\n")
+              :format(token))
+      end
+      features[name] = (name == token)
+    end
+  end
+  if features['endmatter-newpage'] == nil then
+    features['endmatter-newpage'] = meta.attachments ~= nil
+      or meta.distribution ~= nil or meta.forinformation ~= nil
+  end
+  for _, name in ipairs(feature_names) do
+    meta['sfs-' .. name] = pandoc.MetaBool(features[name] or false)
+  end
+end
+
 function Meta(meta)
   for _, field in ipairs({'doctype', 'title'}) do
     if meta[field] == nil then
@@ -118,15 +164,7 @@ function Meta(meta)
       end
     end
   end
-  -- The pöytäkirja model document starts its end matter on a fresh page;
-  -- contact info alone stays inline (tarjous model document). Frontmatter
-  -- endmatter-newpage overrides either way; the class itself separates the
-  -- inline end matter from the body by a paragraph gap.
-  if meta['endmatter-newpage'] == nil then
-    meta['endmatter-newpage'] = pandoc.MetaBool(
-      meta.attachments ~= nil or meta.distribution ~= nil
-      or meta.forinformation ~= nil)
-  end
+  parse_features(meta)
   return meta
 end
 

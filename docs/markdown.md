@@ -82,19 +82,30 @@ contact:                             # \contactinfo + \makecontactinfo at the en
 attachments: [Yhteenveto asiakaspalautteesta]   # Liitteet
 distribution: [Digiprojektin ohjausryhmä]       # Jakelu
 forinformation: [Johtoryhmä]                    # Tiedoksi
-agenda: true                         # class options …
 font: sans-serif                     # serif / sans-serif (default) / monospace
 fontsize: 12pt
-toc: true                            # \tableofcontents after the title
+features: [agenda, toc]              # optional features, see below
 ---
 ```
+
+The `features` key is a list of optional features to turn on:
+
+- `agenda` — the class's `agenda` option: heading numbers with a
+  trailing period (`1. Otsikko`), the established convention for
+  agendas and minutes (6.4.1)
+- `toc` — `\tableofcontents` right after the title
+- `endmatter-newpage` — start the end matter on a fresh page
+
+A `no-` prefix turns a feature off (`features: [no-endmatter-newpage]`);
+unknown feature names are an error.
 
 The attachment, distribution and for-information lists and the contact
 block are placed after the body in the standard's order. They start on a
 fresh page whenever any of the three lists is present (like the
-standard's pöytäkirja example); set `endmatter-newpage: false`/`true` to
-override. When they stay on the same page, the class separates them
-from the body with an extra paragraph gap.
+standard's pöytäkirja example); add `no-endmatter-newpage` (or
+`endmatter-newpage`) to `features:` to override. When they stay on the
+same page, the class separates them from the body with an extra
+paragraph gap.
 
 For a document in another language, renew the class's fixed strings via
 the `header-includes` key:
