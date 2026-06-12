@@ -85,6 +85,13 @@ Puheenjohtaja avasi kokouksen ja toivotti kaikki tervetulleiksi.
 \end{document}
 ```
 
+Drop [`sfs-2487-2024.cls`](sfs-2487-2024.cls) next to the document (or
+install it, see below) and build with any TeX distribution:
+
+```bash
+latexmk -pdf mydocument.tex
+```
+
 See [Writing in LaTeX](docs/latex.md) for the complete command reference.
 
 ## Examples
@@ -103,8 +110,16 @@ make markdown     # build every examples/markdown/esimerkki-*.md via the flake
 
 ## Installing the class
 
-For use outside this repository, the class can be installed into your
-own TEXMF tree with [l3build](https://ctan.org/pkg/l3build):
+For use outside this repository, copy the class into your own TEXMF
+tree:
+
+```bash
+mkdir -p ~/texmf/tex/latex/sfs-2487-2024
+cp sfs-2487-2024.cls ~/texmf/tex/latex/sfs-2487-2024/
+```
+
+or, from a clone of the repository, let
+[l3build](https://ctan.org/pkg/l3build) do the same:
 
 ```bash
 l3build install     # copies sfs-2487-2024.cls into ~/texmf

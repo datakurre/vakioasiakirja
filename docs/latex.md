@@ -29,14 +29,35 @@ Puheenjohtaja avasi kokouksen ja toivotti kaikki tervetulleiksi.
 \end{document}
 ```
 
-Build with:
+## Getting the class
+
+The class is a single file. Download
+[`sfs-2487-2024.cls`](https://github.com/datakurre/vakioasiakirja/raw/main/sfs-2487-2024.cls)
+into the same directory as your document — LaTeX picks up classes from
+the current directory. To make it available to every document instead,
+install it into your personal TEXMF tree:
 
 ```bash
-make TEXFILE=mydocument build
+mkdir -p ~/texmf/tex/latex/sfs-2487-2024
+cp sfs-2487-2024.cls ~/texmf/tex/latex/sfs-2487-2024/
 ```
 
-(or `latexmk -pdf mydocument.tex` inside `devenv shell`; latexmk runs the
-extra pass needed for the total page count automatically).
+(or, from a clone of the repository, run
+[`l3build install`](https://ctan.org/pkg/l3build)).
+
+The class needs only packages found in any reasonably complete TeX
+distribution (TeX Live, MacTeX, MiKTeX); on Debian/Ubuntu the packages
+`texlive-latex-recommended`, `texlive-latex-extra` and
+`texlive-lang-european` suffice.
+
+## Building
+
+```bash
+latexmk -pdf mydocument.tex
+```
+
+latexmk reruns pdflatex as needed for the `1 (2)` total page count;
+with plain `pdflatex`, compile twice.
 
 The sections below are the LaTeX reference; the
 [Markdown frontmatter keys and body constructs](markdown.md) map onto

@@ -17,7 +17,8 @@ below are built from this very revision of the class.
 own model documents (Liite A and B in SFS 2487:2024), so their output
 can be compared against the specification figures directly.
 
-Build the examples yourself with `make examples` (LaTeX) and
+From a checkout of the repository, build the examples yourself with
+`make examples` (LaTeX) and
 `make markdown` (Markdown via the nix flake). The invented sample
 graphics the examples use — the *Organisaatio Oy* and *Oy Firma Ab*
 logos and the logo clearance-area figure — are drawn with TikZ in
