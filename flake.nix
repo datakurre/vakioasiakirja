@@ -17,7 +17,7 @@
             scheme-basic
             babel-finnish caption enumitem everyshi helvetic hyperref
             hyphen-finnish latex latexmk mathpazo metafont microtype
-            pgf ragged2e totpages xcolor
+            pgf preview ragged2e totpages xcolor
             booktabs soul upquote fancyvrb framed;
         };
 
