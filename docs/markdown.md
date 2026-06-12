@@ -8,7 +8,7 @@ pandoc, TeX Live and the class; the only requirement is
 ## Running the converter
 
 ```bash
-nix run . -- oma-poytakirja.md     # writes oma-poytakirja.pdf next to it
+nix run github:datakurre/vakioasiakirja -- oma-poytakirja.md   # writes oma-poytakirja.pdf next to it
 ```
 
 The `--` separates the document from nix's own options. The PDF is
@@ -17,21 +17,22 @@ written next to the markdown file, and relative paths in the document
 command can be run from any directory:
 
 ```bash
-nix run /polku/Pöytäkirjat -- ~/asiakirjat/muistio.md   # this checkout
-nix run github:<owner>/<repo> -- muistio.md             # a hosted copy, no clone needed
+nix run github:datakurre/vakioasiakirja -- ~/asiakirjat/muistio.md   # no clone needed
+nix run /polku/vakioasiakirja -- muistio.md                          # a local checkout
 ```
 
 If `nix run` complains about experimental features, enable flakes for
 the invocation:
 
 ```bash
-nix --extra-experimental-features 'nix-command flakes' run . -- oma-poytakirja.md
+nix --extra-experimental-features 'nix-command flakes' run github:datakurre/vakioasiakirja -- oma-poytakirja.md
 ```
 
 For frequent use, install the converter as a regular command:
 
 ```bash
-nix profile add .                  # then: vakioasiakirja oma-poytakirja.md
+nix profile add github:datakurre/vakioasiakirja
+vakioasiakirja oma-poytakirja.md
 ```
 
 (on older nix releases the subcommand is `nix profile install`). The

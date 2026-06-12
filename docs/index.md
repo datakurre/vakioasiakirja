@@ -42,7 +42,14 @@ and build it with the flake — pandoc, TeX Live and the class are all
 provided, the only requirement is [nix](https://nixos.org):
 
 ```bash
-nix run . -- oma-poytakirja.md     # writes oma-poytakirja.pdf next to it
+nix run github:datakurre/vakioasiakirja -- oma-poytakirja.md   # writes oma-poytakirja.pdf next to it
+```
+
+or install the converter as a regular command:
+
+```bash
+nix profile add github:datakurre/vakioasiakirja
+vakioasiakirja oma-poytakirja.md
 ```
 
 See [Writing in Markdown](markdown.md) for the full frontmatter and body
