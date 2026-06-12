@@ -96,9 +96,15 @@
 
     \noindent\hspace{-45.72mm}\parbox[t][][t]{\linewidth}{\@recipient}
 
-    \vspace{2\baselineskip}
+    \vspace{4\baselineskip}
 
-  }{}
+  }{
+
+    \parbox[t][][t]{\linewidth}{}
+
+    \vspace{6\baselineskip}
+
+  }
   \ifthenelse{\not\isundefined{\@lead}}{
     \noindent\hspace{-45.72mm}\textit{\@lead}
 
