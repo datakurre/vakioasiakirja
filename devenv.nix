@@ -1,6 +1,11 @@
 { pkgs, ... }:
 {
   packages = [
+    # Interactive development TeX Live: the class's requirements plus
+    # l3build and friends for CTAN packaging. Diverges deliberately from
+    # flake.nix's texliveEnv, which instead adds the packages that
+    # pandoc-generated body code can reference — Markdown builds always
+    # go through the flake (`nix run .`), even from this shell.
     (pkgs.texlive.combine {
       inherit (pkgs.texlive)
         scheme-basic

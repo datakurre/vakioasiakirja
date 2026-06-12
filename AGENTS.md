@@ -15,7 +15,7 @@ SFS 2487 is a Finnish standard specifying the layout, information areas and meta
 
 ## Spec PDF
 
-- **`SFS-2487-2024.pdf`** — The target specification, available locally in this directory.
+- **`SFS-2487-2024.pdf`** — The target specification. It is **not always present** in the working directory; ask the user to provide it if you need to read it.
 
 **Important:** The spec PDF is **gitignored** and **must not be committed**. It contains proprietary content and cannot be legally distributed. Agents can read it to understand requirements but should never commit it.
 
@@ -41,6 +41,10 @@ make help                               # Show all targets
 ```
 
 PDFs depend on `sfs-2487-2024.cls`, so editing the class triggers rebuilds.
+
+### CTAN Packaging
+
+The class is packaged for CTAN with **l3build** (configured in `build.lua`): `l3build ctan` builds the release zips, `l3build tag <version>` syncs the version/date strings across the class and its documentation. See `.claude/skills/latex-packaging.md` for the full release workflow.
 
 ### Development Environment
 
@@ -92,8 +96,12 @@ Pöytäkirjat/
 │       └── docs.yml            # CI: build examples + docs, deploy to GitHub Pages
 ├── .claude/
 │   └── skills/
-│       └── nix-tools.md        # Skill: acquiring tools with nix
+│       ├── nix-tools.md        # Skill: acquiring tools with nix
+│       └── latex-packaging.md  # Skill: l3build packaging and CTAN releasing
 ├── sfs-2487-2024.cls           # The LaTeX document class
+├── sfs-2487-2024-doc.tex       # CTAN package documentation source
+├── build.lua                   # l3build configuration (CTAN packaging)
+├── LICENSE                     # MIT license
 ├── pandoc/
 │   ├── sfs-2487-2024.latex     # Pandoc template: frontmatter → class commands
 │   └── sfs-2487-2024.lua       # Pandoc filter: body conventions → class commands
@@ -110,12 +118,12 @@ Pöytäkirjat/
 │   ├── logo-firma.tex          # Invented TikZ logo: Oy Firma Ab
 │   └── logo-suoja-alue.tex     # Invented TikZ figure: logo clearance area
 ├── docs/                       # User documentation (mkdocs site, published to Pages)
-└── SFS-2487-2024.pdf           # Spec (gitignored, not distributed)
+└── SFS-2487-2024.pdf           # Spec (gitignored, not distributed, not always present)
 ```
 
 ## Workflow
 
-1. Read the relevant clause of the spec PDF to understand the requirement
+1. Read the relevant clause of the spec PDF to understand the requirement (if `SFS-2487-2024.pdf` is not present, ask the user to provide it)
 2. Edit `sfs-2487-2024.cls` (and the pandoc template/filter for the Markdown mapping)
 3. Build the examples: `make examples` and `make markdown`
 4. Inspect the output PDFs — compare `examples/latex/esimerkki-poytakirja.pdf` and `examples/latex/esimerkki-tarjous.pdf` against the spec's Liite A/B figures; `pdftotext -bbox` gives exact positions (left margin 56.69 pt = 20 mm, body indent 121.9 pt = 43 mm, metadata 317.5 pt = 112 mm)

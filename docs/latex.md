@@ -94,6 +94,18 @@ it — the standard's continuation-page figure shows only the basic
 metadata, but it does not forbid the logo, and the association's existing
 documents repeat it.)
 
+### `\tableofcontents`
+
+The optional table of contents (clause 6.10) goes right after
+`\maketitle`. The standard LaTeX command works as is — the class headings
+feed it automatically, and babel provides the *Sisällys* heading
+(renewable as `\contentsname`):
+
+```latex
+\maketitle
+\tableofcontents
+```
+
 ### Headings
 
 ```latex

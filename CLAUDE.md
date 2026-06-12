@@ -6,7 +6,7 @@ This document provides Claude Code-specific guidance for working on this project
 
 ## Quick Start
 
-1. **Before starting**: Read the relevant clause of `SFS-2487-2024.pdf` to understand what the standard requires. (It's not committed; it's available locally.)
+1. **Before starting**: Read the relevant clause of `SFS-2487-2024.pdf` to understand what the standard requires. (It's not committed and may not be present — ask the user to provide it if needed.)
 
 2. **Edit the class file**: `sfs-2487-2024.cls`
 
@@ -19,6 +19,7 @@ This document provides Claude Code-specific guidance for working on this project
 ## Available Skills
 
 - **`/nix-tools`** — How to get any tool with nix ad-hoc or permanently. Invoke when you need a language, library, or utility not in devenv.
+- **`/latex-packaging`** — l3build packaging and CTAN releasing. Invoke when working on `build.lua`, tagging a release, or preparing a CTAN upload.
 
 ## Common Tasks
 
@@ -84,7 +85,7 @@ devenv shell --no-eval-cache -- latexmk -pdf myfile.tex
 Before completing a task:
 
 1. Confirm every example builds without errors: `make examples` and `make markdown`
-2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf` (Liite A ↔ `examples/latex/esimerkki-poytakirja.pdf`, Liite B ↔ `examples/latex/esimerkki-tarjous.pdf`)
+2. Check that the PDF output visually matches the spec in `SFS-2487-2024.pdf` (Liite A ↔ `examples/latex/esimerkki-poytakirja.pdf`, Liite B ↔ `examples/latex/esimerkki-tarjous.pdf`) — if the spec PDF is not present, ask the user to provide it
 3. Check Markdown/LaTeX parity: `diff` the `pdftotext -layout` text of each `examples/markdown/esimerkki-*.pdf` against its LaTeX twin
 4. Clean up artifacts: `make clean`
 
