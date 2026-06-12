@@ -215,7 +215,8 @@ description for images (6.5.2).
 ### Lists and page breaks
 
 Bullet lists are preconfigured (en-dash `–` markers per Finnish
-convention, tight item spacing, one paragraph gap around the list). For
+convention, first level flush at the body text edge, tight item spacing,
+one paragraph gap around the list). For
 looser spacing pass
 [enumitem](https://ctan.org/pkg/enumitem) options:
 
