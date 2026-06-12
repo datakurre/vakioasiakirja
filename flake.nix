@@ -15,7 +15,7 @@
         texliveEnv = pkgs.texlive.combine {
           inherit (pkgs.texlive)
             scheme-basic
-            babel-finnish caption enumitem everyshi helvetic hyperref
+            babel-finnish caption courier enumitem everyshi helvetic hyperref
             hyphen-finnish latex latexmk mathpazo metafont microtype
             pgf preview ragged2e totpages xcolor
             booktabs soul upquote fancyvrb framed;

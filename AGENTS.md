@@ -10,7 +10,7 @@ SFS 2487 is a Finnish standard specifying the layout, information areas and meta
 
 - **`sfs-2487-2024.cls`** — Complete implementation of SFS 2487:2024
   - Information areas on the 2,3 cm column grid, basic metadata 9,2 cm from the left margin, `1 (2)` page numbering, metadata repeated as a header from page 2 on
-  - Class options: `agenda` (trailing-period heading numbers), `sansserif` (Helvetica look), plus pass-through `article` options such as `12pt`
+  - Class options: `serif` (Palatino), `sans-serif` (Helvetica, default), `monospace` (Courier), `agenda` (trailing-period heading numbers), plus pass-through `article` options such as `12pt`
   - Verified against the spec PDF; maintained, not under construction
 
 ## Spec PDF
@@ -121,7 +121,8 @@ Pöytäkirjat/
 │   │   ├── esimerkki-tarjous.tex      # Example: quotation (spec Liite B)
 │   │   ├── esimerkki-kokouskutsu.tex  # Example: meeting invitation ([agenda])
 │   │   ├── esimerkki-raportti.tex     # Example: multi-page report (TOC, table, footnote)
-│   │   └── esimerkki-kayttoohje.tex   # Example: manual with captioned figures ([sansserif])
+│   │   ├── esimerkki-kayttoohje.tex   # Example: manual with captioned figures ([sans-serif])
+│   │   └── esimerkki-monospace.tex    # Example: memo with Courier typewriter font ([monospace])
 │   ├── markdown/
 │   │   └── esimerkki-*.md      # Markdown twins of the LaTeX examples
 │   ├── logo-organisaatio.tex   # Invented TikZ logo: Organisaatio Oy

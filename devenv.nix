@@ -11,6 +11,7 @@
         scheme-basic
         babel-finnish
         caption
+        courier
         enumitem
         everyshi
         helvetic

@@ -101,19 +101,20 @@ needed for the total page count in the ``1~(2)'' page number.
 \section{Class options}
 
 \begin{description}
-\item[(default)] Palatino body font at 11\,pt, bold headings numbered
-  \mbox{``1 Otsikko''}.
+\item[(default), sans-serif] Helvetica-like sans serif at 11\,pt, bold
+  headings numbered \mbox{``1 Otsikko''}, matching the look of the
+  standard's own example renderings.
+\item[serif] Palatino body font instead of Helvetica.
+\item[monospace] Courier typewriter font throughout.
 \item[agenda] Meeting-agenda heading numbering with a trailing period,
   \mbox{``1. Otsikko''} --- an established alternative the standard
   permits (clause 6.4.1). Headings stay bold either way, as clause 6.4
   requires bold or a larger font size.
-\item[sansserif] A Helvetica-like sans serif throughout, matching the
-  look of the standard's own example renderings.
 \item[12pt, \ldots] Any other option is passed through to
   \textsf{article}, e.g.\ a larger base font size.
 \end{description}
 
-Options combine: \verb|\documentclass[agenda,sansserif]{sfs-2487-2024}|.
+Options combine: \verb|\documentclass[agenda,serif]{sfs-2487-2024}|.
 
 \section{Metadata commands}
 
@@ -331,7 +332,9 @@ The package ships example documents exercising the class API:
 \item[esimerkki-raportti.tex] A multi-page report with a table of
   contents, a table and a footnote.
 \item[esimerkki-kayttoohje.tex] A manual with captioned figures, using
-  the \opt{sansserif} class option.
+  the \opt{sans-serif} class option.
+\item[esimerkki-monospace.tex] A memo using the \opt{monospace} class
+  option for a Courier typewriter look.
 \item[logo-*.tex] Invented TikZ logos used by the examples.
 \end{description}
 

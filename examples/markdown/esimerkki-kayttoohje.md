@@ -1,7 +1,7 @@
 ---
 # Markdown-versio ../latex/esimerkki-kayttoohje.tex-asiakirjasta:
 # käyttöohje, jossa on kuvatekstillisiä kuvia tekstin tasossa (6.5.2)
-# ja numeroituja vaiheluetteloita (6.5.3). Vaihtoehto "sansserif: true"
+# ja numeroituja vaiheluetteloita (6.5.3). Vaihtoehto "font: sans-serif"
 # latoo asiakirjan groteskilla, joka vastaa standardin omien esimerkkien
 # ulkoasua.
 doctype: Käyttöohje
@@ -10,7 +10,7 @@ author: Virve Virtanen
 subject: Graafinen ohjeisto
 title: Logon käyttö asiakirjoissa
 logo: ../logo-organisaatio.pdf
-sansserif: true
+font: sans-serif
 contact:
   name: Organisaatio Oy
   lines:

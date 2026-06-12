@@ -11,7 +11,8 @@ below are built from this very revision of the class.
 | `esimerkki-tarjous` | The standard's own Liite B example: quotation with document id, extra metadata, recipient area, closing greeting (6.5.4) and handwritten signature (6.6.1) | [PDF](pdf/latex/esimerkki-tarjous.pdf) | [PDF](pdf/markdown/esimerkki-tarjous.pdf) |
 | `esimerkki-kokouskutsu` | Meeting invitation with an agenda, using the `agenda` option's `1.` numbering and an unnumbered *Esityslista* heading | [PDF](pdf/latex/esimerkki-kokouskutsu.pdf) | [PDF](pdf/markdown/esimerkki-kokouskutsu.pdf) |
 | `esimerkki-raportti` | Multi-page report: table of contents (6.10), table with its caption above and a bold header row (6.5.1), footnote (6.9), three heading levels | [PDF](pdf/latex/esimerkki-raportti.pdf) | [PDF](pdf/markdown/esimerkki-raportti.pdf) |
-| `esimerkki-kayttoohje` | `sansserif` manual with captioned figures in the text flow (6.5.2) and numbered step lists | [PDF](pdf/latex/esimerkki-kayttoohje.pdf) | [PDF](pdf/markdown/esimerkki-kayttoohje.pdf) |
+| `esimerkki-kayttoohje` | `sans-serif` manual with captioned figures in the text flow (6.5.2) and numbered step lists | [PDF](pdf/latex/esimerkki-kayttoohje.pdf) | [PDF](pdf/markdown/esimerkki-kayttoohje.pdf) |
+| `esimerkki-monospace` | `monospace` memo demonstrating the Courier typewriter font | [PDF](pdf/latex/esimerkki-monospace.pdf) | [PDF](pdf/markdown/esimerkki-monospace.pdf) |
 
 `esimerkki-poytakirja` and `esimerkki-tarjous` replicate the standard's
 own model documents (Liite A and B in SFS 2487:2024), so their output
