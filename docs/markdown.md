@@ -39,6 +39,19 @@ vakioasiakirja oma-poytakirja.md
 first run downloads and builds the TeX Live closure; later runs start
 instantly from the nix store.
 
+### Watch mode
+
+With `--watch` the converter builds the PDF once and then rebuilds it
+every time the markdown file is saved — keep a PDF viewer with
+auto-reload open next to the editor:
+
+```bash
+nix run github:datakurre/vakioasiakirja -- --watch oma-poytakirja.md
+vakioasiakirja --watch oma-poytakirja.md                # installed command
+```
+
+Stop watching with `Ctrl-C`.
+
 ## Frontmatter
 
 The YAML frontmatter carries the metadata; `doctype` and `title` are
