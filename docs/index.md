@@ -52,6 +52,8 @@ nix profile add github:datakurre/vakioasiakirja
 vakioasiakirja oma-poytakirja.md
 ```
 
+`--watch` rebuilds the PDF on every save while you edit.
+
 See [Writing in Markdown](markdown.md) for the full frontmatter and body
 reference, and the [Examples](examples.md) for complete documents with
 their rendered PDFs.

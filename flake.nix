@@ -43,18 +43,41 @@
           name = "vakioasiakirja";
           # librsvg's rsvg-convert turns SVG logos and images into PDFs
           # that pdflatex can include (see pandoc/sfs-2487-2024.lua).
-          runtimeInputs = [ pkgs.pandoc texliveEnv pkgs.coreutils pkgs.librsvg ];
+          # entr drives --watch mode.
+          runtimeInputs = [ pkgs.pandoc texliveEnv pkgs.coreutils pkgs.librsvg pkgs.entr ];
           text = ''
-            if [ $# -ne 1 ] || [ "''${1##*.}" != "md" ]; then
-              echo "usage: vakioasiakirja <asiakirja.md>" >&2
+            usage() {
+              echo "usage: vakioasiakirja [--watch] <asiakirja.md>" >&2
               echo "Builds <asiakirja.pdf> next to the markdown input." >&2
+              echo "  --watch  rebuild the PDF whenever the markdown file changes" >&2
               exit 2
+            }
+            watch=0
+            args=()
+            for arg in "$@"; do
+              case "$arg" in
+                --watch) watch=1 ;;
+                -*) usage ;;
+                *) args+=("$arg") ;;
+              esac
+            done
+            if [ "''${#args[@]}" -ne 1 ] || [ "''${args[0]##*.}" != "md" ]; then
+              usage
             fi
-            if [ ! -f "$1" ]; then
-              echo "vakioasiakirja: $1: no such file" >&2
+            if [ ! -f "''${args[0]}" ]; then
+              echo "vakioasiakirja: ''${args[0]}: no such file" >&2
               exit 1
             fi
-            input="$(realpath "$1")"
+            input="$(realpath "''${args[0]}")"
+            if [ "$watch" = 1 ]; then
+              # entr builds once at startup, then re-runs this script
+              # (without --watch) on every change; it also survives editors
+              # that save by replacing the file.
+              echo "Watching $input; press Ctrl-C to stop." >&2
+              status=0
+              printf '%s\n' "$input" | entr -n "$0" "$input" || status=$?
+              exit "$status"
+            fi
             dir="$(dirname "$input")"
             base="$(basename "$input" .md)"
             tmp="$(mktemp -d)"
