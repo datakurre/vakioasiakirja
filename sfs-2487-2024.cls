@@ -78,7 +78,9 @@
   \setlength{\footskip}{\baselineskip}% unused (nofoot); silences fancyhdr warning
 }
 
-\setlist[itemize]{label=\textbullet,topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
+% Bulleted lists are marked with the en dash (ajatusviiva) of Finnish
+% typographic convention rather than LaTeX's default \textbullet.
+\setlist[itemize]{label=\textendash,topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
 \setlist[enumerate]{topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
 
 % Captions for tables, figures and charts (6.5.1-6.5.2): left-aligned at the
@@ -138,6 +140,8 @@
 \let\sfs@logo\@empty
 \let\sfs@recipient\@empty
 \let\sfs@subject\@empty
+\let\sfs@keywords\@empty
+\let\sfs@modified\@empty
 \let\sfs@contactname\@empty
 \let\sfs@contactlines\@empty
 
@@ -148,6 +152,11 @@
 \newcommand{\logo}[1]{\gdef\sfs@logo{#1}}
 \newcommand{\recipient}[1]{\gdef\sfs@recipient{#1}}
 \newcommand{\subject}[1]{\gdef\sfs@subject{#1}}
+% Keywords (asiasanat) and the modification date go only into the PDF
+% document properties, not into any visible information area; \modified
+% takes the d.m.yyyy format like \date.
+\newcommand{\keywords}[1]{\gdef\sfs@keywords{#1}}
+\newcommand{\modified}[1]{\gdef\sfs@modified{#1}}
 \newcommand{\contactinfo}[2]{\gdef\sfs@contactname{#1}\gdef\sfs@contactlines{#2}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -205,11 +214,25 @@
     \tagstructbegin{tag=#1}\tagmcbegin{tag=#1}#2\tagmcend\tagstructend
   \else#2\fi}
 
+% The layout adapts to the logo's size (6.1), but only up to a point: a
+% logo taller than \logomaxheight is scaled down proportionally, so an
+% oversized source image (a high-resolution bitmap, a full-page vector)
+% cannot consume the page. Adjust with \setlength{\logomaxheight}{...}.
+\newlength{\logomaxheight}
+\setlength{\logomaxheight}{20mm}
+
 % Grow the header to fit the metadata block (e.g. a tall logo), taking the
 % extra space from the text height so the body never overlaps the header.
 % The measuring box must not emit document structure in tagged documents.
 \AtBeginDocument{%
   \ifdefined\tagstop\tagstop\fi
+  \ifx\sfs@logo\@empty\else
+    \sbox\@tempboxa{\sfs@logo}%
+    \ifdim\ht\@tempboxa>\logomaxheight
+      \let\sfs@logo@given\sfs@logo
+      \gdef\sfs@logo{\resizebox{!}{\logomaxheight}{\sfs@logo@given}}%
+    \fi
+  \fi
   \sbox\@tempboxa{\sfs@metadatablock}%
   \ifdefined\tagstart\tagstart\fi
   \@tempdima=\dimexpr\ht\@tempboxa+\dp\@tempboxa+\baselineskip\relax
@@ -366,7 +389,29 @@
 % runs before any \AtBeginDocument code from the document preamble, so a
 % document overrides these with \AtBeginDocument{\hypersetup{...}}.
 \RequirePackage[bookmarksopen,bookmarksnumbered,hidelinks]{hyperref}
+
+% A \date in the standard's d.m.yyyy format (6.2) doubles as the PDF
+% CreationDate and ModDate, so the stored properties agree with the
+% visible metadata (5.1) instead of recording the compilation time;
+% \modified overrides the ModDate alone. A default (\today) or
+% free-form date leaves the compile-time dates untouched.
+\def\sfs@datedefault{\today}
+\newcommand{\sfs@setpdfdate}[2]{\expandafter\sfs@setpdfdate@#2...\@nil{#1}}
+\def\sfs@setpdfdate@#1.#2.#3.#4\@nil#5{%
+  \def\sfs@tempa{#2}\def\sfs@tempb{#3}\def\sfs@tempc{#4}\def\sfs@tempd{..}%
+  \ifx\sfs@tempa\@empty\else\ifx\sfs@tempb\@empty\else
+    \ifx\sfs@tempc\sfs@tempd
+      \hypersetup{#5={D:#3\two@digits{#2}\two@digits{#1}}}%
+    \fi
+  \fi\fi}
+
 \AtBeginDocument{%
   \hypersetup{pdflang={fi},pdftitle={\@title}}%
   \ifx\sfs@subject\@empty\else\hypersetup{pdfsubject={\sfs@subject}}\fi
-  \ifx\@author\@empty\else\hypersetup{pdfauthor={\@author}}\fi}
+  \ifx\@author\@empty\else\hypersetup{pdfauthor={\@author}}\fi
+  \ifx\sfs@keywords\@empty\else\hypersetup{pdfkeywords={\sfs@keywords}}\fi
+  \ifx\@date\sfs@datedefault\else
+    \sfs@setpdfdate{pdfcreationdate}{\@date}%
+    \ifx\sfs@modified\@empty\sfs@setpdfdate{pdfmoddate}{\@date}\fi
+  \fi
+  \ifx\sfs@modified\@empty\else\sfs@setpdfdate{pdfmoddate}{\sfs@modified}\fi}

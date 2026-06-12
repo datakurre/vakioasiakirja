@@ -126,7 +126,12 @@ unset.
 \item[\textbackslash doctype\{Pöytäkirja\}] The document type
   (asiakirjatyyppi), shown bold at the start of the basic metadata area.
 \item[\textbackslash date\{15.5.2024\}] The date (päivämäärä). Write as
-  \texttt{d.m.yyyy} without leading zeros, per SFS 4175.
+  \texttt{d.m.yyyy} without leading zeros, per SFS 4175. Also stored as
+  the PDF CreationDate and ModDate, so the document properties agree
+  with the visible metadata instead of recording the compilation time.
+\item[\textbackslash modified\{5.6.2024\}] Overrides the PDF ModDate
+  alone, as \texttt{d.m.yyyy}; without it both PDF dates follow
+  \cmd{date}. Not shown on the document. Optional.
 \item[\textbackslash author\{Virve Virtanen\}] The author (laatija), part
   of the standard's required minimum metadata (clause 5.2); stored in the
   PDF Author property. To show it on the document itself, add a line to
@@ -141,13 +146,18 @@ unset.
 \item[\textbackslash logo\{\ldots\}] The organization logo, as any box:
   \verb|\includegraphics{...}| or text such as
   \verb|\textsf{\textbf{Yritys Oy}}|. Placed top-left; the page header
-  grows automatically to fit a tall logo.
+  grows automatically to fit a tall logo. A logo taller than
+  \cmd{logomaxheight} (20\,mm by default) is scaled down
+  proportionally first --- adjust with
+  \verb|\setlength{\logomaxheight}{30mm}|.
 \item[\textbackslash recipient\{Oy Yritys Ab\textbackslash\textbackslash{}\ldots\}]
   The recipient information area (vastaanottajan tietoalue), lines
   separated by \verb|\\|, placed at the left margin below the metadata.
   Optional.
 \item[\textbackslash subject\{Digiprojekti\}] The subject (aihe), a bold
   line directly above the main title. Optional.
+\item[\textbackslash keywords\{palaute, kysely\}] Keywords (asiasanat)
+  for the PDF Keywords property; not shown on the document. Optional.
 \item[\textbackslash title\{Verkkosivujen uudistaminen\}] The main title
   (pääotsikko), bold and 3\,pt larger than the body text.
 \item[\textbackslash contactinfo\{Organisaatio Oy\}\{Katuosoite\textbackslash\textbackslash{}\ldots\}]
@@ -157,8 +167,8 @@ unset.
 \end{description}
 
 The metadata is also written into the PDF document properties --- title,
-subject, author and document language \texttt{fi} --- for accessibility
-and document management.
+subject, author, keywords, creation/modification dates and document
+language \texttt{fi} --- for accessibility and document management.
 
 \section{Body commands}
 
@@ -271,9 +281,9 @@ body-text description for images (clause 6.5.2).
 
 \subsection{Lists and page breaks}
 
-Bullet lists are preconfigured (bullet markers, tight item spacing, one
-paragraph gap around the list). For looser spacing pass
-\textsf{enumitem} options:
+Bullet lists are preconfigured (en-dash markers per Finnish convention,
+tight item spacing, one paragraph gap around the list). For looser
+spacing pass \textsf{enumitem} options:
 
 \begin{verbatim}
 \begin{itemize}[itemsep=\parskip]

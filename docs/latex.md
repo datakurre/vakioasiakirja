@@ -62,21 +62,28 @@ from the output when unset.
 | Command | Information area | Notes |
 |---|---|---|
 | `\doctype{Pöytäkirja}` | Asiakirjatyyppi | Shown bold at the start of the basic metadata area |
-| `\date{15.5.2024}` | Päivämäärä | Write as `d.m.yyyy` without leading zeros, per SFS 4175 |
+| `\date{15.5.2024}` | Päivämäärä | Write as `d.m.yyyy` without leading zeros, per SFS 4175. Also stored as the PDF creation and modification date |
+| `\modified{5.6.2024}` | — | Overrides the PDF modification date alone, as `d.m.yyyy`; without it both PDF dates follow `\date` |
 | `\author{Virve Virtanen}` | Laatija | Part of the required minimum metadata (5.2); stored in the PDF Author property. To show it on the document, add a line to `\extrametadata` |
 | `\docid{Dnro 123/2024}` | Asiakirjan yksilöivä tunnus | Optional |
 | `\confidentiality{Luottamuksellinen}` | Luottamuksellisuus | Optional |
 | `\extrametadata{Hankenumero 123456\\Asiakasnumero 987654}` | Lisämetatiedot | Optional; lines separated by `\\`, placed below the basic metadata |
-| `\logo{...}` | Logo / organisaatio | Any box: `\includegraphics{...}` or text such as `\textsf{\textbf{Yritys Oy}}`. Placed top-left; the page header grows automatically to fit a tall logo |
+| `\logo{...}` | Logo / organisaatio | Any box: `\includegraphics{...}` or text such as `\textsf{\textbf{Yritys Oy}}`. Placed top-left; the page header grows automatically to fit a tall logo. A logo taller than `\logomaxheight` (20 mm by default) is scaled down proportionally — adjust with `\setlength{\logomaxheight}{30mm}` |
 | `\recipient{Oy Yritys Ab\\Essi Esimerkki\\Esimerkkitie 1\\12345 Esimerkkipaikkakunta}` | Vastaanottajan tietoalue | Optional; placed at the left margin below the metadata |
 | `\subject{Digiprojekti}` | Aihe | Bold line directly above the main title |
+| `\keywords{asiakaspalaute, kysely}` | — | Keywords (asiasanat) for the PDF Keywords property; not shown on the document |
 | `\title{Verkkosivujen uudistaminen}` | Pääotsikko | Bold, 3 pt larger than the body text |
 | `\contactinfo{Organisaatio Oy}{Katuosoite\\12345 Postitoimipaikka\\Puhelinnumero\\www-osoite\\Y-tunnus}` | Organisaation yhteystiedot | Stored for `\makecontactinfo`; first argument is the bolded organization name |
 
 The metadata is also written into the PDF document properties — title,
-subject, author (laatija from `\author`) and document language `fi` — for
-accessibility and document management. To override a property, set it
-inside `\AtBeginDocument` (a plain preamble `\hypersetup` runs too early):
+subject, author (laatija from `\author`), keywords and document language
+`fi` — for accessibility and document management. A `\date` in the
+`d.m.yyyy` format additionally becomes the PDF creation **and**
+modification date, so the stored properties agree with the visible
+metadata (clause 5.1) instead of recording the compilation time;
+`\modified{...}` overrides the modification date alone. To override a
+property, set it inside `\AtBeginDocument` (a plain preamble
+`\hypersetup` runs too early):
 
 ```latex
 \AtBeginDocument{\hypersetup{pdflang={sv}}}
@@ -207,8 +214,9 @@ description for images (6.5.2).
 
 ### Lists and page breaks
 
-Bullet lists are preconfigured (`\textbullet` markers, tight item
-spacing, one paragraph gap around the list). For looser spacing pass
+Bullet lists are preconfigured (en-dash `–` markers per Finnish
+convention, tight item spacing, one paragraph gap around the list). For
+looser spacing pass
 [enumitem](https://ctan.org/pkg/enumitem) options:
 
 ```latex

@@ -41,7 +41,9 @@
 
         default = pkgs.writeShellApplication {
           name = "vakioasiakirja";
-          runtimeInputs = [ pkgs.pandoc texliveEnv pkgs.coreutils ];
+          # librsvg's rsvg-convert turns SVG logos and images into PDFs
+          # that pdflatex can include (see pandoc/sfs-2487-2024.lua).
+          runtimeInputs = [ pkgs.pandoc texliveEnv pkgs.coreutils pkgs.librsvg ];
           text = ''
             if [ $# -ne 1 ] || [ "''${1##*.}" != "md" ]; then
               echo "usage: vakioasiakirja <asiakirja.md>" >&2
@@ -55,6 +57,8 @@
             trap 'rm -rf "$tmp"' EXIT
             # Relative image and logo paths resolve against the markdown file.
             cd "$dir"
+            # The Lua filter writes SVG-to-PDF conversions here.
+            export SFS_2487_TMPDIR="$tmp"
             pandoc --standalone \
               --template "${support}/pandoc/sfs-2487-2024.latex" \
               --lua-filter "${support}/pandoc/sfs-2487-2024.lua" \

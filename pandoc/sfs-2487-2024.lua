@@ -7,7 +7,9 @@
 --   ::: esignatures             -> esignatures environment + \esignee
 --   ::: handsignature           -> \handsignature{line} per line
 -- and validates frontmatter (doctype/title required, logo image paths
--- wrapped in \includegraphics, at most three heading levels).
+-- wrapped in \includegraphics, at most three heading levels). SVG images
+-- (logo or body) are converted to PDF with rsvg-convert, which the nix
+-- flake provides; pdflatex cannot read SVG directly.
 
 -- Render inlines as LaTeX so special characters survive the trip into
 -- raw \marginlabel/\esignee arguments.
@@ -22,6 +24,22 @@ end
 
 local function rawblock(fmt, ...)
   return pandoc.RawBlock('latex', fmt:format(...))
+end
+
+-- Convert an SVG to PDF next to the build's other temporary files (the
+-- flake exports SFS_2487_TMPDIR; standalone pandoc runs fall back to the
+-- working directory, which is the markdown file's directory).
+local function svg_to_pdf(src)
+  local out = pandoc.path.join({
+    os.getenv('SFS_2487_TMPDIR') or '.',
+    pandoc.utils.sha1(src) .. '.pdf'})
+  local ok, err = pcall(pandoc.pipe, 'rsvg-convert',
+    {'--format=pdf', '--output=' .. out, src}, '')
+  if not ok then
+    error(('sfs-2487-2024: SVG-kuvan muunnos PDF:ksi epäonnistui ' ..
+           '(rsvg-convert failed for) %s:\n%s\n'):format(src, tostring(err)))
+  end
+  return out
 end
 
 -- Split inlines on hard line breaks (trailing backslash in markdown).
@@ -51,6 +69,9 @@ function Meta(meta)
   -- the filename.
   if meta.logo then
     local logo = pandoc.utils.stringify(meta.logo)
+    if logo:lower():match('%.svg$') then
+      logo = svg_to_pdf(logo)
+    end
     if logo:lower():match('%.pdf$') or logo:lower():match('%.eps$')
         or logo:lower():match('%.png$') or logo:lower():match('%.jpe?g$') then
       meta.logo = pandoc.MetaInlines({
@@ -149,6 +170,14 @@ function Div(div)
   if div.classes:includes('esignatures') then return esignatures(div) end
   if div.classes:includes('handsignature') then return handsignature(div) end
   if div.classes:includes('marginlabel') then return marginlabel(div) end
+end
+
+-- Body images may be SVG too; pdflatex needs them converted.
+function Image(image)
+  if image.src:lower():match('%.svg$') then
+    image.src = svg_to_pdf(image.src)
+    return image
+  end
 end
 
 -- Captioned images stay in the text flow (6.5.2): no floating figure

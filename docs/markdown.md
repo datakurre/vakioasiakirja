@@ -48,12 +48,18 @@ one line per item.
 ---
 doctype: Pöytäkirja                  # \doctype — required
 title: Asiakaspalautteet             # \title — required
-date: 15.5.2024                      # \date, as d.m.yyyy
+date: 15.5.2024                      # \date, as d.m.yyyy; also the PDF creation
+                                     # and modification date
+modified: 5.6.2024                   # \modified — overrides the PDF modification
+                                     # date alone, as d.m.yyyy
 author: Virve Virtanen               # \author (laatija)
 subject: Digiprojekti                # \subject
+keywords: [palaute, kysely]          # \keywords — PDF Keywords (asiasanat),
+                                     # not shown on the document
 docid: Dnro 123/2024                 # \docid
 confidentiality: Luottamuksellinen   # \confidentiality
-logo: logo-organisaatio.pdf          # image path, or text such as "**Yritys Oy**"
+logo: logo-organisaatio.pdf          # image path (pdf/eps/png/jpg/svg),
+                                     # or text such as "**Yritys Oy**"
 recipient: [Oy Yritys Ab, Esimerkkitie 1, 12345 Esimerkkipaikkakunta]
 extrametadata: [Hankenumero 123456, Asiakasnumero 987654]
 contact:                             # \contactinfo + \makecontactinfo at the end
@@ -89,10 +95,17 @@ header-includes:
 
 Standard Markdown works as expected: `#`–`###` headings (at most three
 levels, as the standard recommends — deeper headings are an error),
-paragraphs, bullet and numbered lists, footnotes, pipe tables (caption
-above via `: Caption text`), images with captions placed in the text
-flow, and `"quotes"` rendered as Finnish `”quotes”`. Raw LaTeX passes
-through for anything exotic.
+paragraphs, bullet and numbered lists (bullets render as the en dash `–`
+of Finnish convention), footnotes, pipe tables (caption above via
+`: Caption text`), images with captions placed in the text flow, and
+`"quotes"` rendered as Finnish `”quotes”`. Raw LaTeX passes through for
+anything exotic.
+
+Images — the `logo:` as well as images in the body — may also be SVG
+files: the converter turns them into PDF automatically (with
+`rsvg-convert`, which the flake bundles). A logo taller than 20 mm is
+scaled down to that height automatically, so a logo exported at screen
+resolution does not consume the page.
 
 An unnumbered heading — such as *Esityslista* in a meeting invitation —
 is marked with `{-}`:

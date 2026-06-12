@@ -5,8 +5,10 @@
 # alaviite (6.9) ja kolme otsikkotasoa (6.4).
 doctype: Raportti
 date: 31.5.2024
+modified: 5.6.2024
 author: Virve Virtanen
 docid: Dnro 45/2024
+keywords: [asiakaspalaute, kysely, digiprojekti]
 subject: Digiprojekti
 title: Asiakaspalautekyselyn tulokset 2024
 logo: ../logo-organisaatio.pdf

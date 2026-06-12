@@ -41,8 +41,14 @@ $endfor$
 $if(date)$
 \date{$date$}
 $endif$
+$if(modified)$
+\modified{$modified$}
+$endif$
 $if(author)$
 \author{$author$}
+$endif$
+$if(keywords)$
+\keywords{$for(keywords)$$keywords$$sep$, $endfor$}
 $endif$
 \title{$title$}
 $if(subject)$
