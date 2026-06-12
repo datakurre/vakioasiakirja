@@ -83,19 +83,37 @@ devenv shell --no-eval-cache -- latexmk -pdf myfile.tex
 ## Cloud Sandbox (Claude Code on the web)
 
 Remote sandbox sessions run in a plain Ubuntu container: `nix`,
-`devenv` and TeX are **not** installed, and the network policy blocks
-`nixos.org` (HTTP 403 `host_not_allowed`), so nix cannot be installed
-either. The nix-based instructions above don't apply there — fall back
-to apt, which does work:
+`devenv` and TeX are **not** preinstalled, and the network policy
+blocks `nixos.org` (HTTP 403 `host_not_allowed`), so the official nix
+installer is unavailable. But `cache.nixos.org` is reachable, so
+Ubuntu's own `nix-bin` package works fully — install nix from apt and
+verify with the regular flake workflow (see "Cloud sandboxes" in
+`AGENTS.md`):
 
 ```bash
 sudo apt-get update   # required first: the baked-in index is stale (404s)
-sudo apt-get install -y texlive-latex-recommended texlive-latex-extra \
-  texlive-lang-european latexmk poppler-utils pandoc librsvg2-bin
+sudo apt-get install -y nix-bin poppler-utils
+printf 'experimental-features = nix-command flakes\n' | sudo tee /etc/nix/nix.conf
 ```
 
 (`apt-get update` reports a 403 for an unrelated `ondrej/php` PPA —
 harmless, ignore it.)
+
+After that `make markdown` and `nix run . -- <file.md>` work as
+documented above, and `nix shell .#texliveEnv --command make examples`
+builds the LaTeX examples with the flake's pinned TeX Live, so both
+sides of the parity check use the same toolchain. The first build
+fetches ~1.5 GB from cache.nixos.org and takes a few minutes. For
+ad-hoc tools, prefer `nix shell --inputs-from . nixpkgs#<pkg>` — the
+bare `nixpkgs#<pkg>` form resolves the registry through the GitHub API
+and can hit unauthenticated rate limits.
+
+### Fallback: apt TeX Live (if nix can't be used)
+
+```bash
+sudo apt-get install -y texlive-latex-recommended texlive-latex-extra \
+  texlive-lang-european latexmk poppler-utils pandoc librsvg2-bin
+```
 
 After that `make examples` works directly. `make markdown` does not
 (it needs `nix run`), so replicate the flake's pipeline (see
@@ -115,13 +133,15 @@ tmp="$(mktemp -d)"; export SFS_2487_TMPDIR="$tmp"
 rm -rf "$tmp"
 ```
 
-**Parity-check caveat:** Ubuntu's TeX Live 2023 and pandoc 3.1.3 differ
-from the flake's pinned toolchain, so the `pdftotext -layout` parity
-diff shows small whitespace-only differences in some pairs (e.g.
-`esimerkki-poytakirja`, `esimerkki-raportti`). Before blaming your
-change, rebuild from a pristine checkout (`git stash`) and diff that
-baseline — if the baseline shows the same differences, they are
-environmental, not regressions. `pdftotext -bbox` position checks
+**Parity-check caveat:** the strict `pdftotext -layout` diff shows
+small whitespace-only differences (blank lines, table column spacing)
+in `esimerkki-poytakirja` and `esimerkki-raportti` even when both
+sides are built with the flake's pinned toolchain — they come from how
+pandoc-generated table code spaces columns, not from your change or
+the environment. Squash whitespace to check content parity
+(`pdftotext -layout file.pdf - | tr -s ' \n'`), or diff against a
+pristine-checkout (`git stash`) baseline: only differences absent from
+the baseline are regressions. `pdftotext -bbox` position checks
 (en dash / item numbers at 121.89 pt, etc.) remain reliable.
 
 ## Verification Workflow

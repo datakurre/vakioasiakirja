@@ -79,15 +79,39 @@ When you need a tool not in `devenv.nix`:
 
 See `.claude/skills/nix-tools.md` for detailed examples and patterns.
 
-### Sandboxes without nix
+### Cloud sandboxes: install nix from apt
 
-Cloud sandboxes (e.g. Claude Code on the web) have neither nix nor
-devenv, and their network policy may block installing nix. Use apt
-instead — `sudo apt-get update`, then install the TeX Live packages,
-latexmk, poppler-utils, pandoc and librsvg2-bin — and replicate the
-`make markdown` flake pipeline manually with pandoc + latexmk. See
-"Cloud Sandbox" in `CLAUDE.md` for the exact commands and the
-parity-check caveat that comes with the different toolchain versions.
+Cloud sandboxes (e.g. Claude Code on the web) are plain Ubuntu
+containers without nix or devenv. The network policy blocks
+`nixos.org`, so the official installer is unavailable — but
+`cache.nixos.org` and GitHub are reachable, so Ubuntu's own nix
+package gives a fully working nix:
+
+```bash
+sudo apt-get update          # required first: the baked-in index is stale
+sudo apt-get install -y nix-bin poppler-utils
+printf 'experimental-features = nix-command flakes\n' | sudo tee /etc/nix/nix.conf
+```
+
+After that the flake works as on any other machine, so changes can be
+verified with the real pinned toolchain:
+
+```bash
+make markdown                                  # or: nix run . -- <file.md>
+nix shell .#texliveEnv --command make examples # pinned TeX Live for the LaTeX side
+```
+
+The first build fetches ~1.5 GB from cache.nixos.org and takes a few
+minutes; later runs start from the store. The sandbox user is root, so
+`sudo` is optional. Two caveats: bare registry references such as
+`nix shell nixpkgs#<pkg>` resolve `nixpkgs` through the GitHub API and
+can hit unauthenticated rate limits — use
+`nix shell --inputs-from . nixpkgs#<pkg>` to reuse the flake's locked
+nixpkgs instead. And `devenv` is still unavailable, but the flake
+provides the whole toolchain so it isn't needed.
+
+If nix can't be installed after all, fall back to an apt TeX Live —
+see "Cloud Sandbox" in `CLAUDE.md` for the commands and caveats.
 
 ## File Structure
 
