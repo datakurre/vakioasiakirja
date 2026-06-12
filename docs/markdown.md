@@ -70,7 +70,7 @@ attachments: [Yhteenveto asiakaspalautteesta]   # Liitteet
 distribution: [Digiprojektin ohjausryhmä]       # Jakelu
 forinformation: [Johtoryhmä]                    # Tiedoksi
 agenda: true                         # class options …
-sansserif: true
+font: sans-serif                     # serif / sans-serif (default) / monospace
 fontsize: 12pt
 toc: true                            # \tableofcontents after the title
 ---

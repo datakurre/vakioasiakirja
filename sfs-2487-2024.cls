@@ -27,13 +27,18 @@
 % the standard also permits as an established convention (6.4.1). Headings
 % stay bold either way, as 6.4 requires bold or a larger font size.
 %
-% [sansserif] typesets the document in a Helvetica-like sans serif, matching
-% the look of the standard's own example renderings, instead of Palatino.
+% [serif] typesets the document in Palatino (serif).
+% [sans-serif] (default) typesets in a Helvetica-like sans serif, matching
+%   the look of the standard's own example renderings.
+% [monospace] typesets in Courier (typewriter look).
 
 \newif\ifsfs@agenda
 \DeclareOption{agenda}{\sfs@agendatrue}
-\newif\ifsfs@sans
-\DeclareOption{sansserif}{\sfs@sanstrue}
+\newif\ifsfs@font@serif
+\newif\ifsfs@font@mono
+\DeclareOption{serif}{\sfs@font@seriftrue}
+\DeclareOption{sans-serif}{}
+\DeclareOption{monospace}{\sfs@font@monotrue}
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{article}}
 \ProcessOptions\relax
 
@@ -43,12 +48,15 @@
 % Typeface and layout
 %
 
-\ifsfs@sans
+\ifsfs@font@serif
+  \RequirePackage{mathpazo}
+\else\ifsfs@font@mono
+  \RequirePackage{courier}
+  \renewcommand{\familydefault}{\ttdefault}
+\else
   \RequirePackage{helvet}
   \renewcommand{\familydefault}{\sfdefault}
-\else
-  \RequirePackage{mathpazo}
-\fi
+\fi\fi
 \RequirePackage{microtype}
 \RequirePackage{graphicx}
 \RequirePackage{ragged2e}

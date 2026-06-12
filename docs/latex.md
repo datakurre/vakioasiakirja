@@ -46,12 +46,13 @@ these same commands.
 
 | Option | Effect |
 |---|---|
-| *(default)* | Palatino body font at 11 pt, headings bold, numbered `1 Otsikko` |
+| *(default)* / `sans-serif` | Helvetica-like sans serif throughout, matching the look of the standard's own example renderings |
+| `serif` | Palatino body font (classic serif look) |
+| `monospace` | Courier typewriter font throughout |
 | `agenda` | Meeting-agenda numbering with a trailing period, `1. Otsikko` (an established alternative the standard permits, 6.4.1). Headings stay bold either way — clause 6.4 requires bold or a larger font size. |
-| `sansserif` | Helvetica-like sans serif throughout, matching the look of the standard's own example renderings |
 | `12pt` | Larger base font size (any other `article` option is passed through as well) |
 
-Options combine, e.g. `\documentclass[agenda,sansserif]{sfs-2487-2024}`.
+Options combine, e.g. `\documentclass[agenda,serif]{sfs-2487-2024}`.
 
 ## Metadata commands (preamble)
 
