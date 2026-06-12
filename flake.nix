@@ -50,6 +50,10 @@
               echo "Builds <asiakirja.pdf> next to the markdown input." >&2
               exit 2
             fi
+            if [ ! -f "$1" ]; then
+              echo "vakioasiakirja: $1: no such file" >&2
+              exit 1
+            fi
             input="$(realpath "$1")"
             dir="$(dirname "$input")"
             base="$(basename "$input" .md)"
