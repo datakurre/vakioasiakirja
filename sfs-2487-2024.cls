@@ -79,9 +79,13 @@
 }
 
 % Bulleted lists are marked with the en dash (ajatusviiva) of Finnish
-% typographic convention rather than LaTeX's default \textbullet.
+% typographic convention rather than LaTeX's default \textbullet. The first
+% level starts flush at the body indent (no extra margin); nested levels
+% keep their relative indentation.
 \setlist[itemize]{label=\textendash,topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
 \setlist[enumerate]{topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
+\setlist[itemize,1]{leftmargin=*}
+\setlist[enumerate,1]{leftmargin=*}
 
 % Captions for tables, figures and charts (6.5.1-6.5.2): left-aligned at the
 % text indent like the spec's own "Taulukko 1 Otsikko" / "Kuva 1 Teksti"
