@@ -1,15 +1,16 @@
 ---
 # Markdown-versio ../latex/esimerkki-kokouskutsu.tex-asiakirjasta:
-# kokouskutsu esityslistoineen. Vaihtoehto "agenda: true" numeroi otsikot
-# loppupisteellisinä ("1. Otsikko"), mikä on standardin 6.4.1 salliman
-# vakiintuneen tavan mukaista esityslistoissa ja pöytäkirjoissa.
+# kokouskutsu esityslistoineen. Ominaisuus "features: [agenda]" numeroi
+# otsikot loppupisteellisinä ("1. Otsikko"), mikä on standardin 6.4.1
+# salliman vakiintuneen tavan mukaista esityslistoissa ja pöytäkirjoissa.
 doctype: Kokouskutsu
 date: 6.5.2024
 author: Virve Virtanen
 subject: Digiprojekti
 title: Projektiryhmän kokous 5/2024
 logo: ../logo-organisaatio.pdf
-agenda: true
+# Liitealueet jatkuvat samalla sivulla rungon perässä (vrt. .tex-versio).
+features: [agenda, no-endmatter-newpage]
 contact:
   name: Organisaatio Oy
   lines:
@@ -23,8 +24,6 @@ distribution:
   - Projektiryhmän jäsenet
 forinformation:
   - Johtoryhmä
-# Liitealueet jatkuvat samalla sivulla rungon perässä (vrt. .tex-versio).
-endmatter-newpage: false
 ---
 
 Projektiryhmän seuraava kokous pidetään maanantaina 13.5.2024
