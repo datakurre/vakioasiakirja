@@ -71,6 +71,7 @@ these same commands.
 | `serif` | Palatino body font (classic serif look) |
 | `monospace` | Courier typewriter font throughout |
 | `agenda` | Meeting-agenda numbering with a trailing period, `1. Otsikko` (an established alternative the standard permits, 6.4.1). Headings stay bold either way — clause 6.4 requires bold or a larger font size. |
+| `no-runin` | Always start body text on its own line below the heading. By default a heading or margin label that fits inside the 2,3 cm heading column shares its line with the body text, as in the standard's own model documents. |
 | `12pt` | Larger base font size (any other `article` option is passed through as well) |
 
 Options combine, e.g. `\documentclass[agenda,serif]{sfs-2487-2024}`.

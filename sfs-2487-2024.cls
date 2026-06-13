@@ -27,6 +27,11 @@
 % the standard also permits as an established convention (6.4.1). Headings
 % stay bold either way, as 6.4 requires bold or a larger font size.
 %
+% [no-runin] always starts body text on its own line below the heading.
+% By default a heading or margin label that fits inside the 2,3 cm heading
+% column shares its line with the body text, as in the standard's own model
+% documents (Liite A/B).
+%
 % [serif] typesets the document in Palatino (serif).
 % [sans-serif] (default) typesets in a Helvetica-like sans serif, matching
 %   the look of the standard's own example renderings.
@@ -34,6 +39,8 @@
 
 \newif\ifsfs@agenda
 \DeclareOption{agenda}{\sfs@agendatrue}
+\newif\ifsfs@norunin
+\DeclareOption{no-runin}{\sfs@norunintrue}
 \newif\ifsfs@font@serif
 \newif\ifsfs@font@mono
 \DeclareOption{serif}{\sfs@font@seriftrue}
@@ -326,28 +333,124 @@
 % Headings are not justified (global \RaggedRight) nor hyphenated (6.4).
 \newcommand{\sfs@nohyphens}{\hyphenpenalty\@M\exhyphenpenalty\@M}
 \newcommand{\sfs@sectfont}{\normalfont\normalsize\bfseries\sfs@nohyphens}
+% Margin labels share the heading geometry but stay regular weight.
+\newcommand{\sfs@labelfont}{\normalfont\normalsize\sfs@nohyphens}
+
+% In the standard's model documents body text starts on the heading line
+% whenever the heading fits inside the heading column, so that is the
+% default; [no-runin] always starts the body on its own line instead.
+% Each heading is measured up front: one that fits in \sfs@column (less
+% the \sfs@runinsep minimum gap) is typeset through the kernel's run-in
+% path (negative after skip) padded to the column width, so the next
+% paragraph continues at the 2,3 cm indent on the same line; a wider
+% heading keeps the display layout below exactly as with [no-runin].
+% A fitting heading with no paragraph after it is flushed onto a line of
+% its own by the \if@noskipsec\leavevmode\fi hooks in \@startsection and
+% \@trivlist (kernel run-in semantics).
+\newif\ifsfs@runinfit
+\newlength{\sfs@runinsep}\setlength{\sfs@runinsep}{0.5em}
+\newcommand{\sfs@measurefit}[1]{%
+  \sbox\@tempboxa{#1}%
+  \ifdim\wd\@tempboxa<\dimexpr\sfs@column-\sfs@runinsep\relax
+    \global\sfs@runinfittrue
+  \else
+    \global\sfs@runinfitfalse
+  \fi}
+
+% Measure a heading as \@sect will format it: the number (with its
+% \ifsfs@agenda period) is rendered from a locally advanced counter,
+% since the real \refstepcounter only runs inside \@startsection.
+\newcommand{\sfs@measuresect}[3]{%
+  \begingroup
+    \ifnum#2>\c@secnumdepth
+      \let\@svsec\@empty
+    \else
+      \advance\csname c@#1\endcsname\@ne
+      \protected@edef\@svsec{\@seccntformat{#1}\relax}%
+    \fi
+    \sfs@measurefit{\sfs@sectfont\@svsec#3}%
+  \endgroup}
+
+% Style command for the run-in path: \@svsechd hands it the formatted
+% heading (number and text), which is padded to the heading column so the
+% body starts at the 2,3 cm indent of the same line.
+\newcommand{\sfs@runinsecthd}[1]{%
+  \hskip-\sfs@column\hb@xt@\sfs@column{{\sfs@sectfont#1}\hfil}}
 
 % The 1sp before/after skips keep the heading a display heading while the
-% standard's "at least one paragraph gap" around it comes from \parskip.
-% Top-level headings get half a paragraph gap extra above, following the
-% 6.4 note that there is typically more space above them than below.
-\newcommand{\sfs@makesection}[3]{%
-  \@ifstar
-    {\@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}*}%
-    {\@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}}}
+% standard's "at least one paragraph gap" around it comes from \parskip;
+% the -1sp after skip engages the kernel's run-in path for headings that
+% fit the heading column. Top-level headings get half a paragraph gap
+% extra above, following the 6.4 note that there is typically more space
+% above them than below.
+\newcommand{\sfs@displaysection}[3]{%
+  \@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}}
+\ifsfs@norunin
+  \newcommand{\sfs@makesection}[3]{%
+    \@ifstar
+      {\sfs@displaysection{#1}{#2}{#3}*}%
+      {\sfs@displaysection{#1}{#2}{#3}}}
+\else
+  \newcommand{\sfs@makesection}[3]{%
+    \@ifstar
+      {\sfs@starsection{#1}{#2}{#3}}%
+      {\@dblarg{\sfs@plainsection{#1}{#2}{#3}}}}
+  \newcommand{\sfs@starsection}[4]{%
+    \sfs@measurefit{\sfs@sectfont#4}%
+    \ifsfs@runinfit
+      \@startsection{#1}{#2}{\z@}{#3}{-1sp}{\sfs@runinsecthd}*{#4}%
+    \else
+      \sfs@displaysection{#1}{#2}{#3}*{#4}%
+    \fi}
+  \def\sfs@plainsection#1#2#3[#4]#5{%
+    \sfs@measuresect{#1}{#2}{#5}%
+    \ifsfs@runinfit
+      \@startsection{#1}{#2}{\z@}{#3}{-1sp}{\sfs@runinsecthd}[#4]{#5}%
+    \else
+      \sfs@displaysection{#1}{#2}{#3}[#4]{#5}%
+    \fi}
+\fi
 \renewcommand{\section}{\sfs@makesection{section}{1}{.5\parskip}}
 \renewcommand{\subsection}{\sfs@makesection{subsection}{2}{1sp}}
 \renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}{1sp}}
 
 % The standard recommends at most three heading levels (6.4); article's
-% run-in \paragraph and \subparagraph would break the hanging-heading
-% layout, so deeper levels degrade to unnumbered display headings instead.
+% plain run-in \paragraph and \subparagraph would leave the heading
+% column's grid, so deeper levels degrade to unnumbered headings with the
+% same column-aware layout instead.
 \renewcommand{\paragraph}{\sfs@makesection{paragraph}{4}{1sp}}
 \renewcommand{\subparagraph}{\sfs@makesection{subparagraph}{5}{1sp}}
 
 % Unnumbered regular-weight label at the left margin ("Aika ja paikka"),
-% with the following content at the body indent.
-\newcommand{\marginlabel}[1]{\par\noindent\hspace*{-\sfs@column}#1\par\nopagebreak}
+% with the following content at the body indent — on the same line when
+% the label fits the heading column (unless [no-runin]), below otherwise.
+% Built on the same \@startsection run-in/display machinery as the
+% numbered headings (starred, so it takes no counter and joins no TOC),
+% which also flushes a label with no following content onto its own line.
+\ifsfs@norunin
+  \newcommand{\marginlabel}[1]{%
+    \par\noindent\hspace*{-\sfs@column}#1\par\nopagebreak}
+\else
+  \newcommand{\sfs@runinlabelhd}[1]{%
+    \hskip-\sfs@column\hb@xt@\sfs@column{{\sfs@labelfont#1}\hfil}}
+  \newcommand{\marginlabel}[1]{%
+    \sfs@measurefit{\sfs@labelfont#1}%
+    \ifsfs@runinfit
+      \@startsection{section}{6}{\z@}{1sp}{-1sp}{\sfs@runinlabelhd}*{#1}%
+    \else
+      \@startsection{section}{6}{-\sfs@column}{1sp}{1sp}{\sfs@labelfont}*{#1}%
+    \fi}
+\fi
+
+% The table of contents heading stays on a line of its own (6.10): flush
+% it before \@starttoc so it does not run in with the first entry, whose
+% \@dottedtocline geometry differs from a body paragraph's. Otherwise
+% article's definition verbatim.
+\renewcommand{\tableofcontents}{%
+  \section*{\contentsname
+      \@mkboth{\MakeUppercase\contentsname}{\MakeUppercase\contentsname}}%
+  \if@noskipsec\leavevmode\par\fi
+  \@starttoc{toc}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Signatures (allekirjoituksen tietoalue)
