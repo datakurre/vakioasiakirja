@@ -30,10 +30,21 @@ markdown: $(LOGOS)  ## Build every examples/markdown/esimerkki-*.md with the nix
 
 .PHONY: docs
 docs: examples markdown  ## Build the documentation site into site/
-	@rm -rf docs/pdf
+	@rm -rf docs/pdf docs/src
 	@mkdir -p docs/pdf/latex docs/pdf/markdown
 	@cp examples/latex/esimerkki-*.pdf docs/pdf/latex/
 	@cp examples/markdown/esimerkki-*.pdf docs/pdf/markdown/
+	@# Copy the example sources next to the PDFs so the docs site can link
+	@# to them. The .txt suffix makes every host (GitHub Pages included)
+	@# serve them as text/plain, so browsers render them inline instead of
+	@# downloading.
+	@mkdir -p docs/src/latex docs/src/markdown
+	@for f in examples/latex/esimerkki-*.tex; do \
+		cp "$$f" "docs/src/latex/$$(basename $$f).txt"; \
+	done
+	@for f in examples/markdown/esimerkki-*.md; do \
+		cp "$$f" "docs/src/markdown/$$(basename $$f).txt"; \
+	done
 	@nix shell .#docsEnv --command mkdocs build --strict
 
 .PHONY: watch
@@ -44,7 +55,7 @@ watch:  ## Develop PDF and watch for changes
 clean:
 	@latexmk -cd -C -quiet examples/latex/esimerkki-*.tex examples/logo-*.tex
 	@rm -f examples/latex/*.fls examples/markdown/esimerkki-*.pdf
-	@rm -rf docs/pdf site
+	@rm -rf docs/pdf docs/src site
 
 .PHONY: shell
 shell:
