@@ -5,7 +5,7 @@
 % only support for pandoc-generated body code is added here. Multi-line
 % fields (recipient, extrametadata, contact.lines, attachments, …) are YAML
 % lists joined with line breaks.
-\documentclass[$if(fontsize)$$fontsize$,$endif$$if(sfs-agenda)$agenda,$endif$$if(font)$$font$,$endif$$for(classoption)$$classoption$,$endfor$]{sfs-2487-2024}
+\documentclass[$if(fontsize)$$fontsize$,$endif$$if(sfs-agenda)$agenda,$endif$$if(sfs-runin)$$else$no-runin,$endif$$if(font)$$font$,$endif$$for(classoption)$$classoption$,$endfor$]{sfs-2487-2024}
 
 % Macros that pandoc-generated body code may reference
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}

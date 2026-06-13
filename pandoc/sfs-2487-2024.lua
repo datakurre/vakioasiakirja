@@ -97,8 +97,9 @@ end
 -- forinformation are present (the pöytäkirja model document starts its end
 -- matter on a fresh page; contact info alone stays inline, as in the tarjous
 -- model document; the class itself separates inline end matter from the body
--- by a paragraph gap).
-local feature_names = pandoc.List({'agenda', 'toc', 'endmatter-newpage'})
+-- by a paragraph gap), and runin defaults to true (the class runs body text
+-- into the heading line, so the feature only carries a 'no-runin' opt-out).
+local feature_names = pandoc.List({'agenda', 'toc', 'endmatter-newpage', 'runin'})
 
 local function parse_features(meta)
   for _, name in ipairs(feature_names) do
@@ -119,8 +120,9 @@ local function parse_features(meta)
       local name = token:match('^no%-(.+)$') or token
       if not feature_names:includes(name) then
         error(("sfs-2487-2024: tuntematon ominaisuus (unknown feature) " ..
-               "'%s' — tuetut (supported): agenda, toc, endmatter-newpage; " ..
-               "no-etuliite poistaa käytöstä (a no- prefix disables one)\n")
+               "'%s' — tuetut (supported): agenda, toc, endmatter-newpage, " ..
+               "runin; no-etuliite poistaa käytöstä (a no- prefix disables " ..
+               "one)\n")
               :format(token))
       end
       features[name] = (name == token)
@@ -130,6 +132,7 @@ local function parse_features(meta)
     features['endmatter-newpage'] = meta.attachments ~= nil
       or meta.distribution ~= nil or meta.forinformation ~= nil
   end
+  if features['runin'] == nil then features['runin'] = true end
   for _, name in ipairs(feature_names) do
     meta['sfs-' .. name] = pandoc.MetaBool(features[name] or false)
   end

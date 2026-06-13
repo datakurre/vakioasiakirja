@@ -95,6 +95,9 @@ The `features` key is a list of optional features to turn on:
   agendas and minutes (6.4.1)
 - `toc` — `\tableofcontents` right after the title
 - `endmatter-newpage` — start the end matter on a fresh page
+- `runin` — run body text into the heading line when the heading fits the
+  2,3 cm heading column (on by default; use `no-runin` to keep the body on
+  its own line below the heading)
 
 A `no-` prefix turns a feature off (`features: [no-endmatter-newpage]`);
 unknown feature names are an error.
