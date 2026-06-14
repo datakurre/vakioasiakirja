@@ -60,6 +60,12 @@
 \else\ifsfs@font@mono
   \RequirePackage{courier}
   \renewcommand{\familydefault}{\ttdefault}
+  % Courier's font definition (t1pcr.fd) disables hyphenation with
+  % \hyphenchar\font\m@ne, so long Finnish compound words cannot break and
+  % overflow the right margin under the global \RaggedRight. Re-enable it so
+  % the body wraps like the serif/sans-serif fonts; the spec suppresses
+  % hyphenation only in headings (6.4), which \sfs@nohyphens still handles.
+  \DeclareFontFamily{T1}{pcr}{\hyphenchar\font=`\-}
 \else
   \RequirePackage{helvet}
   \renewcommand{\familydefault}{\sfdefault}
