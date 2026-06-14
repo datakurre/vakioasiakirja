@@ -68,16 +68,17 @@ function frontmatterToArgs(meta: Record<string, unknown>): string {
   // Class options.
   if (meta.font != null) args.push(`font: ${str(String(meta.font))}`);
   if (meta.fontsize != null) args.push(`fontsize: ${String(meta.fontsize).replace(/pt$/, "")}pt`);
-  // features: [agenda, toc, endmatter-newpage] with a `no-` prefix to disable.
+  // features: [agenda, toc, endmatter-newpage, runin] with a `no-` prefix to
+  // disable; runin defaults on (only the `no-runin` opt-out is meaningful).
   const features = parseFeatures(meta);
-  for (const f of ["agenda", "toc", "endmatter-newpage"] as const) {
+  for (const f of ["agenda", "toc", "endmatter-newpage", "runin"] as const) {
     args.push(`${f}: ${features[f] ? "true" : "false"}`);
   }
   return args.join(",\n  ");
 }
 
 function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
-  const names = ["agenda", "toc", "endmatter-newpage"];
+  const names = ["agenda", "toc", "endmatter-newpage", "runin"];
   for (const n of names) {
     if (meta[n] != null) {
       throw new ConversionError(
@@ -101,6 +102,7 @@ function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
   if (out["endmatter-newpage"] === undefined) {
     out["endmatter-newpage"] = meta.attachments != null || meta.distribution != null || meta.forinformation != null;
   }
+  if (out["runin"] === undefined) out["runin"] = true;
   return out;
 }
 
@@ -218,25 +220,28 @@ function list(tokens: Token[], cur: Cursor, close: string): string {
   return items.map((it) => marker + it.replace(/\n/g, "\n  ")).join("\n") + "\n\n";
 }
 
-// Definition list -> #marginlabel(term) followed by the definition content
-// (cls: term at the 20 mm margin, content at the 43 mm body column).
+// Definition list -> #marginlabel(term)[definition] (cls: term at the 20 mm
+// margin, content at the 43 mm body column, run into the term's line when the
+// term fits the heading column). The term and its definition(s) are passed as
+// one call so the template can run them onto a single line.
 function definitionList(tokens: Token[], cur: Cursor): string {
   let out = "";
   cur.i++; // dl_open
   while (cur.i < tokens.length && tokens[cur.i].type !== "dl_close") {
-    const t = tokens[cur.i];
-    if (t.type === "dt_open") {
+    if (tokens[cur.i].type === "dt_open") {
       const term = inlines(tokens[cur.i + 1].children ?? []);
-      out += `#marginlabel[${term}]\n`;
-      cur.i += 3;
-    } else if (t.type === "dd_open") {
-      cur.i++;
-      out += blocks(tokens, cur, "dd_close") + "\n";
-      cur.i++;
+      cur.i += 3; // dt_open, inline, dt_close
+      let def = "";
+      while (cur.i < tokens.length && tokens[cur.i].type === "dd_open") {
+        cur.i++; // dd_open
+        def += blocks(tokens, cur, "dd_close");
+        cur.i++; // dd_close
+      }
+      out += `#marginlabel([${term}])[${def.trim()}]\n\n`;
     } else cur.i++;
   }
   cur.i++; // dl_close
-  return out + "\n";
+  return out;
 }
 
 // ---- pandoc fenced divs (::: name ... :::) ----
@@ -336,7 +341,7 @@ function marginlabelDiv(seg: Segment): string {
       'sfs-2487-2024: marginlabel-lohkosta puuttuu label="…" (div is missing the label attribute)',
     );
   }
-  return `#marginlabel[${esc(seg.label)}]\n` + body(seg.text) + "\n";
+  return `#marginlabel([${esc(seg.label)}])[${body(seg.text).trim()}]\n\n`;
 }
 
 function body(markdown: string): string {

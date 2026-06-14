@@ -19,6 +19,8 @@
 #let meta-offset = metaindent - column // 69 mm: from the 43 mm body column
 #let metawidth = 88mm // 200 mm right text edge − 112 mm
 #let logo-max-height = 20mm
+#let parskip = 11.6pt // paragraph gap (.88 baselineskip at 11 pt)
+#let runin-sep = 0.5em // minimum gap kept when a heading/label runs in
 
 // Metric-compatible stand-ins for the class's Type 1 fonts (Typst cannot use
 // those directly): Helvetica → Heros, Palatino → Pagella, Courier → Cursor.
@@ -28,21 +30,41 @@
   monospace: "TeX Gyre Cursor",
 )
 
-// A label that hangs at the 20 mm margin with its content kept beside it
-// (cls \marginlabel). Used for definition-list terms and the .marginlabel div.
-#let marginlabel(body) = block(below: 0pt, sticky: true, pad(left: -column, body))
+// Whether body text runs into a fitting heading/label line; set by
+// sfs-document so the module-level `marginlabel` can read it (cls [no-runin]).
+#let runin-state = state("sfs-runin", true)
+
+// True when `head` is narrow enough to share its line with the body (cls
+// \sfs@measurefit: fits the heading column less the minimum gap).
+#let fits-column(head) = measure(head).width < (column - runin-sep).to-absolute()
+
+// A label at the 20 mm margin (cls \marginlabel): definition-list terms, the
+// .marginlabel div and the end-matter labels. When the label fits the heading
+// column the body runs in on the same line, returning to the 43 mm body
+// indent; otherwise the label takes its own line with the body below.
+#let marginlabel(label, body) = context {
+  if runin-state.get() and body != [] and fits-column(label) {
+    block(spacing: parskip, {
+      place(top + left, dx: -column, box(width: column, label))
+      body
+    })
+  } else {
+    block(below: parskip, pad(left: -column, label))
+    body
+  }
+}
 
 // Electronic-signature block (cls esignatures environment + \esignee).
 #let esignatures(sentence, ..signees) = {
   block(sentence)
   for s in signees.pos() {
-    block(below: 0pt, above: 11.6pt)[#s.at(0) \ #s.at(1)]
+    block(below: 0pt, above: parskip)[#s.at(0) \ #s.at(1)]
   }
 }
 
 // A line printed under reserved space for a handwritten signature
 // (cls \handsignature: three paragraph gaps above the printed line).
-#let handsignature(line) = block(above: 3 * 11.6pt, below: 0pt, line)
+#let handsignature(line) = block(above: 3 * parskip, below: 0pt, line)
 
 #let sfs-document(
   doctype: "",
@@ -64,10 +86,12 @@
   fontsize: 11pt,
   agenda: false,
   toc: false,
+  runin: true,
   endmatter-newpage: false,
   body,
 ) = {
   let body-font = font-families.at(font, default: font-families.sans-serif)
+  runin-state.update(runin)
 
   // The basic metadata block, repeated as the page header on every page; the
   // page number is "current (total)" — e.g. 1 (2).
@@ -101,15 +125,24 @@
   )
   set text(font: body-font, size: fontsize, lang: "fi", hyphenate: true)
   // linespread 0.9706 in the class → 13.2 pt leading at 11 pt; parskip 11.6 pt.
-  set par(leading: 5.2pt, spacing: 11.6pt, justify: false, first-line-indent: 0pt)
+  set par(leading: 5.2pt, spacing: parskip, justify: false, first-line-indent: 0pt)
   set list(marker: [–], indent: 0pt) // Finnish convention: en dash, flush at body indent
   set enum(indent: 0pt)
   set heading(numbering: if agenda { "1.1.1." } else { "1.1.1" })
 
   // Headings: bold, body size, hanging at the 20 mm margin, no hyphenation.
-  show heading: it => {
+  // Like marginlabels, a heading that fits the heading column runs into the
+  // following body line (cls run-in/display machinery); the run-in heading is
+  // laid out with zero height so the next paragraph rises beside it.
+  show heading: it => context {
     set text(weight: "bold", hyphenate: false)
-    block(above: 1.5 * 11.6pt, below: 11.6pt, sticky: true, pad(left: -column, it))
+    let head = if it.numbering != none [#counter(heading).display() #it.body] else [#it.body]
+    let above = if it.level == 1 { 1.5 * parskip } else { parskip }
+    if runin and fits-column(head) {
+      block(above: above, below: 0pt, height: 0pt, place(top + left, dx: -column, box(width: column, head)))
+    } else {
+      block(above: above, below: parskip, pad(left: -column, head))
+    }
   }
 
   // Smart quotes: Finnish convention is ” on both sides, ’ for inner quotes.
@@ -133,12 +166,12 @@
 
   if attachments != none or distribution != none or forinformation != none {
     if endmatter-newpage { pagebreak() }
-    if attachments != none { marginlabel[Liitteet]; attachments }
-    if distribution != none { marginlabel[Jakelu]; distribution }
-    if forinformation != none { marginlabel[Tiedoksi]; forinformation }
+    if attachments != none { marginlabel([Liitteet], attachments) }
+    if distribution != none { marginlabel([Jakelu], distribution) }
+    if forinformation != none { marginlabel([Tiedoksi], forinformation) }
   }
 
   if contact != none {
-    block(above: 11.6pt)[#strong(contact.at("name", default: "")) \ #contact.at("lines", default: "")]
+    block(above: parskip)[#strong(contact.at("name", default: "")) \ #contact.at("lines", default: "")]
   }
 }

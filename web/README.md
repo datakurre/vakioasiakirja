@@ -20,7 +20,9 @@ Markdown (YAML front matter + body)
 Typst (#import "/sfs-2487-2024.typ")
   └─ src/sfs-2487-2024.typ   the layout, reimplemented from sfs-2487-2024.cls:
   │                          A4, 20 mm / 43 mm / 112 mm columns, metadata block
-  │                          repeated as the page-2 header, "1 (2)" numbering
+  │                          repeated as the page-2 header, "1 (2)" numbering,
+  │                          body run into a heading/label that fits the 2,3 cm
+  │                          column (the no-runin feature opts out)
   ▼
 typst.ts (WASM, in the browser)
   ├─ $typst.svg(...)   live preview
@@ -60,9 +62,12 @@ compiling the result hits the standard's measured positions:
 | basic metadata block            | 317.5 pt  | 317.48 pt |
 | (also repeated on page 2)       | (112 mm)  |           |
 
-plus the `1 (2)` page numbering and the page-1 information-area order. This was
-measured with the `typst` CLI 0.14 — the **same compiler engine** that typst.ts
-wraps as WASM.
+plus the `1 (2)` page numbering and the page-1 information-area order. The
+run-in behaviour matches the class too: the short end-matter labels (Liitteet,
+Jakelu, Tiedoksi) share their line with the following content, while the wider
+margin labels and section headings stay on their own line. This was measured
+with the `typst` CLI 0.14 — the **same compiler engine** that typst.ts wraps as
+WASM.
 
 The same was then confirmed **in a real browser**, end to end, with the
 headless smoke test (`scripts/smoke.mjs`): it serves `dist/`, loads the editor,
