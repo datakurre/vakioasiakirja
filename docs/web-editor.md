@@ -184,13 +184,20 @@ about **30 MB raw / 12 MB gzipped** (28 MB of that the compiler WASM),
 plus 1.8 MB of TeX Gyre fonts — in line with the estimate above, and
 compiles in well under a second.
 
+This was confirmed not only with the `typst` CLI (the same compiler
+engine typst.ts wraps) but **in a real browser**, end to end: a headless
+smoke test (`web/scripts/smoke.mjs`) loads the built editor, lets
+typst.ts initialise and compile, and triggers the PDF download — the
+browser-produced PDF hits the same positions. That test caught one issue
+worth noting: typst.ts fetches its default fonts from a CDN unless told
+not to, which would break offline use; the editor disables that and ships
+only the bundled TeX Gyre faces.
+
 So the open question — can a Typst template reproduce the layout and
 compile from Markdown client-side — is answered **yes**. What the spike
-does *not* yet cover: tagged-PDF accessibility, image/logo uploads, and
-an in-browser (headless) smoke test of the typst.ts runtime, which the
-build sandbox could not run for lack of a browser. The Markdown editor
-is therefore a third rendering path and, for now, a best-effort one; the
-LaTeX class stays the reference implementation. Spike 2 (the
+does *not* cover: tagged-PDF accessibility and image/logo uploads. The
+Markdown editor is a third rendering path and, for now, a best-effort
+one; the LaTeX class stays the reference implementation. Spike 2 (the
 WebAssembly-LaTeX route) was not needed to answer the question and is
 left for the day byte-identical output becomes a requirement.
 

@@ -31,7 +31,11 @@ const FONTS = [
 
 $typst.setCompilerInitOptions({
   getModule: () => compilerWasmUrl,
-  beforeBuild: [preloadRemoteFonts(FONTS)],
+  // `assets: false` keeps typst.ts from fetching its default fonts off a CDN
+  // (jsdelivr): the editor ships only the bundled TeX Gyre faces and stays
+  // fully offline / self-contained. Without an explicit assets option, the
+  // compiler falls back to loading the built-in 'text' fonts from the network.
+  beforeBuild: [preloadRemoteFonts(FONTS, { assets: false })],
 });
 $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
 

@@ -62,12 +62,27 @@ compiling the result hits the standard's measured positions:
 
 plus the `1 (2)` page numbering and the page-1 information-area order. This was
 measured with the `typst` CLI 0.14 — the **same compiler engine** that typst.ts
-wraps as WASM — so the browser output matches.
+wraps as WASM.
 
-**Not yet verified in-browser:** the headless smoke test (typst.ts font
-preload + WASM init in a real browser) could not run in the build sandbox (no
-browser available); the production bundle builds and the geometry is proven via
-the matching CLI engine.
+The same was then confirmed **in a real browser**, end to end, with the
+headless smoke test (`scripts/smoke.mjs`): it serves `dist/`, loads the editor,
+waits for typst.ts to initialise and compile, and triggers the PDF download —
+the resulting browser-produced PDF hits the same 56.69 / 121.89 / 317.48 pt
+positions over two pages. The test needs a Chromium binary and `puppeteer-core`
+(kept out of the build dependencies):
+
+```bash
+npm run build
+npm install --no-save puppeteer-core
+CHROMIUM=/path/to/chromium DOWNLOAD_DIR=/tmp/dl node scripts/smoke.mjs
+pdftotext -bbox /tmp/dl/* -
+```
+
+That smoke test caught one real issue the CLI could not: by default typst.ts
+fetches its built-in fonts from a CDN (jsdelivr), which breaks offline /
+self-contained use. `web/src/main.ts` passes `preloadRemoteFonts(FONTS,
+{ assets: false })` so only the bundled TeX Gyre faces are used and nothing is
+fetched from the network.
 
 ## Known gaps (out of scope for the spike)
 
