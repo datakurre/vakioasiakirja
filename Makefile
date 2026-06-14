@@ -51,11 +51,21 @@ docs: examples markdown  ## Build the documentation site into site/
 watch:  ## Develop PDF and watch for changes
 	@latexmk -cd -pvc -pdf -recorder -interaction=nonstopmode -shell-escape -use-make examples/latex/$(TEXFILE)
 
+.PHONY: web
+web:  ## Build the browser editor prototype (nix build .#web → web/dist)
+	@nix build .#web --print-build-logs
+	@rm -rf web/dist && cp -rL result/ web/dist && chmod -R u+w web/dist
+	@echo "Built web/dist (open with any static file server)."
+
+.PHONY: web-dev
+web-dev:  ## Run the browser editor prototype in dev mode (npm)
+	@cd web && npm install && npm run dev
+
 .PHONY: clean
 clean:
 	@latexmk -cd -C -quiet examples/latex/esimerkki-*.tex examples/logo-*.tex
 	@rm -f examples/latex/*.fls examples/markdown/esimerkki-*.pdf
-	@rm -rf docs/pdf docs/src site
+	@rm -rf docs/pdf docs/src site web/dist
 
 .PHONY: shell
 shell:

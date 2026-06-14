@@ -17,5 +17,7 @@ docs/pdf/
 docs/src/
 site/
 build/
+web/node_modules/
+web/dist/
 *.curlopt
 sfs-2487-2024*.zip

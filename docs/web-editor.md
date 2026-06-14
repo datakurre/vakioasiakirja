@@ -164,10 +164,41 @@ against the Liite A/B reference PDFs, and maintenance burden — the
 third-implementation cost of Route 2 versus the bespoke-glue cost of
 Route 1.
 
+## Spike 1 outcome: typst.ts clears the bar
+
+The first spike is built, in [`web/`](https://github.com/datakurre/vakioasiakirja/tree/main/web).
+It reimplements the SFS 2487 layout as a Typst template
+(`web/src/sfs-2487-2024.typ`), ports the pandoc Lua filter's body
+conventions to a Markdown→Typst converter (`web/src/md-to-typst.ts`),
+and wires both into a CodeMirror editor that compiles to an SVG preview
+and a downloadable PDF entirely in the browser with typst.ts.
+
+Converting `examples/markdown/esimerkki-poytakirja.md` and measuring the
+result with `pdftotext -bbox` reproduces the standard's positions
+exactly — left-margin elements at **56.69 pt** (20 mm), body text and
+list dashes at **121.89 pt** (43 mm), and the basic metadata block at
+**317.48 pt** (112 mm), repeated as the page-2 header, with `1 (2)`
+numbering. The geometry was verified with the `typst` CLI, the same
+compiler engine typst.ts wraps as WebAssembly. The production bundle is
+about **30 MB raw / 12 MB gzipped** (28 MB of that the compiler WASM),
+plus 1.8 MB of TeX Gyre fonts — in line with the estimate above, and
+compiles in well under a second.
+
+So the open question — can a Typst template reproduce the layout and
+compile from Markdown client-side — is answered **yes**. What the spike
+does *not* yet cover: tagged-PDF accessibility, image/logo uploads, and
+an in-browser (headless) smoke test of the typst.ts runtime, which the
+build sandbox could not run for lack of a browser. The Markdown editor
+is therefore a third rendering path and, for now, a best-effort one; the
+LaTeX class stays the reference implementation. Spike 2 (the
+WebAssembly-LaTeX route) was not needed to answer the question and is
+left for the day byte-identical output becomes a requirement.
+
 ## Build and hosting
 
-When an editor is built it would live in a `web/` directory in this
-repository, built reproducibly through the flake (pinning the
-WebAssembly artifacts and fonts), and published to GitHub Pages
-alongside this documentation site by extending
-`.github/workflows/docs.yml`.
+The prototype builds reproducibly through the flake — `nix build .#web`
+(or `make web`) produces the static bundle, pinning the WebAssembly
+artifacts and fonts; `make web-dev` runs it live. Publishing it to
+GitHub Pages under `/web/` alongside this documentation site, by
+extending `.github/workflows/docs.yml`, is the next step once the
+prototype graduates from a spike.
