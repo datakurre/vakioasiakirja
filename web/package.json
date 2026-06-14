@@ -1,0 +1,32 @@
+{
+  "name": "sfs-2487-2024-web-editor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-only Markdown-to-PDF editor for SFS 2487:2024 (typst.ts prototype)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "convert": "node --experimental-strip-types scripts/convert.ts"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/view": "^6.36.1",
+    "@myriaddreamin/typst-ts-renderer": "0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "0.7.0-rc2",
+    "@myriaddreamin/typst.ts": "0.7.0-rc2",
+    "codemirror": "^6.0.1",
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-deflist": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.19.21",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

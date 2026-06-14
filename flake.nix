@@ -28,6 +28,21 @@
           ps.mkdocs-material
         ]);
 
+        # Browser editor prototype (web/): a typst.ts Markdown→PDF spike,
+        # built into a static bundle. VITE_BASE sets the deployment subpath;
+        # default "/web/" matches the GitHub Pages layout next to the docs.
+        web = pkgs.buildNpmPackage {
+          name = "sfs-2487-2024-web-editor";
+          src = ./web;
+          npmDepsHash = "sha256-haZ3VxJlqi1DJyu2zA+1zBIXxr008fJlO8JBp9PLGns=";
+          VITE_BASE = "/web/";
+          installPhase = ''
+            runHook preInstall
+            cp -r dist $out
+            runHook postInstall
+          '';
+        };
+
         # Only the class, template and filter end up in the runtime closure,
         # not the whole repository.
         support = pkgs.runCommandLocal "sfs-2487-2024-support" { } ''
