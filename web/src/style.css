@@ -175,31 +175,46 @@ main {
 }
 
 #preview-pane {
+  position: relative; /* anchors the floating #preview-controls */
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-#preview-toolbar {
-  flex: 0 0 auto;
+/* Floating preview controls: a translucent pill at the bottom-right of the
+   preview, hidden until the preview is hovered, the controls are focused, or
+   there has been recent activity (the .show class, set in main.ts). */
+#preview-controls {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 5;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  background: #455a64;
+  gap: 0.15rem;
+  padding: 0.2rem 0.35rem;
+  background: rgba(38, 50, 56, 0.92);
   color: #fff;
   font-size: 0.85rem;
+  border-radius: 0.6rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
   user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#preview-pane:hover #preview-controls,
+#preview-controls:focus-within,
+#preview-controls.show {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 #zoom-level {
   min-width: 4.5ch;
   text-align: center;
-}
-
-#two-up {
-  margin-left: 0.3rem;
 }
 
 /* The preview area; a centred spinner shows while a compile is in flight. */
@@ -414,7 +429,8 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toast {
+  .toast,
+  #preview-controls {
     transition: none;
   }
   #preview[aria-busy="true"]::after {
@@ -487,7 +503,7 @@ body.keyboard #vim-mode:not([hidden]) {
     min-height: 2.75rem;
   }
 
-  #preview-toolbar .iconbtn {
+  #preview-controls .iconbtn {
     min-height: 2.5rem;
   }
 }

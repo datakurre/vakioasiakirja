@@ -44,6 +44,7 @@ $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
 const statusEl = document.getElementById("status")!;
 const downloadEl = document.getElementById("download") as HTMLButtonElement;
 const previewEl = document.getElementById("preview")!;
+const previewControlsEl = document.getElementById("preview-controls")!;
 const pagesEl = document.getElementById("pages")!;
 const logoEl = document.getElementById("logo") as HTMLInputElement;
 const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
@@ -487,6 +488,7 @@ function showPane(pane: "editor" | "preview") {
   showEditorEl.setAttribute("aria-pressed", String(pane === "editor"));
   showPreviewEl.setAttribute("aria-pressed", String(pane === "preview"));
   if (pane === "editor") editor.focus();
+  else flashControls(); // hint that the floating controls exist
 }
 
 showEditorEl.addEventListener("click", () => showPane("editor"));
@@ -571,6 +573,19 @@ zoomOutEl.addEventListener("click", () => setZoom(currentZoom() / ZOOM_STEP));
 fitWidthEl.addEventListener("click", () => { view.fit = "width"; saveView(); applyView(); });
 fitHeightEl.addEventListener("click", () => { view.fit = "height"; saveView(); applyView(); });
 twoUpEl.addEventListener("click", () => { view.twoUp = !view.twoUp; saveView(); applyView(); });
+
+// The floating preview controls fade out when idle. Hover and focus keep them
+// up via CSS; this surfaces them on activity (essential on touch, where there
+// is no hover) and hides them again after a short pause.
+let controlsTimer: number | undefined;
+function flashControls() {
+  previewControlsEl.classList.add("show");
+  window.clearTimeout(controlsTimer);
+  controlsTimer = window.setTimeout(() => previewControlsEl.classList.remove("show"), 2200);
+}
+for (const ev of ["pointerdown", "pointermove", "scroll", "touchstart"]) {
+  previewEl.addEventListener(ev, flashControls, { passive: true });
+}
 
 // Re-fit when the pane changes size (window resize, divider drag) in a fit mode.
 new ResizeObserver(() => { if (view.fit !== "none") applyView(); }).observe(previewEl);

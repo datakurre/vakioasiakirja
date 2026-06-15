@@ -182,6 +182,20 @@ const visible = (sel) =>
   page.$eval(sel, (e) => getComputedStyle(e).display !== "none" && e.offsetParent !== null);
 const noHScroll = () =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+// Largest gap between any visible bottom-bar control's centre and the bar's
+// centre — should be ~0 if the buttons are vertically centred.
+const barCenterOffset = () =>
+  page.evaluate(() => {
+    const bar = document.getElementById("statusbar").getBoundingClientRect();
+    const mid = bar.top + bar.height / 2;
+    const ctrls = [...document.querySelectorAll("#statusbar .iconbtn, #statusbar .view-toggle button")]
+      .filter((e) => e.offsetParent !== null);
+    return Math.max(0, ...ctrls.map((e) => {
+      const r = e.getBoundingClientRect();
+      return Math.abs(r.top + r.height / 2 - mid);
+    }));
+  });
+console.log("DESKTOP_BOTTOMBAR_CENTER_OFFSET_PX:", (await barCenterOffset()).toFixed(2));
 
 await page.setViewport({ width: 390, height: 780 }); // iPhone-ish portrait
 await new Promise((r) => setTimeout(r, 150));
@@ -198,6 +212,7 @@ console.log("MOBILE_DEFAULT (editor only):", JSON.stringify(mobileDefault));
 console.log("MOBILE_PREVIEW (preview only):", JSON.stringify(mobilePreview));
 console.log("MOBILE_EDITOR (editor only):", JSON.stringify(mobileEditor));
 console.log("MOBILE_NO_HSCROLL:", mobileNoHScroll);
+console.log("MOBILE_BOTTOMBAR_CENTER_OFFSET_PX:", (await barCenterOffset()).toFixed(2));
 
 await page.setViewport({ width: 1200, height: 800 }); // desktop
 await new Promise((r) => setTimeout(r, 150));

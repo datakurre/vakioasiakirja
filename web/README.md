@@ -72,8 +72,11 @@ least a 44 px touch target on mobile:
 - **Logo / Poista logo / Uusi esimerkki / Lataa PDF** (bottom right) — logo
   upload (a styled file input), document/logo reset back to the seeded example
   (the Vim toggle is kept — it is an editor preference), and PDF download.
-- **Preview toolbar** (above the preview) — zoom out / in, fit to width, fit to
-  height, and a one-/two-page toggle (`aria-pressed`), all as icons.
+- **Preview controls** — zoom out / in, fit to width, fit to height, and a
+  one-/two-page toggle (`aria-pressed`), all as icons, in a **floating pill at
+  the bottom-right of the preview**. It fades in on hover or focus, or briefly on
+  activity (scroll/touch — essential where there is no hover), and fades out when
+  idle, so it never steals space from the preview.
 - The document, the uploaded logo and the Vim toggle are autosaved to the
   browser's `localStorage` and restored on reload. (A restored logo cannot
   repopulate the file input, so the **Poista logo** button — with the file name
@@ -182,7 +185,7 @@ pdftotext -bbox /tmp/dl/* -
 
 A companion `scripts/verify-ui.mjs` (same Chromium + `puppeteer-core` setup)
 checks the editor chrome rather than the layout (it runs as an emulated touch
-device): that the controls live in the bottom status bar, the keyboard-gated Vim
+device): that the bottom-bar buttons are vertically centred, the keyboard-gated Vim
 control is hidden with no keyboard and appears once a hardware keystroke is
 detected, the Vim mode badge then tracks `NORMAL` → `VISUAL`, the visual-mode
 selection is painted in a visible colour, and a conversion error

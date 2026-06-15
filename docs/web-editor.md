@@ -159,8 +159,11 @@ a single column with a Muokkaa / Esikatselu switch choosing which one is
 shown (a half-width editor and preview are unusable side by side there);
 the top header is dropped so a single bottom bar is the only chrome, for
 an app-like feel. All controls are SVG icon buttons with accessible
-names, visible focus rings and 44 px touch targets; errors surface as
-`role="alert"` toasts that are dismissable by mouse, keyboard or Escape.
+names, visible focus rings and 44 px touch targets; the preview's zoom
+and fit controls live in a floating pill at its bottom-right that fades
+in on hover/focus/activity and out when idle, rather than a fixed
+toolbar. Errors surface as `role="alert"` toasts that are dismissable by
+mouse, keyboard or Escape.
 The Vim toggle is keyboard-gated — hidden on phones and shown only when a
 physical keyboard is likely (a mouse/trackpad via `(hover: hover) and
 (pointer: fine)`, or a hardware keystroke detected at runtime, since no web
