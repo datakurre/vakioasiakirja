@@ -91,12 +91,12 @@ from the output when unset.
 | `\docid{Dnro 123/2024}` | Asiakirjan yksilöivä tunnus | Optional |
 | `\confidentiality{Luottamuksellinen}` | Luottamuksellisuus | Optional |
 | `\extrametadata{Hankenumero 123456\\Asiakasnumero 987654}` | Lisämetatiedot | Optional; lines separated by `\\`, placed below the basic metadata |
-| `\logo{...}` | Logo / organisaatio | Any box: `\includegraphics{...}` or text such as `\textsf{\textbf{Yritys Oy}}`. Placed top-left; the page header grows automatically to fit a tall logo. A logo taller than `\logomaxheight` (20 mm by default) is scaled down proportionally — adjust with `\setlength{\logomaxheight}{30mm}` |
+| `\logo{...}` | Logo / organisaatio | Any box: `\includegraphics{...}` or text such as `\textsf{\textbf{Yritys Oy}}`. Placed top-left; the page header grows automatically to fit a tall logo. A logo taller than `\logomaxheight` (20 mm by default) is scaled down proportionally — adjust with `\setlength{\logomaxheight}{30mm}`. When no `\logo` is given, the organization name from `\contactinfo` stands in its place |
 | `\recipient{Oy Yritys Ab\\Essi Esimerkki\\Esimerkkitie 1\\12345 Esimerkkipaikkakunta}` | Vastaanottajan tietoalue | Optional; placed at the left margin below the metadata |
 | `\subject{Digiprojekti}` | Aihe | Bold line directly above the main title |
 | `\keywords{asiakaspalaute, kysely}` | — | Keywords (asiasanat) for the PDF Keywords property; not shown on the document |
 | `\title{Verkkosivujen uudistaminen}` | Pääotsikko | Bold, 3 pt larger than the body text |
-| `\contactinfo{Organisaatio Oy}{Katuosoite\\12345 Postitoimipaikka\\Puhelinnumero\\www-osoite\\Y-tunnus}` | Organisaation yhteystiedot | Stored for `\makecontactinfo`; first argument is the bolded organization name |
+| `\contactinfo{Organisaatio Oy}{Katuosoite\\12345 Postitoimipaikka\\Puhelinnumero\\www-osoite\\Y-tunnus}` | Organisaation yhteystiedot | Stored for `\makecontactinfo`; first argument is the bolded organization name (also shown top-left in place of a missing `\logo`) |
 
 The metadata is also written into the PDF document properties — title,
 subject, author (laatija from `\author`), keywords and document language

@@ -73,7 +73,8 @@ keywords: [palaute, kysely]          # \keywords — PDF Keywords (asiasanat),
 docid: Dnro 123/2024                 # \docid
 confidentiality: Luottamuksellinen   # \confidentiality
 logo: logo-organisaatio.pdf          # image path (pdf/eps/png/jpg/svg),
-                                     # or text such as "**Yritys Oy**"
+                                     # or text such as "**Yritys Oy**".
+                                     # Omit it to show contact.name instead
 recipient: [Oy Yritys Ab, Esimerkkitie 1, 12345 Esimerkkipaikkakunta]
 extrametadata: [Hankenumero 123456, Asiakasnumero 987654]
 contact:                             # \contactinfo + \makecontactinfo at the end

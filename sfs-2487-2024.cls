@@ -205,7 +205,13 @@
 \newcommand{\sfs@pagenum}{\thepage\ (\ref*{TotPages})}
 
 \newcommand{\sfs@metadatablock}{%
-  \ifx\sfs@logo\@empty\else
+  \ifx\sfs@logo\@empty
+    % No logo: stand the organisation name in the logo's place, on the first
+    % metadata line at the left margin (5.1, organisaation tunnistetiedot).
+    \ifx\sfs@contactname\@empty\else
+      \rlap{\textbf{\sfs@contactname}}%
+    \fi
+  \else
     \rlap{\raisebox{\dimexpr\ht\strutbox-\height\relax}{\sfs@logo}}%
   \fi
   \hspace*{\sfs@metaindent}%
