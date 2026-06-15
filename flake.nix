@@ -29,13 +29,15 @@
         ]);
 
         # Browser editor prototype (web/): a typst.ts Markdown→PDF spike,
-        # built into a static bundle. VITE_BASE sets the deployment subpath;
-        # default "/web/" matches the GitHub Pages layout next to the docs.
+        # built into a static bundle. A relative base ("./") lets it be
+        # served from any path — in particular GitHub Pages' project subpath
+        # (datakurre.github.io/vakioasiakirja/web/), where `make docs` places
+        # it under site/web/.
         web = pkgs.buildNpmPackage {
           name = "sfs-2487-2024-web-editor";
           src = ./web;
           npmDepsHash = "sha256-haZ3VxJlqi1DJyu2zA+1zBIXxr008fJlO8JBp9PLGns=";
-          VITE_BASE = "/web/";
+          VITE_BASE = "./";
           installPhase = ''
             runHook preInstall
             cp -r dist $out

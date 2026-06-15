@@ -1,4 +1,5 @@
 site_name: sfs-2487-2024
+site_url: https://datakurre.github.io/vakioasiakirja/
 site_description: >-
   LaTeX document class and Markdown-to-PDF converter for Finnish office
   documents following SFS 2487:2024
@@ -27,3 +28,4 @@ nav:
   - Examples: examples.md
   - Development: development.md
   - Web editor (research): web-editor.md
+  - Open the editor: https://datakurre.github.io/vakioasiakirja/web/
