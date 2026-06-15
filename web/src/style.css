@@ -73,13 +73,20 @@ main {
   overflow: auto;
   background: #e0e0e0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   padding: 1rem;
 }
 
-#preview svg {
-  width: 100%;
+/* Each page is its own sheet: shown at its natural size, scaled down to fit a
+   narrow pane (never blown up past the real page width), white with a drop
+   shadow on the grey backdrop. */
+#preview svg.page {
+  display: block;
+  width: auto;
   height: auto;
+  max-width: 100%;
   background: #fff;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
 }

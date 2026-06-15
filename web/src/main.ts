@@ -50,6 +50,52 @@ function setStatus(text: string, error = false) {
   statusEl.classList.toggle("error", error);
 }
 
+// typst.ts returns a single SVG with all pages stacked seamlessly in one
+// coordinate space (transparent page backgrounds). Rendered as one element it
+// reads as a single tall sheet with the page margins fused into a big blank
+// band — the "extra padding". Split it into one cropped <svg> per page so each
+// shows as a separate, correctly proportioned sheet that scales to fit.
+function showPages(svgText: string) {
+  // The browser's lenient HTML parser handles typst.ts's inline <style> block
+  // (strict XML DOMParser chokes on it); a detached div gives us the live SVG.
+  const holder = document.createElement("div");
+  holder.innerHTML = svgText;
+  const base = holder.querySelector("svg");
+  if (!base) {
+    previewEl.innerHTML = svgText;
+    return;
+  }
+  // typst.ts embeds a <script> for interactivity; cloned once per page it would
+  // re-declare its globals (a console error). The static preview does not need
+  // it, so drop it before cloning.
+  base.querySelectorAll("script").forEach((s) => s.remove());
+  const pages = Array.from(base.querySelectorAll("g.typst-page"));
+  if (pages.length === 0) {
+    previewEl.replaceChildren(base);
+    return;
+  }
+  const cards: SVGSVGElement[] = [];
+  for (const page of pages) {
+    const t = (page.getAttribute("transform") ?? "").match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)/);
+    const y = t ? parseFloat(t[2]) : 0;
+    const w = parseFloat(page.getAttribute("data-page-width") ?? "0");
+    const h = parseFloat(page.getAttribute("data-page-height") ?? "0");
+    const card = base.cloneNode(true) as SVGSVGElement;
+    // Crop to this page's slice; clip to it (typst sets overflow:visible, which
+    // would otherwise leak the other pages into the view).
+    card.setAttribute("viewBox", `0 ${y} ${w} ${h}`);
+    card.setAttribute("width", String(w));
+    card.setAttribute("height", String(h));
+    card.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    card.style.overflow = "hidden";
+    card.removeAttribute("data-width");
+    card.removeAttribute("data-height");
+    card.classList.add("page");
+    cards.push(card);
+  }
+  previewEl.replaceChildren(...cards);
+}
+
 let templateAdded = false;
 let currentTypst = "";
 
@@ -92,7 +138,7 @@ async function render(md: string) {
     // change or removal.
     if (logo) await $typst.mapShadow(logo.path, logo.bytes);
     const svg = await $typst.svg({ mainContent: typst });
-    previewEl.innerHTML = svg;
+    showPages(svg);
     downloadEl.disabled = false;
     setStatus("käännetty");
   } catch (e) {

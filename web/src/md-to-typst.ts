@@ -5,12 +5,22 @@
 
 import MarkdownIt from "markdown-it";
 import deflist from "markdown-it-deflist";
+import footnote from "markdown-it-footnote";
 import yaml from "js-yaml";
 import type Token from "markdown-it/lib/token.mjs";
 
-const md = new MarkdownIt({ html: false, linkify: false, typographer: false }).use(
-  deflist,
-);
+const md = new MarkdownIt({ html: false, linkify: false, typographer: false })
+  .use(deflist)
+  .use(footnote);
+
+// The footnote plugin stores each note's content in the parse env, keyed by id;
+// the active env is set in body() so inlines() can resolve a footnote_ref to its
+// content at the reference site (cls/pandoc render footnotes as real \footnote).
+let footnoteEnv: { footnotes?: { list?: Record<number, { tokens?: Token[] }> } } = {};
+
+// A table caption written pandoc-style on its own line (": Otsikko" or
+// "Table: Otsikko") just before a table; consumed by the next table.
+let pendingCaption: string | null = null;
 
 // Front matter keys that carry one or more lines (YAML scalar or list); the
 // template joins list items with line breaks.
@@ -159,11 +169,24 @@ function inlines(tokens: Token[]): string {
         out += `#image(${str(src)})`;
         break;
       }
+      case "footnote_ref": {
+        const id = (t.meta as { id?: number } | undefined)?.id;
+        const note = id != null ? footnoteEnv.footnotes?.list?.[id] : undefined;
+        out += `#footnote[${note ? renderNote(note.tokens ?? []) : ""}]`;
+        break;
+      }
       default:
         if (t.children) out += inlines(t.children);
     }
   }
   return out;
+}
+
+// Render a footnote's stored content: a reference note ([^id]: …) carries block
+// tokens, an inline note (^[…]) a single "inline" token.
+function renderNote(tokens: Token[]): string {
+  const blockLevel = tokens.some((t) => t.type.endsWith("_open") && t.block);
+  return (blockLevel ? blocks(tokens, { i: 0 }) : inlines(tokens)).trim();
 }
 
 interface Cursor {
@@ -183,14 +206,54 @@ function blocks(tokens: Token[], cur: Cursor, stop?: string): string {
             "sfs-2487-2024: SFS 2487:2024 suosittaa enintään kolmea otsikkotasoa (at most three heading levels)",
           );
         }
-        const body = inlines(tokens[cur.i + 1].children ?? []);
-        out += "=".repeat(level) + " " + body + "\n\n";
+        const inline = tokens[cur.i + 1];
+        let body = inlines(inline.children ?? []);
+        // Pandoc heading attributes ({-}, {.unnumbered}, {#id}) suppress the
+        // section number, like \section* in the class; strip the block and
+        // emit an unnumbered heading.
+        const attr = (inline.content ?? "").match(/\s*\{([^}]*)\}\s*$/);
+        const tokensOf = attr ? attr[1].split(/\s+/).filter(Boolean) : [];
+        const isAttrBlock = tokensOf.length > 0 && tokensOf.every((a) => /^[.#-]|=/.test(a));
+        if (isAttrBlock) {
+          body = body.replace(/\s*\{[^}]*\}\s*$/, "");
+          const unnumbered = tokensOf.includes("-") || tokensOf.includes(".unnumbered");
+          out += unnumbered
+            ? `#heading(level: ${level}, numbering: none)[${body}]\n\n`
+            : "=".repeat(level) + " " + body + "\n\n";
+        } else {
+          out += "=".repeat(level) + " " + body + "\n\n";
+        }
         cur.i += 3; // heading_open, inline, heading_close
         continue;
       }
       case "paragraph_open": {
-        out += inlines(tokens[cur.i + 1].children ?? []) + "\n\n";
+        const children = tokens[cur.i + 1].children ?? [];
+        // A paragraph holding only an image becomes a captioned figure
+        // (pandoc implicit_figures, 6.5.2), the alt text its caption.
+        const imgs = children.filter((c) => c.type !== "softbreak");
+        if (imgs.length === 1 && imgs[0].type === "image") {
+          const img = imgs[0];
+          const src = img.attrGet("src") ?? "";
+          const caption = inlines(img.children ?? []) || esc(img.content ?? "");
+          out += `#figure(image(${str(src)}), caption: [${caption}], kind: image)\n\n`;
+          cur.i += 3;
+          continue;
+        }
+        // A pandoc table caption line (": Otsikko" / "Table: Otsikko") is held
+        // back for the table that follows; if none follows it is plain text.
+        const text = inlines(children);
+        const cap = text.match(/^(?:Table:|:)\s+([\s\S]+)$/);
+        if (cap && nextBlockIsTable(tokens, cur.i + 3)) {
+          pendingCaption = cap[1].trim();
+          cur.i += 3;
+          continue;
+        }
+        out += text + "\n\n";
         cur.i += 3;
+        continue;
+      }
+      case "table_open": {
+        out += table(tokens, cur);
         continue;
       }
       case "bullet_list_open":
@@ -229,6 +292,75 @@ function list(tokens: Token[], cur: Cursor, close: string): string {
   cur.i++; // list_close
   const marker = ordered ? "+ " : "- ";
   return items.map((it) => marker + it.replace(/\n/g, "\n  ")).join("\n") + "\n\n";
+}
+
+// True if the next meaningful block token (from index j) opens a table.
+function nextBlockIsTable(tokens: Token[], j: number): boolean {
+  while (j < tokens.length) {
+    const ty = tokens[j].type;
+    if (ty === "table_open") return true;
+    if (ty.endsWith("_open") || ty === "hr" || ty === "fence" || ty === "code_block") return false;
+    j++;
+  }
+  return false;
+}
+
+// Pipe table -> a left-aligned #table with booktabs-style horizontal rules,
+// wrapped in #figure when a caption is pending so it is numbered "Taulukko N"
+// with the caption above (cls captionof[table], 6.5.1). Column alignment comes
+// from the delimiter row (markdown-it sets text-align on the header cells).
+function table(tokens: Token[], cur: Cursor): string {
+  const aligns: string[] = [];
+  const header: string[] = [];
+  const rows: string[][] = [];
+  let inHeader = false;
+  let row: string[] | null = null;
+  cur.i++; // table_open
+  while (cur.i < tokens.length && tokens[cur.i].type !== "table_close") {
+    const t = tokens[cur.i];
+    switch (t.type) {
+      case "thead_open":
+        inHeader = true;
+        break;
+      case "thead_close":
+        inHeader = false;
+        break;
+      case "tr_open":
+        row = [];
+        break;
+      case "tr_close":
+        if (row) {
+          if (inHeader) header.push(...row);
+          else rows.push(row);
+        }
+        row = null;
+        break;
+      case "th_open":
+      case "td_open": {
+        const style = t.attrGet("style") ?? "";
+        if (inHeader) aligns.push(style.includes("right") ? "right" : style.includes("center") ? "center" : "left");
+        const cell = inlines(tokens[cur.i + 1].children ?? []).trim();
+        row?.push(`[${cell}]`);
+        cur.i += 2; // td_open, inline (td_close consumed by loop ++)
+        break;
+      }
+    }
+    cur.i++;
+  }
+  cur.i++; // table_close
+
+  const cols = aligns.length || (rows[0]?.length ?? 1);
+  const alignTuple = `(${aligns.join(", ")})`;
+  let tbl = `table(\n  columns: ${cols},\n  align: ${alignTuple},\n  stroke: none,\n`;
+  tbl += "  table.hline(),\n";
+  if (header.length) tbl += `  table.header(${header.join(", ")}),\n  table.hline(),\n`;
+  for (const r of rows) tbl += "  " + r.join(", ") + ",\n";
+  tbl += "  table.hline(),\n)";
+
+  const caption = pendingCaption;
+  pendingCaption = null;
+  if (caption) return `#figure(\n  ${tbl},\n  caption: [${caption}],\n  kind: table,\n)\n\n`;
+  return "#" + tbl + "\n\n";
 }
 
 // Definition list -> #marginlabel(term)[definition] (cls: term at the 20 mm
@@ -356,8 +488,15 @@ function marginlabelDiv(seg: Segment): string {
 }
 
 function body(markdown: string): string {
-  const tokens = md.parse(markdown, {});
-  return blocks(tokens, { i: 0 });
+  const env = {};
+  const tokens = md.parse(markdown, env);
+  const prev = footnoteEnv;
+  footnoteEnv = env;
+  try {
+    return blocks(tokens, { i: 0 });
+  } finally {
+    footnoteEnv = prev;
+  }
 }
 
 export function markdownToTypst(source: string, opts: ConvertOptions = {}): string {

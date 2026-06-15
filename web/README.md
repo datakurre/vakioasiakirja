@@ -15,7 +15,9 @@ Markdown (YAML front matter + body)
   └─ src/md-to-typst.ts   port of pandoc/sfs-2487-2024.lua + the template:
   │                       front matter → sfs-document arguments, definition
   │                       lists → #marginlabel, ::: esignatures/handsignature/
-  │                       marginlabel divs, ≤3 heading levels, Finnish quotes
+  │                       marginlabel divs, ≤3 heading levels (unnumbered with
+  │                       {-}), footnotes, pipe tables + captions, captioned
+  │                       image figures, Finnish quotes
   ▼
 Typst (#import "/sfs-2487-2024.typ")
   └─ src/sfs-2487-2024.typ   the layout, reimplemented from sfs-2487-2024.cls:
@@ -25,7 +27,8 @@ Typst (#import "/sfs-2487-2024.typ")
   │                          column (the no-runin feature opts out)
   ▼
 typst.ts (WASM, in the browser)
-  ├─ $typst.svg(...)   live preview
+  ├─ $typst.svg(...)   live preview (split into one cropped sheet per page so
+  │                    each scales to fit, instead of one fused tall SVG)
   └─ $typst.pdf(...)   downloadable PDF
 ```
 
@@ -109,8 +112,11 @@ step is not needed.
   reproduced; Typst supports PDF/A and tagging, to revisit.
 - PDF logos (as the committed examples use) cannot be uploaded — only the
   browser-native raster/SVG formats are accepted.
-- Footnotes, tables and the TOC feature are wired through but exercised less
-  than in the LaTeX examples.
+- PDF metadata is set from the front matter (title, author, keywords, the
+  `lang fi`, and the document date as the creation/modification date), but
+  Typst's `set document` has no *subject* field, so `subject` and a separate
+  `modified` date are not written to the PDF properties (they are in the LaTeX
+  output) — best-effort.
 - Fonts are bundled in-repo for a self-contained prototype; a production build
   would pin them through nix instead.
 

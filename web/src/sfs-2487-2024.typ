@@ -66,6 +66,23 @@
 // (cls \handsignature: three paragraph gaps above the printed line).
 #let handsignature(line) = block(above: 3 * parskip, below: 0pt, line)
 
+// The document date (6.2) is given in the standard's d.m.yyyy form. Parse it
+// into a `datetime` so it becomes the PDF CreationDate/ModDate, matching the
+// class (which feeds \date into pdfcreationdate). A free-form or empty date
+// leaves the PDF date at `auto` (the compile date), as the class does.
+#let parse-date(date) = {
+  let m = date.trim().match(regex("^(\d{1,2})\.(\d{1,2})\.(\d{4})$"))
+  if m == none {
+    auto
+  } else {
+    datetime(
+      day: int(m.captures.at(0)),
+      month: int(m.captures.at(1)),
+      year: int(m.captures.at(2)),
+    )
+  }
+}
+
 #let sfs-document(
   doctype: "",
   title: "",
@@ -123,6 +140,7 @@
     title: title,
     author: if author != none { author } else { () },
     keywords: if keywords != none { keywords } else { () },
+    date: parse-date(date),
   )
   set page(
     width: 210mm,
@@ -156,6 +174,17 @@
   // Smart quotes: Finnish convention is ” on both sides, ’ for inner quotes.
   set smartquote(quotes: (single: ("’", "’"), double: ("”", "”")))
 
+  // Figures and tables stay in the text flow, left-aligned at the body column
+  // like the rest of the content (cls \captionof, 6.5). The Finnish supplement
+  // (Taulukko/Kuva) comes from lang fi; the label separator is a quad with no
+  // colon, as in the class's caption style. Table captions sit above the table
+  // (6.5.1), image captions below it (6.5.2).
+  show figure: set align(left)
+  show figure: set block(spacing: parskip)
+  set figure.caption(separator: [#h(1em)])
+  show figure.where(kind: table): set figure.caption(position: top)
+  show figure.caption: set text(hyphenate: false)
+
   // Body text sits at the 43 mm column (the page's left margin). Margin-hanging
   // elements (headings, marginlabels) outdent by `column`; the extra metadata
   // area is offset to the 112 mm column.
@@ -167,19 +196,30 @@
   block(text(size: fontsize + 3pt, weight: "bold", hyphenate: false, title))
 
   if toc {
+    // The TOC heading stays on a line of its own (cls \tableofcontents,
+    // 6.10), hanging at the 20 mm margin like a display heading.
+    block(above: 1.5 * parskip, below: parskip, pad(left: -column, strong[Sisällys]))
     outline(title: none)
   }
 
   body
 
   if attachments != none or distribution != none or forinformation != none {
-    if endmatter-newpage { pagebreak() }
+    if endmatter-newpage {
+      pagebreak()
+    } else {
+      // One extra paragraph gap separates the end matter from the preceding
+      // content when it is not on a fresh page (cls \sfs@marginlist, 6.7).
+      v(parskip, weak: true)
+    }
     if attachments != none { marginlabel([Liitteet], attachments) }
     if distribution != none { marginlabel([Jakelu], distribution) }
     if forinformation != none { marginlabel([Tiedoksi], forinformation) }
   }
 
   if contact != none {
-    block(above: parskip)[#strong(contact.at("name", default: "")) \ #contact.at("lines", default: "")]
+    // The organisation contact area hangs at the 20 mm margin, separated by an
+    // extra paragraph gap (cls \makecontactinfo).
+    block(above: 2 * parskip, pad(left: -column)[#strong(contact.at("name", default: "")) \ #contact.at("lines", default: "")])
   }
 }
