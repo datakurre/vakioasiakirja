@@ -73,6 +73,14 @@ short line that a long error can never reflow):
 - Conversion and compile **errors appear as dismissible toasts at the bottom
   right**; the status bar itself only ever shows the short compile state
   (`käännetty`, `virhe`, …), so it never grows or reflows.
+- The layout is **responsive**: on wide screens the editor and preview sit side
+  by side, but on narrow (mobile) screens — at a 700 px breakpoint — they would
+  be too cramped, so they collapse to a single column showing one pane at a
+  time. A **Muokkaa / Esikatselu** switch in the top bar (shown only on mobile)
+  chooses which. The status bar wraps its controls instead of overflowing, the
+  height tracks the dynamic viewport (`100dvh`) so the bar is not hidden behind
+  mobile browser chrome, and the editor uses 16 px text to stop iOS Safari from
+  zooming on focus.
 
 ## Preview controls
 
@@ -127,8 +135,11 @@ pdftotext -bbox /tmp/dl/* -
 A companion `scripts/verify-ui.mjs` (same Chromium + `puppeteer-core` setup)
 checks the editor chrome rather than the layout: that the controls live in the
 bottom status bar, the Vim mode badge tracks `NORMAL` → `VISUAL`, the
-visual-mode selection is painted in a visible colour, and a conversion error
-surfaces as a bottom-right toast without reflowing the header.
+visual-mode selection is painted in a visible colour, a conversion error
+surfaces as a bottom-right toast without reflowing the header, and the
+responsive layout works — at a phone viewport the panes collapse to one column
+with the Muokkaa / Esikatselu switch toggling which is visible and no horizontal
+overflow, while a wide viewport shows both panes with the switch hidden.
 
 That smoke test caught one real issue the CLI could not: by default typst.ts
 fetches its built-in fonts from a CDN (jsdelivr), which breaks offline /

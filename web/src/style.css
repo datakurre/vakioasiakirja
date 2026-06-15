@@ -5,17 +5,25 @@
 html,
 body {
   margin: 0;
-  height: 100%;
   font-family: system-ui, sans-serif;
+}
+
+html {
+  height: 100%;
 }
 
 body {
   display: flex;
   flex-direction: column;
+  /* 100dvh tracks the *dynamic* viewport so the bottom status bar is not hidden
+     behind a mobile browser's address/tool bars; height:100% is the fallback. */
+  height: 100%;
+  height: 100dvh;
 }
 
-/* The top bar carries only the title now — the controls live in the bottom
-   status bar, so a long error message can no longer reflow it. */
+/* The top bar carries the title and (on mobile) the view switch — the editing
+   controls live in the bottom status bar, so a long error message can no
+   longer reflow it. */
 header {
   display: flex;
   gap: 1rem;
@@ -24,6 +32,40 @@ header {
   background: #37474f;
   color: #fff;
   flex: 0 0 auto;
+}
+
+.brand {
+  white-space: nowrap;
+}
+
+/* The Editor/Preview switch: a segmented control pushed to the right of the
+   header. Hidden on wide screens, where both panes show side by side. */
+.view-toggle {
+  display: none;
+  margin-left: auto;
+}
+
+.view-toggle button {
+  appearance: none;
+  border: 1px solid #607d8b;
+  background: transparent;
+  color: #fff;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.view-toggle button:first-child {
+  border-radius: 0.3rem 0 0 0.3rem;
+  border-right: none;
+}
+
+.view-toggle button:last-child {
+  border-radius: 0 0.3rem 0.3rem 0;
+}
+
+.view-toggle button[aria-selected="true"] {
+  background: #607d8b;
 }
 
 main {
@@ -228,4 +270,62 @@ main {
 .toast.leaving {
   opacity: 0;
   transform: translateX(1rem);
+}
+
+/* --- Mobile / narrow screens --- */
+/* Two half-width panes are unusable on a phone, so collapse to a single column
+   and show one pane at a time, switched by the header's Editor/Preview control.
+   The status bar is allowed to wrap so its controls never overflow off-screen. */
+@media (max-width: 700px) {
+  .brand-sub {
+    display: none; /* keep the header to one short line */
+  }
+
+  .view-toggle {
+    display: inline-flex;
+  }
+
+  main {
+    grid-template-columns: 1fr; /* single column; one pane visible at a time */
+  }
+
+  /* The draggable divider is meaningless with one pane visible. */
+  #divider {
+    display: none;
+  }
+
+  body.show-editor #preview-pane,
+  body.show-preview #editor {
+    display: none;
+  }
+
+  /* 16px text stops iOS Safari from auto-zooming when the editor gains focus. */
+  #editor .cm-editor {
+    font-size: 16px;
+  }
+
+  /* The preview toolbar has several buttons; let them wrap instead of overflow. */
+  #preview-toolbar {
+    flex-wrap: wrap;
+  }
+
+  #statusbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  #statusbar .bar-left,
+  #statusbar .bar-right {
+    flex-wrap: wrap;
+  }
+
+  /* Roomier tap targets for touch. */
+  #statusbar button,
+  .view-toggle button {
+    min-height: 2.4rem;
+  }
+
+  #logo-label input {
+    max-width: 12ch;
+  }
 }

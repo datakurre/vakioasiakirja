@@ -151,7 +151,10 @@ Either route uses the same front end: [CodeMirror 6](https://codemirror.net)
 preview rendered either by [pdf.js](https://mozilla.github.io/pdf.js/)
 or, for Route 2, by typst.ts's own SVG renderer. Prior art to study
 includes [pandoc.org/app](https://pandoc.org/app) (pandoc-WebAssembly in
-the browser) and the various typst.ts editor demos.
+the browser) and the various typst.ts editor demos. The split pane is
+responsive: on a phone-sized screen the two panes collapse to a single
+column with a Muokkaa / Esikatselu switch choosing which one is shown,
+since a half-width editor and preview are unusable side by side there.
 
 ## Prototype plan to decide between the routes
 

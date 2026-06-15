@@ -5,9 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SFS 2487:2024 – selaineditori (prototyyppi)</title>
   </head>
-  <body>
+  <body class="show-editor">
     <header>
-      <strong>SFS 2487:2024</strong> – Markdown → PDF (typst.ts-prototyyppi)
+      <span class="brand"><strong>SFS 2487:2024</strong>
+        <span class="brand-sub">– Markdown → PDF (typst.ts-prototyyppi)</span></span>
+      <!-- Single-pane view switch, shown only on narrow (mobile) screens where
+           the two panes cannot sit side by side; hidden on wide screens. -->
+      <div id="view-toggle" class="view-toggle" role="tablist" aria-label="Näkymä">
+        <button id="show-editor" type="button" role="tab" aria-selected="true">Muokkaa</button>
+        <button id="show-preview" type="button" role="tab" aria-selected="false">Esikatselu</button>
+      </div>
     </header>
     <main>
       <div id="editor" aria-label="Markdown"></div>

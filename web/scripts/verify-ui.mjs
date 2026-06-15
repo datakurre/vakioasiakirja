@@ -95,5 +95,35 @@ const status = await page.$eval("#status", (e) => e.textContent);
 console.log("TOAST:", JSON.stringify(toast));
 console.log("STATUS_AFTER_ERROR:", status);
 console.log("HEADER_HEIGHT_STABLE:", headerBefore === headerAfter, headerBefore, headerAfter);
+
+// Mobile layout: at a phone viewport the two panes collapse to one column with
+// the Editor/Preview switch deciding which pane is visible, and nothing should
+// overflow the viewport width. At a wide viewport both panes show and the
+// switch is hidden.
+const visible = (sel) =>
+  page.$eval(sel, (e) => getComputedStyle(e).display !== "none" && e.offsetParent !== null);
+const noHScroll = () =>
+  page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+
+await page.setViewport({ width: 390, height: 780 }); // iPhone-ish portrait
+await new Promise((r) => setTimeout(r, 150));
+const toggleShown = await visible("#view-toggle");
+const mobileDefault = { editor: await visible("#editor"), preview: await visible("#preview") };
+await page.click("#show-preview");
+const mobilePreview = { editor: await visible("#editor"), preview: await visible("#preview") };
+await page.click("#show-editor");
+const mobileEditor = { editor: await visible("#editor"), preview: await visible("#preview") };
+const mobileNoHScroll = await noHScroll();
+console.log("MOBILE_TOGGLE_SHOWN:", toggleShown);
+console.log("MOBILE_DEFAULT (editor only):", JSON.stringify(mobileDefault));
+console.log("MOBILE_PREVIEW (preview only):", JSON.stringify(mobilePreview));
+console.log("MOBILE_EDITOR (editor only):", JSON.stringify(mobileEditor));
+console.log("MOBILE_NO_HSCROLL:", mobileNoHScroll);
+
+await page.setViewport({ width: 1200, height: 800 }); // desktop
+await new Promise((r) => setTimeout(r, 150));
+const wide = { toggle: await visible("#view-toggle"), editor: await visible("#editor"), preview: await visible("#preview") };
+console.log("WIDE (toggle hidden, both panes):", JSON.stringify(wide));
+
 await browser.close();
 server.close();
