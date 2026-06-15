@@ -132,9 +132,11 @@ uploads an image (PNG, JPEG or SVG): `src/main.ts` reads the file into a
 `$typst.mapShadow("/logo.<ext>", bytes)`, and the converter emits
 `logo: image("/logo.<ext>")` into the `sfs-document(...)` call. The template
 hangs it in the 20 mm margin and caps it at 20 mm height (scaling down only when
-taller, like the LaTeX class). **Poista logo** removes it again. SVG logos work
+taller, like the LaTeX class), and the body drops to clear a tall logo by the
+same gap the class keeps. **Poista logo** removes it again. SVG logos work
 natively — Typst decodes SVG itself, so the pandoc pipeline's `rsvg-convert`
-step is not needed.
+step is not needed. With no logo uploaded, the organisation name (`contact.name`)
+stands in its place top-left, as in the LaTeX class.
 
 ## Known gaps (out of scope for the spike)
 

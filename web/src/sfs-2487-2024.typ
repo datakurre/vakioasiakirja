@@ -20,6 +20,11 @@
 #let metawidth = 88mm // 200 mm right text edge − 112 mm
 #let logo-max-height = 20mm
 #let header-top = 14.4mm // top margin above the metadata block (cls geometry top)
+#let body-top = 42mm // where the body starts (cls top + headheight + headsep)
+// Gap kept below the top area (logo or metadata block) before the body, when
+// the area is tall enough to need pushing the body down — the class grows its
+// header height to fit a tall logo/metadata and keeps \headsep below it.
+#let top-clearance = 10.5mm
 #let leading = 5.2pt // within-paragraph line gap (→ 13.2 pt baseline at 11 pt)
 #let parskip = 11.6pt // LaTeX paragraph gap (kappaleväli, .88 baselineskip)
 // Typst measures block spacing between bounding boxes, whereas LaTeX adds the
@@ -119,6 +124,15 @@
   let body-font = font-families.at(font, default: font-families.sans-serif)
   runin-state.update(runin)
 
+  // The text part of the metadata block, kept as a value so its height can be
+  // measured when deciding how far to push the body down (see below).
+  let meta-box = box(width: metawidth)[
+    #strong(doctype) #h(1fr) #context counter(page).display("1 (1)", both: true) \
+    #date
+    #if docid != none [ \ #docid ]
+    #if confidentiality != none [ \ #confidentiality ]
+  ]
+
   // The basic metadata block, repeated as the page header on every page; the
   // page number is "current (total)" — e.g. 1 (2).
   let metadata-block = {
@@ -132,18 +146,12 @@
           logo
         }
       })
+    } else if contact != none and contact.at("name", default: "") != "" {
+      // No logo: stand the organisation name in the logo's place, in the 20 mm
+      // margin aligned with the first metadata line (cls \sfs@metadatablock).
+      place(top + left, dx: -column, dy: header-top, strong(contact.name))
     }
-    place(
-      top + left,
-      dx: meta-offset,
-      dy: header-top,
-      box(width: metawidth)[
-        #strong(doctype) #h(1fr) #context counter(page).display("1 (1)", both: true) \
-        #date
-        #if docid != none [ \ #docid ]
-        #if confidentiality != none [ \ #confidentiality ]
-      ],
-    )
+    place(top + left, dx: meta-offset, dy: header-top, meta-box)
   }
 
   set document(
@@ -157,10 +165,10 @@
     height: 297mm,
     // top: leaves room for the 14.4 mm top margin, the metadata block and a
     // headsep gap so the body starts where the class puts it (~42 mm).
-    margin: (left: body-indent, right: 10mm, top: 42mm, bottom: 20mm),
+    margin: (left: body-indent, right: 10mm, top: body-top, bottom: 20mm),
     // The metadata block is placed absolutely from the page top (header-top),
     // so the header region spans the whole top margin to contain it.
-    header-ascent: 42mm,
+    header-ascent: body-top,
     header: metadata-block,
   )
   set text(font: body-font, size: fontsize, lang: "fi", hyphenate: true)
@@ -202,20 +210,34 @@
   show figure.where(kind: table): set figure.caption(position: top)
   show figure.caption: set text(hyphenate: false)
 
+  // Push the body down when the top area (a tall logo, or a many-line metadata
+  // block) would otherwise crowd it. The class grows its header height to fit
+  // the logo/metadata and keeps \headsep below it, so the body drops; here the
+  // body start is fixed at body-top, so reserve the shortfall explicitly. Short
+  // metadata adds nothing — the body stays where it already matches the class.
+  context {
+    let meta-h = measure(meta-box).height
+    let logo-h = if logo != none { calc.min(measure(logo).height, logo-max-height) } else { 0pt }
+    let delta = header-top + calc.max(meta-h, logo-h) + top-clearance - body-top
+    if delta > 0pt { v(delta, weak: false) }
+  }
+
   // Body text sits at the 43 mm column (the page's left margin). Margin-hanging
   // elements (headings, marginlabels) outdent by `column`; the extra metadata
   // area is offset to the 112 mm column.
   if extrametadata != none {
     block(pad(left: meta-offset, extrametadata))
   }
-  if recipient != none { block(recipient) }
+  if recipient != none { block(pad(left: -column, recipient)) }
   // Subject and title share one block with the title leading between them, as
   // the class typesets them in a single parbox (5.2); the title is the
-  // document's level-1 heading, bold and 3 pt larger (5.2.1).
-  block(below: 1.5 * parskip, {
+  // document's level-1 heading, bold and 3 pt larger (5.2.1). Like the other
+  // information areas they hang at the 20 mm margin (cls \maketitle outdents
+  // the recipient and title parboxes by \sfs@column), not the body indent.
+  block(below: 1.5 * parskip, pad(left: -column, {
     if subject != none { strong(subject); linebreak() }
     text(size: fontsize + 3pt, weight: "bold", hyphenate: false, title)
-  })
+  }))
 
   if toc {
     // The TOC heading stays on a line of its own (cls \tableofcontents,
