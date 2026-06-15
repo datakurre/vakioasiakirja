@@ -60,6 +60,8 @@ const zoomLevelEl = document.getElementById("zoom-level")!;
 const fitWidthEl = document.getElementById("fit-width") as HTMLButtonElement;
 const fitHeightEl = document.getElementById("fit-height") as HTMLButtonElement;
 const twoUpEl = document.getElementById("two-up") as HTMLButtonElement;
+const showEditorEl = document.getElementById("show-editor") as HTMLButtonElement;
+const showPreviewEl = document.getElementById("show-preview") as HTMLButtonElement;
 
 function setStatus(text: string, error = false) {
   statusEl.textContent = text;
@@ -388,6 +390,22 @@ vimEl.addEventListener("change", () => {
 });
 
 syncVimMode();
+
+// Editor/Preview pane switch (visible only on narrow screens via CSS, where the
+// two panes cannot sit side by side). The body class drives which pane shows;
+// on wide screens it is inert because the media query keeps both panes visible.
+// (The preview's fit-to-width recomputes itself: showing the pane resizes it
+// from zero width, which the previewEl ResizeObserver picks up.)
+function showPane(pane: "editor" | "preview") {
+  document.body.classList.toggle("show-editor", pane === "editor");
+  document.body.classList.toggle("show-preview", pane === "preview");
+  showEditorEl.setAttribute("aria-selected", String(pane === "editor"));
+  showPreviewEl.setAttribute("aria-selected", String(pane === "preview"));
+  if (pane === "editor") editor.focus();
+}
+
+showEditorEl.addEventListener("click", () => showPane("editor"));
+showPreviewEl.addEventListener("click", () => showPane("preview"));
 
 // Start over from the seeded example: reset the document and logo (and their
 // saved copies), but keep the Vim toggle — it is an editor preference, not part
