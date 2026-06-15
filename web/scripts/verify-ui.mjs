@@ -214,6 +214,23 @@ console.log("MOBILE_EDITOR (editor only):", JSON.stringify(mobileEditor));
 console.log("MOBILE_NO_HSCROLL:", mobileNoHScroll);
 console.log("MOBILE_BOTTOMBAR_CENTER_OFFSET_PX:", (await barCenterOffset()).toFixed(2));
 
+// In preview mode the floating controls and the (invisible) logo file input must
+// not cover the bottom-bar actions: a tap on each must land on that button, not
+// be swallowed by a neighbour (the logo overlay used to steal Download's taps).
+await page.click("#show-preview");
+await page.evaluate(() => document.getElementById("preview-controls").classList.add("show"));
+await new Promise((r) => setTimeout(r, 100));
+const hitTest = await page.evaluate(() => {
+  const at = (id) => {
+    const b = document.getElementById(id).getBoundingClientRect();
+    const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    return t?.closest("#" + id) ? "ok" : "covered-by:" + (t?.id || t?.tagName);
+  };
+  return { download: at("download"), reset: at("reset"), "logo-label": at("logo-label") };
+});
+console.log("MOBILE_PREVIEW_BAR_HITTEST:", JSON.stringify(hitTest));
+await page.click("#show-editor");
+
 await page.setViewport({ width: 1200, height: 800 }); // desktop
 await new Promise((r) => setTimeout(r, 150));
 const wide = { toggle: await visible("#view-toggle"), editor: await visible("#editor"), preview: await visible("#preview") };

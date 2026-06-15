@@ -273,6 +273,10 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  /* Above the floating preview controls (z-index 5) so its buttons always win
+     taps even if the two ever overlap. */
+  position: relative;
+  z-index: 10;
   padding: 0.3rem 1rem;
   /* Keep clear of a notched phone's home indicator in standalone mode. */
   padding-bottom: max(0.3rem, env(safe-area-inset-bottom));
@@ -362,19 +366,24 @@ body.keyboard #vim-mode:not([hidden]) {
   opacity: 1;
 }
 
-/* The logo control is a file input styled as an icon button; the real input is
-   hidden but still focusable and labelled (its .sr-only text names it). */
+/* The logo control is a file input styled as an icon button. The input is
+   visually hidden (sr-only) rather than stretched over the button — a
+   full-size invisible <input type=file> overlay can capture taps on the
+   neighbouring buttons on iOS. The wrapping <label> still opens the picker. */
 #logo-label {
   position: relative;
 }
 
 #logo-label input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 #logo-label:focus-within {
@@ -392,9 +401,13 @@ body.keyboard #vim-mode:not([hidden]) {
   flex-direction: column;
   gap: 0.5rem;
   max-width: min(32rem, 90vw);
+  /* The container spans a region but only the toasts themselves are interactive;
+     without this it would swallow taps on the controls beneath it. */
+  pointer-events: none;
 }
 
 .toast {
+  pointer-events: auto;
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
