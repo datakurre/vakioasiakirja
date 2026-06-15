@@ -89,13 +89,26 @@ self-contained use. `web/src/main.ts` passes `preloadRemoteFonts(FONTS,
 { assets: false })` so only the bundled TeX Gyre faces are used and nothing is
 fetched from the network.
 
+## Logo upload
+
+The committed Markdown examples carry a `logo:` frontmatter key pointing at a
+file (`logo: ../logo-organisaatio.pdf`), but the browser has no filesystem
+access, so that path is ignored here. Instead the editor's **Logo** control
+uploads an image (PNG, JPEG or SVG): `src/main.ts` reads the file into a
+`Uint8Array` and registers it in typst.ts's shadow virtual filesystem with
+`$typst.mapShadow("/logo.<ext>", bytes)`, and the converter emits
+`logo: image("/logo.<ext>")` into the `sfs-document(...)` call. The template
+hangs it in the 20 mm margin and caps it at 20 mm height (scaling down only when
+taller, like the LaTeX class). **Poista logo** removes it again. SVG logos work
+natively — Typst decodes SVG itself, so the pandoc pipeline's `rsvg-convert`
+step is not needed.
+
 ## Known gaps (out of scope for the spike)
 
 - Tagged-PDF accessibility (the class's `\DocumentMetadata{tagging=on}`) is not
   reproduced; Typst supports PDF/A and tagging, to revisit.
-- Logo/image assets: the converter drops a `logo:` that points at an external
-  file (the browser has no filesystem access to it); a real upload/VFS path is
-  future work.
+- PDF logos (as the committed examples use) cannot be uploaded — only the
+  browser-native raster/SVG formats are accepted.
 - Footnotes, tables and the TOC feature are wired through but exercised less
   than in the LaTeX examples.
 - Fonts are bundled in-repo for a self-contained prototype; a production build

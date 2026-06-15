@@ -24,8 +24,22 @@ header {
   flex: 0 0 auto;
 }
 
-header button {
+/* Push the download button (and the status after it) to the right edge; the
+   logo controls stay next to the title on the left. */
+#download {
   margin-left: auto;
+}
+
+#logo-label {
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#logo-label input {
+  font-size: 0.8rem;
+  max-width: 20ch;
 }
 
 #status {

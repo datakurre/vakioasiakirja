@@ -97,7 +97,15 @@
   // page number is "current (total)" — e.g. 1 (2).
   let metadata-block = {
     if logo != none {
-      place(top + left, dx: -column, box(height: logo-max-height, logo))
+      // Hang the logo in the 20 mm margin, capped at logo-max-height: scale
+      // down only when taller than the cap, never up (cls \logomaxheight).
+      place(top + left, dx: -column, context {
+        if measure(logo).height > logo-max-height {
+          box(height: logo-max-height, logo)
+        } else {
+          logo
+        }
+      })
     }
     place(
       top + left,

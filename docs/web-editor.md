@@ -202,9 +202,14 @@ not to, which would break offline use; the editor disables that and ships
 only the bundled TeX Gyre faces.
 
 So the open question — can a Typst template reproduce the layout and
-compile from Markdown client-side — is answered **yes**. What the spike
-does *not* cover: tagged-PDF accessibility and image/logo uploads. The
-Markdown editor is a third rendering path and, for now, a best-effort
+compile from Markdown client-side — is answered **yes**. Logo upload is
+now supported too: since the browser cannot read the `logo:` frontmatter
+path, the editor's **Logo** control uploads a PNG/JPEG/SVG image, which
+is registered in typst.ts's shadow filesystem with `$typst.mapShadow`
+and rendered in the 20 mm margin (capped at 20 mm height); SVG logos
+need no `rsvg-convert` because Typst decodes SVG natively. What the spike
+still does *not* cover: tagged-PDF accessibility and PDF-format logos.
+The Markdown editor is a third rendering path and, for now, a best-effort
 one; the LaTeX class stays the reference implementation. Spike 2 (the
 WebAssembly-LaTeX route) was not needed to answer the question and is
 left for the day byte-identical output becomes a requirement.
