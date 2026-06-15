@@ -65,6 +65,11 @@
   % overflow the right margin under the global \RaggedRight. Re-enable it so
   % the body wraps like the serif/sans-serif fonts; the spec suppresses
   % hyphenation only in headings (6.4), which \sfs@nohyphens still handles.
+  % Read t1pcr.fd first so Courier's shapes are declared, then redeclare the
+  % family with the hyphenation hook: declaring the family before the .fd is
+  % read marks T1/pcr as known and suppresses NFSS's automatic load, leaving
+  % every Courier shape undefined and defaulting the body to Computer Modern.
+  \InputIfFileExists{t1pcr.fd}{}{}
   \DeclareFontFamily{T1}{pcr}{\hyphenchar\font=`\-}
 \else
   \RequirePackage{helvet}
