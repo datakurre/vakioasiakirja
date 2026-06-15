@@ -11,7 +11,18 @@
     </header>
     <main>
       <div id="editor" aria-label="Markdown"></div>
-      <div id="preview" aria-label="Esikatselu"></div>
+      <div id="divider" role="separator" aria-orientation="vertical" aria-label="Siirrä jakajaa" tabindex="0"></div>
+      <section id="preview-pane">
+        <div id="preview-toolbar">
+          <button id="zoom-out" title="Loitonna" aria-label="Loitonna">−</button>
+          <span id="zoom-level" aria-live="polite">100 %</span>
+          <button id="zoom-in" title="Lähennä" aria-label="Lähennä">+</button>
+          <button id="fit-width" title="Sovita sivun leveys näkymään">Sovita leveyteen</button>
+          <button id="fit-height" title="Sovita koko sivu näkymään">Sovita korkeuteen</button>
+          <button id="two-up" aria-pressed="false" title="Näytä kaksi sivua rinnakkain">Kaksi sivua</button>
+        </div>
+        <div id="preview" aria-label="Esikatselu"><div id="pages"></div></div>
+      </section>
     </main>
     <footer id="statusbar">
       <div class="bar-left">
