@@ -6,6 +6,14 @@ local TeX installation. It is a design study, not a shipped feature:
 the goal is to compare the realistic options and decide between them
 with two small prototypes before committing to an implementation.
 
+!!! tip "Try it"
+
+    The first prototype is live at
+    [**datakurre.github.io/vakioasiakirja/web/**](https://datakurre.github.io/vakioasiakirja/web/)
+    — write Markdown on the left, get the SFS 2487 PDF on the right,
+    entirely in your browser. Its source is in
+    [`web/`](https://github.com/datakurre/vakioasiakirja/tree/main/web).
+
 The existing converter (`nix run .`) already turns Markdown into a
 conforming PDF, but it needs nix or a TeX Live installation on the
 machine. A browser editor would let someone write a document and get
@@ -205,7 +213,12 @@ left for the day byte-identical output becomes a requirement.
 
 The prototype builds reproducibly through the flake — `nix build .#web`
 (or `make web`) produces the static bundle, pinning the WebAssembly
-artifacts and fonts; `make web-dev` runs it live. Publishing it to
-GitHub Pages under `/web/` alongside this documentation site, by
-extending `.github/workflows/docs.yml`, is the next step once the
-prototype graduates from a spike.
+artifacts and fonts; `make web-dev` runs it live. The bundle uses a
+relative base, so it works at any path.
+
+`make docs` builds it and copies it into `site/web/` after the mkdocs
+site, so the same GitHub Pages deployment that publishes these docs also
+serves the editor at
+[datakurre.github.io/vakioasiakirja/web/](https://datakurre.github.io/vakioasiakirja/web/).
+The existing `.github/workflows/docs.yml` runs `make docs`, so no
+workflow change is needed; the PR `smoke-test` workflow builds it too.

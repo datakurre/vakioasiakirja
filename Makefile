@@ -46,6 +46,11 @@ docs: examples markdown  ## Build the documentation site into site/
 		cp "$$f" "docs/src/markdown/$$(basename $$f).txt"; \
 	done
 	@nix shell .#docsEnv --command mkdocs build --strict
+	@# Place the browser editor under site/web/ so Pages serves it at
+	@# <site>/web/ (e.g. datakurre.github.io/vakioasiakirja/web/). Done after
+	@# mkdocs, which cleans site/; the bundle's relative base works at any path.
+	@nix build .#web
+	@mkdir -p site/web && cp -rL result/. site/web/ && chmod -R u+w site/web
 
 .PHONY: watch
 watch:  ## Develop PDF and watch for changes
