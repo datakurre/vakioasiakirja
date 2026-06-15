@@ -6,8 +6,10 @@
 // and a PDF for download. No server is involved.
 
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { vim } from "@replit/codemirror-vim";
 import { $typst } from "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs";
 import { preloadRemoteFonts } from "@myriaddreamin/typst.ts";
 
@@ -44,6 +46,8 @@ const downloadEl = document.getElementById("download") as HTMLButtonElement;
 const previewEl = document.getElementById("preview")!;
 const logoEl = document.getElementById("logo") as HTMLInputElement;
 const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
+const vimEl = document.getElementById("vim") as HTMLInputElement;
+const resetEl = document.getElementById("reset") as HTMLButtonElement;
 
 function setStatus(text: string, error = false) {
   statusEl.textContent = text;
@@ -96,13 +100,65 @@ function showPages(svgText: string) {
   previewEl.replaceChildren(...cards);
 }
 
+// --- localStorage persistence (document, logo, vim toggle) ---
+// The editor is otherwise stateless, so a reload would lose work; these survive
+// it. Every access is guarded so a disabled or full localStorage never breaks
+// the editor — persistence is best-effort.
+const STORE = { doc: "sfs2487.doc", logo: "sfs2487.logo", vim: "sfs2487.vim" };
+
+interface StoredLogo { path: string; name: string; b64: string }
+
+function lsGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function lsSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* quota or disabled: ignore */
+  }
+}
+function lsRemove(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let s = "";
+  const chunk = 0x8000; // avoid exceeding the argument limit of String.fromCharCode
+  for (let i = 0; i < bytes.length; i += chunk) {
+    s += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(s);
+}
+function base64ToBytes(b64: string): Uint8Array {
+  const s = atob(b64);
+  const bytes = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+  return bytes;
+}
+
 let templateAdded = false;
 let currentTypst = "";
 
 // An uploaded logo image, mapped into the typst.ts shadow filesystem. The
 // frontmatter `logo:` key is a filesystem path the browser cannot read, so the
 // logo is driven by the upload control instead (see withoutLogo).
-let logo: { path: string; bytes: Uint8Array } | undefined;
+let logo: { path: string; name: string; bytes: Uint8Array } | undefined;
+
+// Reflect the current logo in the "Poista logo" button (browsers cannot prefill
+// a file input, so a restored logo has no visible file name otherwise).
+function showLogo() {
+  logoClearEl.hidden = logo === undefined;
+  logoClearEl.title = logo ? logo.name : "";
+}
 
 // The strip-the-logo guard: the seeded example references an external logo
 // file that the browser has no access to; drop the frontmatter line so it never
@@ -119,6 +175,21 @@ function logoPathFor(file: File): string {
   if (file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)) return "/logo.jpg";
   return "/logo.png";
 }
+
+// Restore a previously uploaded logo from localStorage (render() maps it into
+// the VFS on the first compile).
+function restoreLogo() {
+  const raw = lsGet(STORE.logo);
+  if (!raw) return;
+  try {
+    const s = JSON.parse(raw) as StoredLogo;
+    logo = { path: s.path, name: s.name, bytes: base64ToBytes(s.b64) };
+  } catch {
+    lsRemove(STORE.logo);
+  }
+}
+restoreLogo();
+showLogo();
 
 async function render(md: string) {
   let typst: string;
@@ -169,24 +240,38 @@ logoEl.addEventListener("change", async () => {
   const bytes = new Uint8Array(await file.arrayBuffer());
   // Drop a previous logo at a different path so it does not linger in the VFS.
   if (logo && logo.path !== path) await $typst.unmapShadow(logo.path);
-  logo = { path, bytes };
-  logoClearEl.hidden = false;
+  logo = { path, name: file.name, bytes };
+  lsSet(STORE.logo, JSON.stringify({ path, name: file.name, b64: bytesToBase64(bytes) }));
+  showLogo();
   render(editor.state.doc.toString());
 });
 
-logoClearEl.addEventListener("click", async () => {
+async function clearLogo() {
   if (logo) await $typst.unmapShadow(logo.path);
   logo = undefined;
   logoEl.value = "";
-  logoClearEl.hidden = true;
+  lsRemove(STORE.logo);
+  showLogo();
+}
+
+logoClearEl.addEventListener("click", async () => {
+  await clearLogo();
   render(editor.state.doc.toString());
 });
+
+// Vim keybindings live in a compartment so the toggle can reconfigure them
+// without rebuilding the editor. The vim() extension must come first, before the
+// other keymaps, for its bindings to take precedence.
+const vimCompartment = new Compartment();
+const vimEnabled = lsGet(STORE.vim) === "1";
+vimEl.checked = vimEnabled;
 
 let timer: number | undefined;
 const editor = new EditorView({
   parent: document.getElementById("editor")!,
-  doc: withoutLogo(seed),
+  doc: lsGet(STORE.doc) ?? withoutLogo(seed),
   extensions: [
+    vimCompartment.of(vimEnabled ? vim() : []),
     lineNumbers(),
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -194,10 +279,30 @@ const editor = new EditorView({
     EditorView.lineWrapping,
     EditorView.updateListener.of((u) => {
       if (!u.docChanged) return;
+      const text = u.state.doc.toString();
+      lsSet(STORE.doc, text);
       clearTimeout(timer);
-      timer = window.setTimeout(() => render(u.state.doc.toString()), 300);
+      timer = window.setTimeout(() => render(text), 300);
     }),
   ],
+});
+
+vimEl.addEventListener("change", () => {
+  editor.dispatch({ effects: vimCompartment.reconfigure(vimEl.checked ? vim() : []) });
+  lsSet(STORE.vim, vimEl.checked ? "1" : "0");
+  editor.focus();
+});
+
+// Start over from the seeded example: reset the document and logo (and their
+// saved copies), but keep the Vim toggle — it is an editor preference, not part
+// of the document.
+resetEl.addEventListener("click", async () => {
+  if (!confirm("Aloitetaanko alusta esimerkkiasiakirjasta? Nykyiset muutokset ja logo poistetaan.")) return;
+  const fresh = withoutLogo(seed);
+  editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: fresh } });
+  await clearLogo();
+  lsRemove(STORE.doc);
+  render(fresh);
 });
 
 setStatus("alustetaan typst.ts…");

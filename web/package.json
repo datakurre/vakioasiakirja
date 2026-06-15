@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.1",
     "@myriaddreamin/typst-ts-renderer": "0.7.0",
     "@myriaddreamin/typst-ts-web-compiler": "0.7.0-rc2",
     "@myriaddreamin/typst.ts": "0.7.0-rc2",
+    "@replit/codemirror-vim": "^6.3.0",
     "codemirror": "^6.0.1",
     "js-yaml": "^4.1.0",
     "markdown-it": "^14.1.0",
