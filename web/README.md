@@ -52,10 +52,13 @@ generated Typst for one document (used by the verification below).
 
 ## Editor controls
 
-The controls sit in a **bottom status bar** (so the top bar stays a single
-short line that a long error can never reflow):
+The editing controls sit in a **bottom status bar** (so the top bar stays a
+single short line that a long error can never reflow). They are **icon
+buttons** — each carries an `aria-label` and a `title` tooltip, renders an SVG
+from an inline `<symbol>` sprite, has a visible `:focus-visible` ring, and is at
+least a 44 px touch target on mobile:
 
-- **Vim** (bottom left) — a checkbox toggling Vim keybindings
+- **Vim** (bottom left, desktop only) — a checkbox toggling Vim keybindings
   ([@replit/codemirror-vim](https://github.com/replit/codemirror-vim)) in the
   CodeMirror editor, switched live via a `Compartment`. When Vim is on, a badge
   next to it shows the current mode (`NORMAL` / `INSERT` / `VISUAL` …), driven by
@@ -64,23 +67,48 @@ short line that a long error can never reflow):
   selection — and themes the painted selection a clearly visible blue so
   selected text stands out, focused or not.
 - **Logo / Poista logo / Uusi esimerkki / Lataa PDF** (bottom right) — logo
-  upload, document/logo reset back to the seeded example (the Vim toggle is
-  kept — it is an editor preference), and PDF download.
+  upload (a styled file input), document/logo reset back to the seeded example
+  (the Vim toggle is kept — it is an editor preference), and PDF download.
+- **Preview toolbar** (above the preview) — zoom out / in, fit to width, fit to
+  height, and a one-/two-page toggle (`aria-pressed`), all as icons.
 - The document, the uploaded logo and the Vim toggle are autosaved to the
   browser's `localStorage` and restored on reload. (A restored logo cannot
   repopulate the file input, so the **Poista logo** button — with the file name
   as its tooltip — is the "a logo is loaded" indicator.)
 - Conversion and compile **errors appear as dismissible toasts at the bottom
-  right**; the status bar itself only ever shows the short compile state
-  (`käännetty`, `virhe`, …), so it never grows or reflows.
-- The layout is **responsive**: on wide screens the editor and preview sit side
-  by side, but on narrow (mobile) screens — at a 700 px breakpoint — they would
-  be too cramped, so they collapse to a single column showing one pane at a
-  time. A **Muokkaa / Esikatselu** switch in the top bar (shown only on mobile)
-  chooses which. The status bar wraps its controls instead of overflowing, the
-  height tracks the dynamic viewport (`100dvh`) so the bar is not hidden behind
-  mobile browser chrome, and the editor uses 16 px text to stop iOS Safari from
-  zooming on focus.
+  right** (`role="alert"`, dismissable by mouse, the keyboard-reachable close
+  button, or Escape). A spinner on the preview (and `aria-busy`) shows while a
+  compile is in flight; the status bar otherwise only shows the short compile
+  state (`käännetty`, `virhe`, …), so it never grows or reflows.
+
+### Responsive / mobile layout
+
+On wide screens the editor and preview sit side by side. On narrow (mobile)
+screens — at a 700 px breakpoint — two half-width panes are unusable, so the
+layout collapses to a single column showing one pane at a time:
+
+- The **top header is dropped entirely**; the bottom bar becomes the only
+  chrome, for a focused, app-like feel.
+- A **Muokkaa / Esikatselu** segmented switch (a labelled group of `aria-pressed`
+  toggle buttons) is the primary navigation. Following the native bottom-bar
+  idiom, only the *selected* tab shows its text label; the other is icon-only,
+  which keeps both tabs and the action icons on one row without overflow.
+- Vim is hidden (a desktop power feature), the height tracks the dynamic
+  viewport (`100dvh`), the bar respects the safe-area insets (so it clears a
+  notched phone's home indicator), and the editor uses 16 px text to stop iOS
+  Safari from zooming on focus.
+
+### Install as an app (PWA)
+
+The editor ships a **web app manifest** (`public/manifest.webmanifest`) and
+icons, so it can be installed to a phone's home screen and launched
+**standalone — without browser chrome** — for a native feel. A small
+**service worker** (`public/sw.js`, cache-first with background refresh,
+registered only in production builds) makes relaunches instant and the
+installed app work offline, which suits a bundle whose large Typst compiler
+WASM and fonts never change. The manifest's `start_url`/`scope` are relative, so
+it works at any base path (the GitHub Pages project subpath as well as the dev
+root).
 
 ## Preview controls
 
@@ -135,11 +163,17 @@ pdftotext -bbox /tmp/dl/* -
 A companion `scripts/verify-ui.mjs` (same Chromium + `puppeteer-core` setup)
 checks the editor chrome rather than the layout: that the controls live in the
 bottom status bar, the Vim mode badge tracks `NORMAL` → `VISUAL`, the
-visual-mode selection is painted in a visible colour, a conversion error
-surfaces as a bottom-right toast without reflowing the header, and the
-responsive layout works — at a phone viewport the panes collapse to one column
-with the Muokkaa / Esikatselu switch toggling which is visible and no horizontal
-overflow, while a wide viewport shows both panes with the switch hidden.
+visual-mode selection is painted in a visible colour, and a conversion error
+surfaces as a bottom-right `role="alert"` toast (with a working close button,
+dismissed afterwards) without reflowing the header. It also checks the
+accessibility and PWA work added here: every icon button has an accessible name
+and an SVG icon, the view switch is a labelled `aria-pressed` group, the "Poista
+logo" button stays hidden until a logo is uploaded, and the manifest /
+theme-colour / apple-touch-icon / service-worker registration are all present.
+For the responsive layout it confirms that at a phone viewport the header is
+hidden, the panes collapse to one column with the Muokkaa / Esikatselu switch
+toggling which is visible, and there is no horizontal overflow, while a wide
+viewport shows both panes with the switch hidden.
 
 That smoke test caught one real issue the CLI could not: by default typst.ts
 fetches its built-in fonts from a CDN (jsdelivr), which breaks offline /

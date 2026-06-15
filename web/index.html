@@ -2,51 +2,131 @@
 <html lang="fi">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SFS 2487:2024 – selaineditori (prototyyppi)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SFS 2487:2024 – selaineditori</title>
+    <meta name="description" content="Selaimessa toimiva Markdown→PDF-editori SFS 2487:2024 -asiakirjoille." />
+
+    <!-- Installable PWA: standalone display (no browser chrome) on the home
+         screen, brand theme colour, and platform icons. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#37474f" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SFS 2487" />
+    <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body class="show-editor">
+    <!-- Icon sprite: stroke icons drawn with currentColor, referenced by <use>.
+         Hidden from layout and the accessibility tree (each button carries its
+         own aria-label, and the icons are aria-hidden). -->
+    <svg width="0" height="0" aria-hidden="true" style="position: absolute" focusable="false">
+      <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" /><circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-zoom-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3M11 8v6M8 11h6" />
+      </symbol>
+      <symbol id="i-zoom-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3M8 11h6" />
+      </symbol>
+      <symbol id="i-fit-width" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6v12M20 6v12M8 9l-3 3 3 3M16 9l3 3-3 3M5 12h14" />
+      </symbol>
+      <symbol id="i-fit-height" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 4h12M6 20h12M9 8l3-3 3 3M9 16l3 3 3-3M12 5v14" />
+      </symbol>
+      <symbol id="i-spread" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="8" height="16" rx="1" /><rect x="13" y="4" width="8" height="16" rx="1" />
+      </symbol>
+      <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+      </symbol>
+      <symbol id="i-new" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" /><path d="M14 3v5h5M12 12v6M9 15h6" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </symbol>
+    </svg>
+
     <header>
-      <span class="brand"><strong>SFS 2487:2024</strong>
-        <span class="brand-sub">– Markdown → PDF (typst.ts-prototyyppi)</span></span>
-      <!-- Single-pane view switch, shown only on narrow (mobile) screens where
-           the two panes cannot sit side by side; hidden on wide screens. -->
-      <div id="view-toggle" class="view-toggle" role="tablist" aria-label="Näkymä">
-        <button id="show-editor" type="button" role="tab" aria-selected="true">Muokkaa</button>
-        <button id="show-preview" type="button" role="tab" aria-selected="false">Esikatselu</button>
-      </div>
+      <span class="brand"><strong>SFS 2487:2024</strong><span class="brand-sub"> – Markdown → PDF</span></span>
     </header>
     <main>
-      <div id="editor" aria-label="Markdown"></div>
-      <div id="divider" role="separator" aria-orientation="vertical" aria-label="Siirrä jakajaa" tabindex="0"></div>
-      <section id="preview-pane">
-        <div id="preview-toolbar">
-          <button id="zoom-out" title="Loitonna" aria-label="Loitonna">−</button>
+      <div id="editor" role="region" aria-label="Markdown-muokkain"></div>
+      <div id="divider" role="separator" aria-orientation="vertical" aria-label="Siirrä jakajaa"
+        tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></div>
+      <section id="preview-pane" aria-label="Esikatselu">
+        <div id="preview-toolbar" role="toolbar" aria-label="Esikatselun hallinta">
+          <button id="zoom-out" type="button" class="iconbtn" title="Loitonna" aria-label="Loitonna">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-out" /></svg>
+          </button>
           <span id="zoom-level" aria-live="polite">100 %</span>
-          <button id="zoom-in" title="Lähennä" aria-label="Lähennä">+</button>
-          <button id="fit-width" title="Sovita sivun leveys näkymään">Sovita leveyteen</button>
-          <button id="fit-height" title="Sovita koko sivu näkymään">Sovita korkeuteen</button>
-          <button id="two-up" aria-pressed="false" title="Näytä kaksi sivua rinnakkain">Kaksi sivua</button>
+          <button id="zoom-in" type="button" class="iconbtn" title="Lähennä" aria-label="Lähennä">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-in" /></svg>
+          </button>
+          <button id="fit-width" type="button" class="iconbtn" title="Sovita sivun leveys näkymään" aria-label="Sovita leveyteen">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-fit-width" /></svg>
+          </button>
+          <button id="fit-height" type="button" class="iconbtn" title="Sovita koko sivu näkymään" aria-label="Sovita korkeuteen">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-fit-height" /></svg>
+          </button>
+          <button id="two-up" type="button" class="iconbtn" aria-pressed="false"
+            title="Näytä kaksi sivua rinnakkain" aria-label="Kaksi sivua rinnakkain">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-spread" /></svg>
+          </button>
         </div>
-        <div id="preview" aria-label="Esikatselu"><div id="pages"></div></div>
+        <div id="preview" aria-label="Esikatselu" aria-busy="false"><div id="pages"></div></div>
       </section>
     </main>
     <footer id="statusbar">
       <div class="bar-left">
+        <!-- The view switch is the primary mobile navigation (the only header
+             on a phone, where the top bar is hidden); inert on wide screens,
+             which show both panes side by side. -->
+        <div id="view-toggle" class="view-toggle" role="group" aria-label="Näkymä">
+          <button id="show-editor" type="button" aria-pressed="true" title="Muokkaa" aria-label="Muokkaa">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
+            <span class="seg-label">Muokkaa</span>
+          </button>
+          <button id="show-preview" type="button" aria-pressed="false" title="Esikatselu" aria-label="Esikatselu">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
+            <span class="seg-label">Esikatselu</span>
+          </button>
+        </div>
         <label id="vim-label"><input id="vim" type="checkbox" /> Vim</label>
         <span id="vim-mode" hidden></span>
-        <span id="status">ladataan…</span>
+        <span id="status" role="status">ladataan…</span>
       </div>
       <div class="bar-right">
-        <label id="logo-label">Logo
+        <label id="logo-label" class="iconbtn" title="Lisää logo">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-image" /></svg>
+          <span class="sr-only">Lisää logo</span>
           <input id="logo" type="file" accept="image/png,image/jpeg,image/svg+xml" />
         </label>
-        <button id="logo-clear" hidden>Poista logo</button>
-        <button id="reset">Uusi esimerkki</button>
-        <button id="download" disabled>Lataa PDF</button>
+        <button id="logo-clear" type="button" class="iconbtn" hidden title="Poista logo" aria-label="Poista logo">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash" /></svg>
+        </button>
+        <button id="reset" type="button" class="iconbtn" title="Uusi esimerkki" aria-label="Uusi esimerkki">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
+        </button>
+        <button id="download" type="button" class="iconbtn" disabled title="Lataa PDF" aria-label="Lataa PDF">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
+        </button>
       </div>
     </footer>
-    <div id="toasts" aria-live="polite"></div>
+    <div id="toasts" role="region" aria-label="Ilmoitukset" aria-live="assertive"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

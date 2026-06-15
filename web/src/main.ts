@@ -68,22 +68,62 @@ function setStatus(text: string, error = false) {
   statusEl.classList.toggle("error", error);
 }
 
+// Mark the preview busy (drives the CSS spinner and tells screen readers a
+// compile is in flight).
+function setBusy(busy: boolean) {
+  previewEl.setAttribute("aria-busy", String(busy));
+}
+
+// Build a <use> reference to an icon in the inline sprite.
+function iconSvg(id: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#${id}`);
+  svg.appendChild(use);
+  return svg;
+}
+
 // Errors land in a transient bottom-right toast instead of the status bar:
-// compiler messages can be long and multi-line, and inlining them would
-// reflow the bar. The status bar only ever shows the short compile state.
+// compiler messages can be long and multi-line, and inlining them would reflow
+// the bar. The status bar only ever shows the short compile state. The toast is
+// role="alert" (announced) and dismissable by mouse, keyboard (its close button)
+// or Escape — not click-anywhere only, which keyboard users cannot reach.
 function fail(message: string) {
   setStatus("virhe", true);
+  setBusy(false);
+
   const el = document.createElement("div");
   el.className = "toast";
-  el.textContent = message;
-  el.title = "Sulje napsauttamalla";
-  const remove = () => el.remove();
-  el.addEventListener("click", remove);
-  // Auto-dismiss after a while; the fade is handled by the `.leaving` class.
-  window.setTimeout(() => {
+  el.setAttribute("role", "alert");
+
+  const msg = document.createElement("div");
+  msg.className = "toast-message";
+  msg.textContent = message;
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "iconbtn toast-close";
+  close.setAttribute("aria-label", "Sulje ilmoitus");
+  close.title = "Sulje";
+  close.appendChild(iconSvg("i-close"));
+
+  let timer = 0;
+  const remove = () => {
+    window.clearTimeout(timer);
     el.classList.add("leaving");
-    window.setTimeout(remove, 300);
-  }, 10000);
+    window.setTimeout(() => el.remove(), 300);
+  };
+  close.addEventListener("click", remove);
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") remove();
+  });
+  // Auto-dismiss after a while; the fade is handled by the `.leaving` class.
+  timer = window.setTimeout(remove, 10000);
+
+  el.append(msg, close);
   toastsEl.appendChild(el);
 }
 
@@ -243,6 +283,8 @@ async function render(md: string) {
     return;
   }
   currentTypst = typst;
+  setStatus("kääntää…");
+  setBusy(true);
   try {
     if (!templateAdded) {
       await $typst.addSource("/sfs-2487-2024.typ", templateSource);
@@ -255,6 +297,7 @@ async function render(md: string) {
     showPages(svg);
     downloadEl.disabled = false;
     setStatus("käännetty");
+    setBusy(false);
   } catch (e) {
     fail(String(e));
   }
@@ -399,8 +442,8 @@ syncVimMode();
 function showPane(pane: "editor" | "preview") {
   document.body.classList.toggle("show-editor", pane === "editor");
   document.body.classList.toggle("show-preview", pane === "preview");
-  showEditorEl.setAttribute("aria-selected", String(pane === "editor"));
-  showPreviewEl.setAttribute("aria-selected", String(pane === "preview"));
+  showEditorEl.setAttribute("aria-pressed", String(pane === "editor"));
+  showPreviewEl.setAttribute("aria-pressed", String(pane === "preview"));
   if (pane === "editor") editor.focus();
 }
 
@@ -495,7 +538,12 @@ new ResizeObserver(() => { if (view.fit !== "none") applyView(); }).observe(prev
 function setSplit(px: number) {
   const min = 150;
   const max = mainEl.clientWidth - 150 - 6; // leave room for the preview + divider
-  mainEl.style.setProperty("--split", `${Math.min(max, Math.max(min, px))}px`);
+  const clamped = Math.min(max, Math.max(min, px));
+  mainEl.style.setProperty("--split", `${clamped}px`);
+  // Reflect the editor's share as the separator's value for assistive tech.
+  if (mainEl.clientWidth > 0) {
+    dividerEl.setAttribute("aria-valuenow", String(Math.round((clamped / mainEl.clientWidth) * 100)));
+  }
 }
 function persistSplit() {
   lsSet(STORE.split, mainEl.style.getPropertyValue("--split").replace("px", "").trim());
@@ -544,3 +592,16 @@ applyView();
 
 setStatus("alustetaan typst.ts…");
 render(editor.state.doc.toString());
+
+// Register the service worker so an installed (home-screen) app launches
+// instantly and works offline. Only in production builds — in dev it would
+// cache Vite's module graph and mask edits.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+      .catch(() => {
+        /* offline-install is best-effort; the app still works without it */
+      });
+  });
+}
