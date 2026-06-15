@@ -33,7 +33,15 @@ function content(typst: string): string {
   return "[" + typst + "]";
 }
 
-function frontmatterToArgs(meta: Record<string, unknown>): string {
+// Options that come from the editor shell rather than the document source.
+export interface ConvertOptions {
+  // VFS path of an uploaded logo image (mapped into typst.ts via mapShadow).
+  // The frontmatter `logo:` key is a filesystem path the browser cannot read,
+  // so the logo is driven by the upload control instead.
+  logoPath?: string;
+}
+
+function frontmatterToArgs(meta: Record<string, unknown>, opts: ConvertOptions): string {
   for (const field of ["doctype", "title"]) {
     if (meta[field] == null) {
       throw new ConversionError(
@@ -48,6 +56,9 @@ function frontmatterToArgs(meta: Record<string, unknown>): string {
   for (const k of ["doctype", "title", "date", "author", "subject", "docid", "confidentiality"]) {
     scalar(k);
   }
+  // The logo is an uploaded image in the shadow filesystem, not a frontmatter
+  // path (the browser cannot read the path the `logo:` key would hold).
+  if (opts.logoPath != null) args.push(`logo: image(${str(opts.logoPath)})`);
   // Multi-line fields: join YAML list (or scalar) with Typst line breaks.
   for (const k of LIST_FIELDS) {
     const v = meta[k];
@@ -349,9 +360,9 @@ function body(markdown: string): string {
   return blocks(tokens, { i: 0 });
 }
 
-export function markdownToTypst(source: string): string {
+export function markdownToTypst(source: string, opts: ConvertOptions = {}): string {
   const meta = parseFrontmatter(source);
-  const args = frontmatterToArgs(meta.frontmatter);
+  const args = frontmatterToArgs(meta.frontmatter, opts);
   const segs = segmentDivs(meta.body);
   let out = "";
   for (const seg of segs) {

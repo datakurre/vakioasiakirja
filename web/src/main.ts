@@ -42,6 +42,8 @@ $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
 const statusEl = document.getElementById("status")!;
 const downloadEl = document.getElementById("download") as HTMLButtonElement;
 const previewEl = document.getElementById("preview")!;
+const logoEl = document.getElementById("logo") as HTMLInputElement;
+const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
 
 function setStatus(text: string, error = false) {
   statusEl.textContent = text;
@@ -51,16 +53,31 @@ function setStatus(text: string, error = false) {
 let templateAdded = false;
 let currentTypst = "";
 
+// An uploaded logo image, mapped into the typst.ts shadow filesystem. The
+// frontmatter `logo:` key is a filesystem path the browser cannot read, so the
+// logo is driven by the upload control instead (see withoutLogo).
+let logo: { path: string; bytes: Uint8Array } | undefined;
+
 // The strip-the-logo guard: the seeded example references an external logo
-// file that the browser has no access to; drop it so the prototype renders.
+// file that the browser has no access to; drop the frontmatter line so it never
+// reaches the converter. Uploaded logos take the VFS path below instead.
 function withoutLogo(md: string): string {
   return md.replace(/^logo:.*$/m, "");
+}
+
+// Pick a shadow-filesystem path whose extension matches the upload, so Typst's
+// image() decodes it by format. Only the browser-native raster/SVG formats are
+// offered (PDF logos, used by the committed examples, are out of scope here).
+function logoPathFor(file: File): string {
+  if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name)) return "/logo.svg";
+  if (file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)) return "/logo.jpg";
+  return "/logo.png";
 }
 
 async function render(md: string) {
   let typst: string;
   try {
-    typst = markdownToTypst(md);
+    typst = markdownToTypst(md, { logoPath: logo?.path });
   } catch (e) {
     setStatus(e instanceof ConversionError ? e.message : String(e), true);
     return;
@@ -71,6 +88,9 @@ async function render(md: string) {
       await $typst.addSource("/sfs-2487-2024.typ", templateSource);
       templateAdded = true;
     }
+    // Re-map the logo each render: cheap, and keeps the VFS in sync after a
+    // change or removal.
+    if (logo) await $typst.mapShadow(logo.path, logo.bytes);
     const svg = await $typst.svg({ mainContent: typst });
     previewEl.innerHTML = svg;
     downloadEl.disabled = false;
@@ -94,6 +114,26 @@ downloadEl.addEventListener("click", async () => {
   } catch (e) {
     setStatus(String(e), true);
   }
+});
+
+logoEl.addEventListener("change", async () => {
+  const file = logoEl.files?.[0];
+  if (!file) return;
+  const path = logoPathFor(file);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // Drop a previous logo at a different path so it does not linger in the VFS.
+  if (logo && logo.path !== path) await $typst.unmapShadow(logo.path);
+  logo = { path, bytes };
+  logoClearEl.hidden = false;
+  render(editor.state.doc.toString());
+});
+
+logoClearEl.addEventListener("click", async () => {
+  if (logo) await $typst.unmapShadow(logo.path);
+  logo = undefined;
+  logoEl.value = "";
+  logoClearEl.hidden = true;
+  render(editor.state.doc.toString());
 });
 
 let timer: number | undefined;
