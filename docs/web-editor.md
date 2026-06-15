@@ -151,10 +151,20 @@ Either route uses the same front end: [CodeMirror 6](https://codemirror.net)
 preview rendered either by [pdf.js](https://mozilla.github.io/pdf.js/)
 or, for Route 2, by typst.ts's own SVG renderer. Prior art to study
 includes [pandoc.org/app](https://pandoc.org/app) (pandoc-WebAssembly in
-the browser) and the various typst.ts editor demos. The split pane is
-responsive: on a phone-sized screen the two panes collapse to a single
-column with a Muokkaa / Esikatselu switch choosing which one is shown,
-since a half-width editor and preview are unusable side by side there.
+the browser) and the various typst.ts editor demos.
+
+The split pane is responsive and the chrome is built for touch and
+assistive technology. On a phone-sized screen the two panes collapse to
+a single column with a Muokkaa / Esikatselu switch choosing which one is
+shown (a half-width editor and preview are unusable side by side there);
+the top header is dropped so a single bottom bar is the only chrome, for
+an app-like feel. All controls are SVG icon buttons with accessible
+names, visible focus rings and 44 px touch targets; errors surface as
+`role="alert"` toasts that are dismissable by mouse, keyboard or Escape.
+The editor is also an installable **PWA** — a web app manifest plus a
+cache-first service worker let it be added to the home screen and
+launched standalone (no browser chrome) and used offline, which fits a
+bundle whose large compiler WASM and fonts never change.
 
 ## Prototype plan to decide between the routes
 

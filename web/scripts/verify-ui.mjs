@@ -88,13 +88,65 @@ await page.keyboard.type("---\nagenda: true\n---\n\nHei.\n");
 await new Promise((r) => setTimeout(r, 700));
 const toast = await page.evaluate(() => {
   const t = document.querySelector("#toasts .toast");
-  return { count: document.querySelectorAll("#toasts .toast").length, text: t ? t.textContent.slice(0, 40) : null };
+  return {
+    count: document.querySelectorAll("#toasts .toast").length,
+    text: t ? t.querySelector(".toast-message")?.textContent.slice(0, 40) : null,
+    role: t?.getAttribute("role"),
+    hasClose: !!t?.querySelector(".toast-close[aria-label]"),
+  };
 });
 const headerAfter = await page.$eval("header", (e) => e.getBoundingClientRect().height);
 const status = await page.$eval("#status", (e) => e.textContent);
 console.log("TOAST:", JSON.stringify(toast));
 console.log("STATUS_AFTER_ERROR:", status);
 console.log("HEADER_HEIGHT_STABLE:", headerBefore === headerAfter, headerBefore, headerAfter);
+
+// Dismiss the toast with its close button (keyboard-reachable, unlike the old
+// click-anywhere) and confirm it goes away.
+await page.click("#toasts .toast .toast-close");
+await new Promise((r) => setTimeout(r, 400));
+console.log("TOAST_DISMISSED:", (await page.$$("#toasts .toast")).length === 0);
+
+// Accessibility: every icon button must carry an accessible name and render an
+// SVG icon (no text label).
+const iconButtons = await page.$$eval(".iconbtn", (els) =>
+  els.map((e) => ({
+    id: e.id || e.querySelector("input")?.id || "(logo)",
+    name: e.getAttribute("aria-label") || e.querySelector(".sr-only")?.textContent || "",
+    hasIcon: !!e.querySelector("svg.icon use"),
+  })),
+);
+const unnamed = iconButtons.filter((b) => !b.name || !b.hasIcon);
+console.log("ICON_BUTTONS:", iconButtons.length, "UNNAMED_OR_NO_ICON:", JSON.stringify(unnamed));
+
+// The view switch is a labelled group of aria-pressed toggle buttons (not a
+// mislabelled tablist).
+const togglePressed = await page.evaluate(() => ({
+  group: document.getElementById("view-toggle")?.getAttribute("role"),
+  editor: document.getElementById("show-editor")?.getAttribute("aria-pressed"),
+  preview: document.getElementById("show-preview")?.getAttribute("aria-pressed"),
+}));
+console.log("VIEW_TOGGLE:", JSON.stringify(togglePressed));
+
+// The "Poista logo" button must stay hidden until a logo is uploaded (the
+// [hidden] attribute has to beat .iconbtn's display rule).
+console.log("LOGO_CLEAR_HIDDEN:", await page.$eval("#logo-clear", (e) => e.offsetParent === null));
+
+// PWA: a manifest link, a theme colour, an apple-touch-icon, and a registered
+// service worker (localhost counts as a secure context, so registration runs).
+const pwa = await page.evaluate(async () => {
+  const manifestHref = document.querySelector('link[rel="manifest"]')?.getAttribute("href");
+  const themeColor = document.querySelector('meta[name="theme-color"]')?.getAttribute("content");
+  const appleIcon = !!document.querySelector('link[rel="apple-touch-icon"]');
+  let manifestOk = false;
+  try {
+    const m = await (await fetch(manifestHref)).json();
+    manifestOk = m.display === "standalone" && Array.isArray(m.icons) && m.icons.length > 0;
+  } catch {}
+  const reg = await navigator.serviceWorker?.getRegistration();
+  return { manifestHref, themeColor, appleIcon, manifestOk, swRegistered: !!reg };
+});
+console.log("PWA:", JSON.stringify(pwa));
 
 // Mobile layout: at a phone viewport the two panes collapse to one column with
 // the Editor/Preview switch deciding which pane is visible, and nothing should
@@ -107,6 +159,7 @@ const noHScroll = () =>
 
 await page.setViewport({ width: 390, height: 780 }); // iPhone-ish portrait
 await new Promise((r) => setTimeout(r, 150));
+console.log("MOBILE_HEADER_HIDDEN:", !(await visible("header")));
 const toggleShown = await visible("#view-toggle");
 const mobileDefault = { editor: await visible("#editor"), preview: await visible("#preview") };
 await page.click("#show-preview");
