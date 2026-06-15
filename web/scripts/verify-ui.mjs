@@ -32,11 +32,28 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 page.on("pageerror", (e) => console.error("PAGEERROR:", e.message));
 page.on("console", (m) => m.type() === "error" && console.error("CONSOLE:", m.text()));
+
+// Run the whole session as a touch device (coarse pointer, no hover) so the
+// Vim keyboard gate can be checked without a reload. puppeteer-core's
+// emulateMediaFeatures has a fixed whitelist excluding hover/pointer, so go
+// through CDP directly.
+const cdp = await page.target().createCDPSession();
+await cdp.send("Emulation.setEmulatedMedia", {
+  features: [
+    { name: "hover", value: "none" },
+    { name: "pointer", value: "coarse" },
+  ],
+});
+
 await page.goto(`http://localhost:${port}/`, { waitUntil: "load" });
 await page.waitForFunction(
   () => document.getElementById("status")?.textContent === "käännetty",
   { timeout: 120000 },
 );
+
+// Vim is keyboard-gated: on a touch device with no keyboard the control starts
+// hidden (it is revealed below once a hardware keystroke is detected).
+console.log("VIM_HIDDEN_NO_KEYBOARD:", await page.$eval("#vim-label", (e) => e.offsetParent === null));
 
 // Controls now live in the bottom status bar.
 const inBar = await page.$$eval("#statusbar button, #statusbar #vim-mode, #statusbar #vim",
@@ -59,6 +76,15 @@ async function dragSelectFirstLine() {
 await dragSelectFirstLine();
 const plainSel = await page.$$eval(".cm-selectionBackground", (els) => els.map((e) => getComputedStyle(e).backgroundColor));
 console.log("PLAIN_SELECTION_BACKGROUNDS:", JSON.stringify(plainSel));
+
+// Vim is keyboard-gated. Simulate a hardware keystroke (a bare Control press,
+// which an on-screen keyboard does not produce) to reveal the control — headless
+// Chromium may report a coarse pointer, which keeps it hidden otherwise.
+await page.click(".cm-content");
+await page.keyboard.down("Control");
+await page.keyboard.up("Control");
+await page.waitForSelector("#vim-label", { visible: true });
+console.log("VIM_SHOWN_AFTER_KEY:", await page.$eval("#vim-label", (e) => e.offsetParent !== null));
 
 // Enable Vim and check the mode badge appears as NORMAL.
 await page.click("#vim");

@@ -58,14 +58,17 @@ buttons** — each carries an `aria-label` and a `title` tooltip, renders an SVG
 from an inline `<symbol>` sprite, has a visible `:focus-visible` ring, and is at
 least a 44 px touch target on mobile:
 
-- **Vim** (bottom left, desktop only) — a checkbox toggling Vim keybindings
+- **Vim** (bottom left) — a checkbox toggling Vim keybindings
   ([@replit/codemirror-vim](https://github.com/replit/codemirror-vim)) in the
   CodeMirror editor, switched live via a `Compartment`. When Vim is on, a badge
   next to it shows the current mode (`NORMAL` / `INSERT` / `VISUAL` …), driven by
   the extension's `vim-mode-change` event. The editor enables CodeMirror's
   `drawSelection()` — which the Vim extension needs to paint the visual-mode
   selection — and themes the painted selection a clearly visible blue so
-  selected text stands out, focused or not.
+  selected text stands out, focused or not. **Vim only makes sense with a
+  physical keyboard**, so the control is hidden unless one is likely (see
+  _Keyboard detection_ below) — and it is not applied without one, so an
+  on-screen keyboard is never trapped in Vim's normal mode.
 - **Logo / Poista logo / Uusi esimerkki / Lataa PDF** (bottom right) — logo
   upload (a styled file input), document/logo reset back to the seeded example
   (the Vim toggle is kept — it is an editor preference), and PDF download.
@@ -93,10 +96,27 @@ layout collapses to a single column showing one pane at a time:
   toggle buttons) is the primary navigation. Following the native bottom-bar
   idiom, only the *selected* tab shows its text label; the other is icon-only,
   which keeps both tabs and the action icons on one row without overflow.
-- Vim is hidden (a desktop power feature), the height tracks the dynamic
-  viewport (`100dvh`), the bar respects the safe-area insets (so it clears a
-  notched phone's home indicator), and the editor uses 16 px text to stop iOS
-  Safari from zooming on focus.
+- Vim is hidden unless a keyboard is detected (see below), the height tracks
+  the dynamic viewport (`100dvh`), the bar respects the safe-area insets (so it
+  clears a notched phone's home indicator), and the editor uses 16 px text to
+  stop iOS Safari from zooming on focus.
+
+### Keyboard detection
+
+There is **no web API for hardware-keyboard presence** (`navigator.keyboard`
+only exposes layout maps; the VirtualKeyboard API is about the on-screen
+keyboard), so the Vim gate uses two complementary signals:
+
+- **CSS** `@media (hover: hover) and (pointer: fine)` — a precise pointer with
+  hover means a mouse/trackpad, which implies a keyboard setup (desktops,
+  laptops, an iPad with a trackpad keyboard). This reveals the control with no
+  flash and no JavaScript.
+- A **runtime heuristic** (`src/main.ts`): a `keydown` for a key an on-screen
+  keyboard rarely emits — Tab, Escape, an arrow, a function key, or a
+  Ctrl/Alt/Meta combo — adds `body.keyboard` and enables Vim. This catches the
+  case the media query misses: a tablet with a Bluetooth keyboard, which
+  iPadOS Safari still reports as a coarse/no-hover touch device
+  ([WebKit #209292](https://bugs.webkit.org/show_bug.cgi?id=209292)).
 
 ### Install as an app (PWA)
 
@@ -161,9 +181,11 @@ pdftotext -bbox /tmp/dl/* -
 ```
 
 A companion `scripts/verify-ui.mjs` (same Chromium + `puppeteer-core` setup)
-checks the editor chrome rather than the layout: that the controls live in the
-bottom status bar, the Vim mode badge tracks `NORMAL` → `VISUAL`, the
-visual-mode selection is painted in a visible colour, and a conversion error
+checks the editor chrome rather than the layout (it runs as an emulated touch
+device): that the controls live in the bottom status bar, the keyboard-gated Vim
+control is hidden with no keyboard and appears once a hardware keystroke is
+detected, the Vim mode badge then tracks `NORMAL` → `VISUAL`, the visual-mode
+selection is painted in a visible colour, and a conversion error
 surfaces as a bottom-right `role="alert"` toast (with a working close button,
 dismissed afterwards) without reflowing the header. It also checks the
 accessibility and PWA work added here: every icon button has an accessible name

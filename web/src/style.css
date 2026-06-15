@@ -275,16 +275,35 @@ main {
   gap: 0.5rem;
 }
 
+/* Vim only makes sense with a physical keyboard, so the control is hidden by
+   default and revealed only when one is likely: a device with a precise pointer
+   and hover (a mouse/trackpad, which implies a keyboard) via the media query
+   below, or once real keyboard input is detected at runtime (body.keyboard, set
+   in main.ts — this also catches an iPad with a Bluetooth keyboard, which Safari
+   still reports as a coarse/no-hover touch device). This keeps Vim off phones
+   while keeping it on desktops and keyboard-equipped tablets. */
 #vim-label {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
   user-select: none;
 }
 
-/* The current Vim mode, shown as a coloured badge only while Vim is on. */
+@media (hover: hover) and (pointer: fine) {
+  #vim-label {
+    display: inline-flex;
+  }
+}
+
+body.keyboard #vim-label {
+  display: inline-flex;
+}
+
+/* The current Vim mode, shown as a coloured badge only while Vim is on (and a
+   keyboard is present, so it never appears on a phone). */
 #vim-mode {
+  display: none;
   font-weight: 700;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
@@ -304,6 +323,18 @@ main {
 
 #vim-mode[data-mode="replace"] {
   background: #c62828;
+}
+
+/* Reveal the badge (when Vim is active, i.e. not [hidden]) only where the Vim
+   control itself is shown — mirrors the #vim-label rules above. */
+@media (hover: hover) and (pointer: fine) {
+  #vim-mode:not([hidden]) {
+    display: inline-block;
+  }
+}
+
+body.keyboard #vim-mode:not([hidden]) {
+  display: inline-block;
 }
 
 #status {
@@ -424,9 +455,9 @@ main {
     font-size: 16px;
   }
 
-  /* Vim is a desktop power feature; hide it on the cramped phone bar. */
-  #vim-label,
-  #vim-mode,
+  /* The compile-state text is dropped on the cramped phone bar (errors still
+     surface as toasts). Vim is hidden by capability, not width — see the
+     #vim-label rules above. */
   #status {
     display: none;
   }
