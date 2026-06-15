@@ -36,7 +36,7 @@
         web = pkgs.buildNpmPackage {
           name = "sfs-2487-2024-web-editor";
           src = ./web;
-          npmDepsHash = "sha256-CcDXIfc//wmi2kFhoCVGAfCni1Q7xYyN0vbASxSJxys=";
+          npmDepsHash = "sha256-ES1ZxkVXxfDkQq4+KRznM2CBrEm1eHsqCVCnbcBKWm8=";
           VITE_BASE = "./";
           installPhase = ''
             runHook preInstall

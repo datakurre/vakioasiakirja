@@ -50,6 +50,18 @@ npm run build    # static bundle into dist/
 `npm run convert -- ../examples/markdown/esimerkki-poytakirja.md` prints the
 generated Typst for one document (used by the verification below).
 
+## Editor controls
+
+- **Vim** — a checkbox toggling Vim keybindings
+  ([@replit/codemirror-vim](https://github.com/replit/codemirror-vim)) in the
+  CodeMirror editor, switched live via a `Compartment`.
+- **Uusi esimerkki** — resets the document back to the seeded example and clears
+  the uploaded logo (the Vim toggle is kept — it is an editor preference).
+- The document, the uploaded logo and the Vim toggle are autosaved to the
+  browser's `localStorage` and restored on reload. (A restored logo cannot
+  repopulate the file input, so the **Poista logo** button — with the file name
+  as its tooltip — is the "a logo is loaded" indicator.)
+
 ## Verification
 
 The layout is checked exactly the way the LaTeX class is, with
