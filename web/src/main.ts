@@ -44,12 +44,22 @@ $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
 const statusEl = document.getElementById("status")!;
 const downloadEl = document.getElementById("download") as HTMLButtonElement;
 const previewEl = document.getElementById("preview")!;
+const pagesEl = document.getElementById("pages")!;
 const logoEl = document.getElementById("logo") as HTMLInputElement;
 const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
 const vimEl = document.getElementById("vim") as HTMLInputElement;
 const vimModeEl = document.getElementById("vim-mode")!;
 const resetEl = document.getElementById("reset") as HTMLButtonElement;
 const toastsEl = document.getElementById("toasts")!;
+const mainEl = document.querySelector("main")!;
+const editorEl = document.getElementById("editor")!;
+const dividerEl = document.getElementById("divider")!;
+const zoomInEl = document.getElementById("zoom-in") as HTMLButtonElement;
+const zoomOutEl = document.getElementById("zoom-out") as HTMLButtonElement;
+const zoomLevelEl = document.getElementById("zoom-level")!;
+const fitWidthEl = document.getElementById("fit-width") as HTMLButtonElement;
+const fitHeightEl = document.getElementById("fit-height") as HTMLButtonElement;
+const twoUpEl = document.getElementById("two-up") as HTMLButtonElement;
 
 function setStatus(text: string, error = false) {
   statusEl.textContent = text;
@@ -87,7 +97,8 @@ function showPages(svgText: string) {
   holder.innerHTML = svgText;
   const base = holder.querySelector("svg");
   if (!base) {
-    previewEl.innerHTML = svgText;
+    pageSizes = [];
+    pagesEl.innerHTML = svgText;
     return;
   }
   // typst.ts embeds a <script> for interactivity; cloned once per page it would
@@ -96,10 +107,12 @@ function showPages(svgText: string) {
   base.querySelectorAll("script").forEach((s) => s.remove());
   const pages = Array.from(base.querySelectorAll("g.typst-page"));
   if (pages.length === 0) {
-    previewEl.replaceChildren(base);
+    pageSizes = [];
+    pagesEl.replaceChildren(base);
     return;
   }
   const cards: SVGSVGElement[] = [];
+  const sizes: { w: number; h: number }[] = [];
   for (const page of pages) {
     const t = (page.getAttribute("transform") ?? "").match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)/);
     const y = t ? parseFloat(t[2]) : 0;
@@ -109,23 +122,30 @@ function showPages(svgText: string) {
     // Crop to this page's slice; clip to it (typst sets overflow:visible, which
     // would otherwise leak the other pages into the view).
     card.setAttribute("viewBox", `0 ${y} ${w} ${h}`);
-    card.setAttribute("width", String(w));
-    card.setAttribute("height", String(h));
     card.setAttribute("preserveAspectRatio", "xMidYMid meet");
     card.style.overflow = "hidden";
     card.removeAttribute("data-width");
     card.removeAttribute("data-height");
     card.classList.add("page");
     cards.push(card);
+    sizes.push({ w, h }); // natural page size in pt; the zoom/fit logic sizes the element
   }
-  previewEl.replaceChildren(...cards);
+  pageSizes = sizes;
+  pagesEl.replaceChildren(...cards);
+  applyView();
 }
 
 // --- localStorage persistence (document, logo, vim toggle) ---
 // The editor is otherwise stateless, so a reload would lose work; these survive
 // it. Every access is guarded so a disabled or full localStorage never breaks
 // the editor — persistence is best-effort.
-const STORE = { doc: "sfs2487.doc", logo: "sfs2487.logo", vim: "sfs2487.vim" };
+const STORE = {
+  doc: "sfs2487.doc",
+  logo: "sfs2487.logo",
+  vim: "sfs2487.vim",
+  view: "sfs2487.view",
+  split: "sfs2487.split",
+};
 
 interface StoredLogo { path: string; name: string; b64: string }
 
@@ -380,6 +400,129 @@ resetEl.addEventListener("click", async () => {
   lsRemove(STORE.doc);
   render(fresh);
 });
+
+// --- preview view controls: zoom, fit-to-pane, one/two pages, split divider ---
+
+interface ViewPrefs {
+  zoom: number; // explicit scale when fit === "none" (1 = natural pt → px)
+  fit: "none" | "width" | "height";
+  twoUp: boolean;
+}
+let view: ViewPrefs = { zoom: 1, fit: "width", twoUp: false };
+// Natural page sizes (pt) recorded by showPages; the fit math scales from these.
+let pageSizes: { w: number; h: number }[] = [];
+
+const ZOOM_MIN = 0.1;
+const ZOOM_MAX = 5;
+const ZOOM_STEP = 1.25;
+const PAGE_GAP = 16; // px, matches #pages `gap: 1rem`
+
+const clampZoom = (z: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+
+function saveView() {
+  lsSet(STORE.view, JSON.stringify(view));
+}
+
+// The zoom that fits the page(s) to the pane in the active fit mode.
+function fitZoom(): number {
+  const page = pageSizes[0];
+  if (!page) return view.zoom;
+  const cs = getComputedStyle(previewEl);
+  if (view.fit === "width") {
+    const avail = previewEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const per = view.twoUp ? (avail - PAGE_GAP) / 2 : avail;
+    return clampZoom(per / page.w);
+  }
+  if (view.fit === "height") {
+    const avail = previewEl.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    return clampZoom(avail / page.h);
+  }
+  return view.zoom;
+}
+
+const currentZoom = () => (view.fit === "none" ? view.zoom : fitZoom());
+
+function applyView() {
+  pagesEl.classList.toggle("two-up", view.twoUp);
+  twoUpEl.setAttribute("aria-pressed", String(view.twoUp));
+  const z = currentZoom();
+  const cards = pagesEl.querySelectorAll<SVGSVGElement>("svg.page");
+  cards.forEach((card, i) => {
+    const s = pageSizes[i] ?? pageSizes[0];
+    if (!s) return;
+    card.style.width = `${s.w * z}px`;
+    card.style.height = `${s.h * z}px`;
+  });
+  zoomLevelEl.textContent = `${Math.round(z * 100)} %`;
+}
+
+function setZoom(z: number) {
+  view.fit = "none";
+  view.zoom = clampZoom(z);
+  saveView();
+  applyView();
+}
+
+zoomInEl.addEventListener("click", () => setZoom(currentZoom() * ZOOM_STEP));
+zoomOutEl.addEventListener("click", () => setZoom(currentZoom() / ZOOM_STEP));
+fitWidthEl.addEventListener("click", () => { view.fit = "width"; saveView(); applyView(); });
+fitHeightEl.addEventListener("click", () => { view.fit = "height"; saveView(); applyView(); });
+twoUpEl.addEventListener("click", () => { view.twoUp = !view.twoUp; saveView(); applyView(); });
+
+// Re-fit when the pane changes size (window resize, divider drag) in a fit mode.
+new ResizeObserver(() => { if (view.fit !== "none") applyView(); }).observe(previewEl);
+
+// Movable divider: --split holds the editor width (px); the grid gives the rest
+// to the preview. Clamp so neither pane collapses.
+function setSplit(px: number) {
+  const min = 150;
+  const max = mainEl.clientWidth - 150 - 6; // leave room for the preview + divider
+  mainEl.style.setProperty("--split", `${Math.min(max, Math.max(min, px))}px`);
+}
+function persistSplit() {
+  lsSet(STORE.split, mainEl.style.getPropertyValue("--split").replace("px", "").trim());
+}
+
+dividerEl.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  dividerEl.setPointerCapture(e.pointerId);
+  const onMove = (ev: PointerEvent) => setSplit(ev.clientX - mainEl.getBoundingClientRect().left);
+  const onUp = () => {
+    dividerEl.releasePointerCapture(e.pointerId);
+    dividerEl.removeEventListener("pointermove", onMove);
+    dividerEl.removeEventListener("pointerup", onUp);
+    persistSplit();
+  };
+  dividerEl.addEventListener("pointermove", onMove);
+  dividerEl.addEventListener("pointerup", onUp);
+});
+
+// Keyboard a11y: arrow keys nudge the focused divider.
+dividerEl.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  setSplit(editorEl.clientWidth + (e.key === "ArrowLeft" ? -24 : 24));
+  persistSplit();
+});
+
+// Keep the split within bounds when the window shrinks.
+window.addEventListener("resize", () => {
+  const cur = mainEl.style.getPropertyValue("--split");
+  if (cur) setSplit(parseFloat(cur));
+});
+
+// Restore saved view preferences and divider position.
+const savedView = lsGet(STORE.view);
+if (savedView) {
+  try {
+    view = { ...view, ...JSON.parse(savedView) };
+  } catch {
+    lsRemove(STORE.view);
+  }
+}
+const savedSplit = lsGet(STORE.split);
+if (savedSplit) setSplit(parseFloat(savedSplit));
+applyView();
 
 setStatus("alustetaan typst.ts…");
 render(editor.state.doc.toString());

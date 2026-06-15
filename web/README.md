@@ -74,6 +74,20 @@ short line that a long error can never reflow):
   right**; the status bar itself only ever shows the short compile state
   (`käännetty`, `virhe`, …), so it never grows or reflows.
 
+## Preview controls
+
+The preview pane has a toolbar with the usual document-viewer controls, plus a
+draggable divider between the editor and the preview:
+
+- **−/+** zoom out/in (with a percentage readout), **Sovita leveyteen** /
+  **Sovita korkeuteen** fit the page width / a whole page to the pane (and
+  re-fit live as the pane resizes), and **Kaksi sivua** toggles a two-page
+  spread.
+- Drag the bar between the editor and preview to rebalance them (arrow keys
+  nudge it when focused).
+- The zoom/fit mode, the one/two-page choice and the divider position are
+  autosaved to `localStorage` alongside the document.
+
 ## Verification
 
 The layout is checked exactly the way the LaTeX class is, with
