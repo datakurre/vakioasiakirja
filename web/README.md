@@ -52,15 +52,27 @@ generated Typst for one document (used by the verification below).
 
 ## Editor controls
 
-- **Vim** — a checkbox toggling Vim keybindings
+The controls sit in a **bottom status bar** (so the top bar stays a single
+short line that a long error can never reflow):
+
+- **Vim** (bottom left) — a checkbox toggling Vim keybindings
   ([@replit/codemirror-vim](https://github.com/replit/codemirror-vim)) in the
-  CodeMirror editor, switched live via a `Compartment`.
-- **Uusi esimerkki** — resets the document back to the seeded example and clears
-  the uploaded logo (the Vim toggle is kept — it is an editor preference).
+  CodeMirror editor, switched live via a `Compartment`. When Vim is on, a badge
+  next to it shows the current mode (`NORMAL` / `INSERT` / `VISUAL` …), driven by
+  the extension's `vim-mode-change` event. The editor enables CodeMirror's
+  `drawSelection()` — which the Vim extension needs to paint the visual-mode
+  selection — and themes the painted selection a clearly visible blue so
+  selected text stands out, focused or not.
+- **Logo / Poista logo / Uusi esimerkki / Lataa PDF** (bottom right) — logo
+  upload, document/logo reset back to the seeded example (the Vim toggle is
+  kept — it is an editor preference), and PDF download.
 - The document, the uploaded logo and the Vim toggle are autosaved to the
   browser's `localStorage` and restored on reload. (A restored logo cannot
   repopulate the file input, so the **Poista logo** button — with the file name
   as its tooltip — is the "a logo is loaded" indicator.)
+- Conversion and compile **errors appear as dismissible toasts at the bottom
+  right**; the status bar itself only ever shows the short compile state
+  (`käännetty`, `virhe`, …), so it never grows or reflows.
 
 ## Verification
 
@@ -97,6 +109,12 @@ npm install --no-save puppeteer-core
 CHROMIUM=/path/to/chromium DOWNLOAD_DIR=/tmp/dl node scripts/smoke.mjs
 pdftotext -bbox /tmp/dl/* -
 ```
+
+A companion `scripts/verify-ui.mjs` (same Chromium + `puppeteer-core` setup)
+checks the editor chrome rather than the layout: that the controls live in the
+bottom status bar, the Vim mode badge tracks `NORMAL` → `VISUAL`, the
+visual-mode selection is painted in a visible colour, and a conversion error
+surfaces as a bottom-right toast without reflowing the header.
 
 That smoke test caught one real issue the CLI could not: by default typst.ts
 fetches its built-in fonts from a CDN (jsdelivr), which breaks offline /

@@ -5,11 +5,11 @@
 // compiled entirely in the browser by typst.ts: an SVG for the live preview
 // and a PDF for download. No server is involved.
 
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view";
 import { Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { vim } from "@replit/codemirror-vim";
+import { vim, getCM } from "@replit/codemirror-vim";
 import { $typst } from "@myriaddreamin/typst.ts/dist/esm/contrib/snippet.mjs";
 import { preloadRemoteFonts } from "@myriaddreamin/typst.ts";
 
@@ -47,11 +47,32 @@ const previewEl = document.getElementById("preview")!;
 const logoEl = document.getElementById("logo") as HTMLInputElement;
 const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
 const vimEl = document.getElementById("vim") as HTMLInputElement;
+const vimModeEl = document.getElementById("vim-mode")!;
 const resetEl = document.getElementById("reset") as HTMLButtonElement;
+const toastsEl = document.getElementById("toasts")!;
 
 function setStatus(text: string, error = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("error", error);
+}
+
+// Errors land in a transient bottom-right toast instead of the status bar:
+// compiler messages can be long and multi-line, and inlining them would
+// reflow the bar. The status bar only ever shows the short compile state.
+function fail(message: string) {
+  setStatus("virhe", true);
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  el.title = "Sulje napsauttamalla";
+  const remove = () => el.remove();
+  el.addEventListener("click", remove);
+  // Auto-dismiss after a while; the fade is handled by the `.leaving` class.
+  window.setTimeout(() => {
+    el.classList.add("leaving");
+    window.setTimeout(remove, 300);
+  }, 10000);
+  toastsEl.appendChild(el);
 }
 
 // typst.ts returns a single SVG with all pages stacked seamlessly in one
@@ -196,7 +217,7 @@ async function render(md: string) {
   try {
     typst = markdownToTypst(md, { logoPath: logo?.path });
   } catch (e) {
-    setStatus(e instanceof ConversionError ? e.message : String(e), true);
+    fail(e instanceof ConversionError ? e.message : String(e));
     return;
   }
   currentTypst = typst;
@@ -213,7 +234,7 @@ async function render(md: string) {
     downloadEl.disabled = false;
     setStatus("käännetty");
   } catch (e) {
-    setStatus(String(e), true);
+    fail(String(e));
   }
 }
 
@@ -229,7 +250,7 @@ downloadEl.addEventListener("click", async () => {
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
-    setStatus(String(e), true);
+    fail(String(e));
   }
 });
 
@@ -266,6 +287,20 @@ const vimCompartment = new Compartment();
 const vimEnabled = lsGet(STORE.vim) === "1";
 vimEl.checked = vimEnabled;
 
+// In Vim mode the @replit/codemirror-vim theme forces the browser's native
+// ::selection transparent and relies on drawSelection() to paint the visual
+// selection itself; without it, selected (visual-mode) text is invisible. The
+// theme gives the painted selection a clearly visible colour, focused or not.
+// The selectors mirror CodeMirror's own base theme (including the
+// `.cm-scroller > .cm-selectionLayer` child chain) so they match its
+// specificity and win — otherwise the faint default lavender shows through.
+const selectionTheme = EditorView.theme({
+  ".cm-selectionLayer .cm-selectionBackground": { backgroundColor: "#b3d4fc" },
+  "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+    backgroundColor: "#5b9dd9",
+  },
+});
+
 let timer: number | undefined;
 const editor = new EditorView({
   parent: document.getElementById("editor")!,
@@ -274,6 +309,8 @@ const editor = new EditorView({
     vimCompartment.of(vimEnabled ? vim() : []),
     lineNumbers(),
     history(),
+    drawSelection(),
+    selectionTheme,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     markdown(),
     EditorView.lineWrapping,
@@ -287,11 +324,50 @@ const editor = new EditorView({
   ],
 });
 
+// Show the current Vim mode (NORMAL / INSERT / VISUAL …) on the left of the
+// status bar. The vim extension emits "vim-mode-change" on its CodeMirror-5
+// compatibility object; reconfiguring the compartment builds a fresh one, so
+// the listener is re-attached every time Vim is switched on.
+function vimModeLabel(mode: string, sub?: string): string {
+  if (mode === "visual") {
+    if (sub === "linewise") return "VISUAL LINE";
+    if (sub === "blockwise") return "VISUAL BLOCK";
+    return "VISUAL";
+  }
+  return mode.toUpperCase();
+}
+
+function showVimMode(mode: string, sub?: string) {
+  vimModeEl.hidden = false;
+  vimModeEl.textContent = vimModeLabel(mode, sub);
+  vimModeEl.dataset.mode = mode;
+}
+
+function syncVimMode() {
+  if (!vimEl.checked) {
+    vimModeEl.hidden = true;
+    return;
+  }
+  const cm = getCM(editor);
+  if (!cm) {
+    vimModeEl.hidden = true;
+    return;
+  }
+  // A freshly enabled Vim starts in normal mode without firing an event.
+  showVimMode("normal");
+  cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) =>
+    showVimMode(e.mode, e.subMode),
+  );
+}
+
 vimEl.addEventListener("change", () => {
   editor.dispatch({ effects: vimCompartment.reconfigure(vimEl.checked ? vim() : []) });
   lsSet(STORE.vim, vimEl.checked ? "1" : "0");
+  syncVimMode();
   editor.focus();
 });
+
+syncVimMode();
 
 // Start over from the seeded example: reset the document and logo (and their
 // saved copies), but keep the Vim toggle — it is an editor preference, not part

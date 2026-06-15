@@ -8,19 +8,27 @@
   <body>
     <header>
       <strong>SFS 2487:2024</strong> – Markdown → PDF (typst.ts-prototyyppi)
-      <label id="vim-label"><input id="vim" type="checkbox" /> Vim</label>
-      <button id="reset">Uusi esimerkki</button>
-      <label id="logo-label">Logo
-        <input id="logo" type="file" accept="image/png,image/jpeg,image/svg+xml" />
-      </label>
-      <button id="logo-clear" hidden>Poista logo</button>
-      <button id="download" disabled>Lataa PDF</button>
-      <span id="status">ladataan…</span>
     </header>
     <main>
       <div id="editor" aria-label="Markdown"></div>
       <div id="preview" aria-label="Esikatselu"></div>
     </main>
+    <footer id="statusbar">
+      <div class="bar-left">
+        <label id="vim-label"><input id="vim" type="checkbox" /> Vim</label>
+        <span id="vim-mode" hidden></span>
+        <span id="status">ladataan…</span>
+      </div>
+      <div class="bar-right">
+        <label id="logo-label">Logo
+          <input id="logo" type="file" accept="image/png,image/jpeg,image/svg+xml" />
+        </label>
+        <button id="logo-clear" hidden>Poista logo</button>
+        <button id="reset">Uusi esimerkki</button>
+        <button id="download" disabled>Lataa PDF</button>
+      </div>
+    </footer>
+    <div id="toasts" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

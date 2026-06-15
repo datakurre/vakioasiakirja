@@ -14,6 +14,8 @@ body {
   flex-direction: column;
 }
 
+/* The top bar carries only the title now — the controls live in the bottom
+   status bar, so a long error message can no longer reflow it. */
 header {
   display: flex;
   gap: 1rem;
@@ -22,41 +24,6 @@ header {
   background: #37474f;
   color: #fff;
   flex: 0 0 auto;
-}
-
-/* Push the download button (and the status after it) to the right edge; the
-   logo controls stay next to the title on the left. */
-#download {
-  margin-left: auto;
-}
-
-#logo-label,
-#vim-label {
-  font-size: 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-#vim-label {
-  cursor: pointer;
-  user-select: none;
-}
-
-#logo-label input {
-  font-size: 0.8rem;
-  max-width: 20ch;
-}
-
-#status {
-  font-size: 0.85rem;
-  opacity: 0.85;
-  min-width: 12ch;
-}
-
-#status.error {
-  color: #ffcdd2;
-  white-space: pre-wrap;
 }
 
 main {
@@ -95,4 +62,109 @@ main {
   max-width: 100%;
   background: #fff;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Bottom status bar / toolbar --- */
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 1rem;
+  background: #263238;
+  color: #fff;
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  border-top: 1px solid #455a64;
+}
+
+#statusbar .bar-left,
+#statusbar .bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+#vim-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The current Vim mode, shown as a coloured badge only while Vim is on. */
+#vim-mode {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 0.2rem;
+  background: #546e7a;
+  color: #fff;
+}
+
+#vim-mode[data-mode="insert"] {
+  background: #2e7d32;
+}
+
+#vim-mode[data-mode="visual"] {
+  background: #ef6c00;
+}
+
+#vim-mode[data-mode="replace"] {
+  background: #c62828;
+}
+
+#status {
+  opacity: 0.8;
+  min-width: 10ch;
+}
+
+#status.error {
+  color: #ffcdd2;
+}
+
+#logo-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#logo-label input {
+  font-size: 0.8rem;
+  max-width: 18ch;
+}
+
+/* --- Error toasts (bottom right) --- */
+#toasts {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(32rem, 90vw);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: #b71c1c;
+  color: #fff;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.3rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 40vh;
+  overflow: auto;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast.leaving {
+  opacity: 0;
+  transform: translateX(1rem);
 }
