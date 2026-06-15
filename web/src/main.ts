@@ -44,6 +44,7 @@ $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
 const statusEl = document.getElementById("status")!;
 const downloadEl = document.getElementById("download") as HTMLButtonElement;
 const previewEl = document.getElementById("preview")!;
+const previewControlsEl = document.getElementById("preview-controls")!;
 const pagesEl = document.getElementById("pages")!;
 const logoEl = document.getElementById("logo") as HTMLInputElement;
 const logoClearEl = document.getElementById("logo-clear") as HTMLButtonElement;
@@ -349,8 +350,17 @@ logoClearEl.addEventListener("click", async () => {
 // without rebuilding the editor. The vim() extension must come first, before the
 // other keymaps, for its bindings to take precedence.
 const vimCompartment = new Compartment();
-const vimEnabled = lsGet(STORE.vim) === "1";
-vimEl.checked = vimEnabled;
+const vimWanted = lsGet(STORE.vim) === "1";
+vimEl.checked = vimWanted;
+
+// Vim only makes sense with a physical keyboard, so it is gated on the same
+// signals the CSS uses to reveal the control: a precise pointer + hover
+// (mouse/trackpad, which implies a keyboard), or real keyboard input detected
+// at runtime. There is no web API for hardware-keyboard presence, so this is a
+// pragmatic best effort — see onKeyboard() below for the runtime heuristic.
+const kbMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
+let keyboardPresent = kbMedia.matches;
+if (keyboardPresent) document.body.classList.add("keyboard");
 
 // In Vim mode the @replit/codemirror-vim theme forces the browser's native
 // ::selection transparent and relies on drawSelection() to paint the visual
@@ -371,7 +381,7 @@ const editor = new EditorView({
   parent: document.getElementById("editor")!,
   doc: lsGet(STORE.doc) ?? withoutLogo(seed),
   extensions: [
-    vimCompartment.of(vimEnabled ? vim() : []),
+    vimCompartment.of(vimWanted && keyboardPresent ? vim() : []),
     lineNumbers(),
     history(),
     drawSelection(),
@@ -409,7 +419,7 @@ function showVimMode(mode: string, sub?: string) {
 }
 
 function syncVimMode() {
-  if (!vimEl.checked) {
+  if (!vimEl.checked || !keyboardPresent) {
     vimModeEl.hidden = true;
     return;
   }
@@ -425,12 +435,45 @@ function syncVimMode() {
   );
 }
 
-vimEl.addEventListener("change", () => {
-  editor.dispatch({ effects: vimCompartment.reconfigure(vimEl.checked ? vim() : []) });
-  lsSet(STORE.vim, vimEl.checked ? "1" : "0");
+// Apply Vim only when the user wants it AND a keyboard is present; the
+// preference is persisted regardless, so it takes effect once a keyboard
+// appears (a touch device kept in Vim's normal mode would otherwise trap the
+// on-screen keyboard).
+function applyVim() {
+  const on = vimEl.checked && keyboardPresent;
+  editor.dispatch({ effects: vimCompartment.reconfigure(on ? vim() : []) });
   syncVimMode();
+}
+
+vimEl.addEventListener("change", () => {
+  lsSet(STORE.vim, vimEl.checked ? "1" : "0");
+  applyVim();
   editor.focus();
 });
+
+// Reveal and enable Vim once a keyboard is detected — covers a tablet with a
+// keyboard but a coarse pointer, which the media query above misses (e.g. an
+// iPad with a Bluetooth keyboard). Keys an on-screen keyboard rarely emits are
+// a strong hardware-keyboard signal.
+function onKeyboard() {
+  if (keyboardPresent) return;
+  keyboardPresent = true;
+  document.body.classList.add("keyboard");
+  applyVim();
+}
+kbMedia.addEventListener?.("change", (e) => e.matches && onKeyboard());
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (
+      e.key === "Tab" || e.key === "Escape" || e.altKey || e.ctrlKey || e.metaKey ||
+      e.key.startsWith("Arrow") || /^F\d{1,2}$/.test(e.key)
+    ) {
+      onKeyboard();
+    }
+  },
+  true,
+);
 
 syncVimMode();
 
@@ -445,6 +488,7 @@ function showPane(pane: "editor" | "preview") {
   showEditorEl.setAttribute("aria-pressed", String(pane === "editor"));
   showPreviewEl.setAttribute("aria-pressed", String(pane === "preview"));
   if (pane === "editor") editor.focus();
+  else flashControls(); // hint that the floating controls exist
 }
 
 showEditorEl.addEventListener("click", () => showPane("editor"));
@@ -529,6 +573,19 @@ zoomOutEl.addEventListener("click", () => setZoom(currentZoom() / ZOOM_STEP));
 fitWidthEl.addEventListener("click", () => { view.fit = "width"; saveView(); applyView(); });
 fitHeightEl.addEventListener("click", () => { view.fit = "height"; saveView(); applyView(); });
 twoUpEl.addEventListener("click", () => { view.twoUp = !view.twoUp; saveView(); applyView(); });
+
+// The floating preview controls fade out when idle. Hover and focus keep them
+// up via CSS; this surfaces them on activity (essential on touch, where there
+// is no hover) and hides them again after a short pause.
+let controlsTimer: number | undefined;
+function flashControls() {
+  previewControlsEl.classList.add("show");
+  window.clearTimeout(controlsTimer);
+  controlsTimer = window.setTimeout(() => previewControlsEl.classList.remove("show"), 2200);
+}
+for (const ev of ["pointerdown", "pointermove", "scroll", "touchstart"]) {
+  previewEl.addEventListener(ev, flashControls, { passive: true });
+}
 
 // Re-fit when the pane changes size (window resize, divider drag) in a fit mode.
 new ResizeObserver(() => { if (view.fit !== "none") applyView(); }).observe(previewEl);

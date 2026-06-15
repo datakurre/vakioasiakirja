@@ -68,7 +68,10 @@
       <div id="divider" role="separator" aria-orientation="vertical" aria-label="Siirrä jakajaa"
         tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></div>
       <section id="preview-pane" aria-label="Esikatselu">
-        <div id="preview-toolbar" role="toolbar" aria-label="Esikatselun hallinta">
+        <div id="preview" aria-label="Esikatselu" aria-busy="false"><div id="pages"></div></div>
+        <!-- Floating controls over the bottom-right of the preview; they fade in
+             on hover/focus/activity and fade out otherwise (see main.ts). -->
+        <div id="preview-controls" role="toolbar" aria-label="Esikatselun hallinta">
           <button id="zoom-out" type="button" class="iconbtn" title="Loitonna" aria-label="Loitonna">
             <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-out" /></svg>
           </button>
@@ -87,7 +90,6 @@
             <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-spread" /></svg>
           </button>
         </div>
-        <div id="preview" aria-label="Esikatselu" aria-busy="false"><div id="pages"></div></div>
       </section>
     </main>
     <footer id="statusbar">
