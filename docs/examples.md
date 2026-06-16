@@ -17,6 +17,7 @@ without downloading first.
 | `esimerkki-raportti` | Multi-page report: table of contents (6.10), table with its caption above and a bold header row (6.5.1), footnote (6.9), three heading levels | [PDF](pdf/latex/esimerkki-raportti.pdf) · [source](src/latex/esimerkki-raportti.tex.txt) | [PDF](pdf/markdown/esimerkki-raportti.pdf) · [source](src/markdown/esimerkki-raportti.md.txt) |
 | `esimerkki-kayttoohje` | `sans-serif` manual with captioned figures in the text flow (6.5.2) and numbered step lists | [PDF](pdf/latex/esimerkki-kayttoohje.pdf) · [source](src/latex/esimerkki-kayttoohje.tex.txt) | [PDF](pdf/markdown/esimerkki-kayttoohje.pdf) · [source](src/markdown/esimerkki-kayttoohje.md.txt) |
 | `esimerkki-monospace` | `monospace` memo demonstrating the Courier typewriter font | [PDF](pdf/latex/esimerkki-monospace.pdf) · [source](src/latex/esimerkki-monospace.tex.txt) | [PDF](pdf/markdown/esimerkki-monospace.pdf) · [source](src/markdown/esimerkki-monospace.md.txt) |
+| `esimerkki-muistio` | Memo in the compact `nogap` / `no-gap` paragraph style: consecutive paragraphs set apart by a one-column first-line indent instead of a paragraph gap | [PDF](pdf/latex/esimerkki-muistio.pdf) · [source](src/latex/esimerkki-muistio.tex.txt) | [PDF](pdf/markdown/esimerkki-muistio.pdf) · [source](src/markdown/esimerkki-muistio.md.txt) |
 
 `esimerkki-poytakirja` and `esimerkki-tarjous` replicate the standard's
 own model documents (Liite A and B in SFS 2487:2024), so their output

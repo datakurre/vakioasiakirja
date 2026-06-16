@@ -118,6 +118,7 @@
   agenda: false,
   toc: false,
   runin: true,
+  gap: true,
   endmatter-newpage: false,
   body,
 ) = {
@@ -130,7 +131,11 @@
     #strong(doctype) #h(1fr) #context counter(page).display("1 (1)", both: true) \
     #date
     #if docid != none [ \ #docid ]
-    #if confidentiality != none [ \ #confidentiality ]
+    // Confidentiality is set off below the date/docid identification lines. With
+    // no docid the class inserts a blank spacer line first (the \mbox{} in
+    // \sfs@metadatablock), so reproduce it here; with a docid present it follows
+    // directly, as in the class.
+    #if confidentiality != none [#if docid == none [ \ ] \ #confidentiality]
   ]
 
   // The basic metadata block, repeated as the page header on every page; the
@@ -173,7 +178,20 @@
   )
   set text(font: body-font, size: fontsize, lang: "fi", hyphenate: true)
   // linespread 0.9706 in the class → 13.2 pt leading at 11 pt; parskip 11.6 pt.
-  set par(leading: leading, spacing: blockgap, justify: false, first-line-indent: 0pt)
+  // Block style (gap, the default, following 6.4.3): paragraphs separated by a
+  // paragraph gap, no first-line indent. Compact style (no-gap, cls [nogap]):
+  // paragraphs run on with no gap (spacing collapses to one line), a paragraph
+  // that follows another set apart by a one-column first-line indent; the first
+  // paragraph after a heading/title/list stays flush (all: false). The
+  // structural paragraph gap stays constant either way — figures, marginlabels
+  // and the end matter set their own block spacing explicitly (as the class
+  // decouples \sfsparskip from \parskip).
+  set par(
+    leading: leading,
+    spacing: if gap { blockgap } else { leading },
+    justify: false,
+    first-line-indent: if gap { 0pt } else { (amount: column, all: false) },
+  )
   set list(marker: [–], indent: 0pt) // Finnish convention: en dash, flush at body indent
   set enum(indent: 0pt)
   set heading(numbering: if agenda { "1.1.1." } else { "1.1.1" })
