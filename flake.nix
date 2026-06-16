@@ -15,6 +15,7 @@
         texliveEnv = pkgs.texlive.combine {
           inherit (pkgs.texlive)
             scheme-basic
+            amsfonts amsmath
             babel-finnish caption courier enumitem everyshi helvetic hyperref
             hyphen-finnish latex latexmk mathpazo metafont microtype
             pgf preview ragged2e totpages xcolor

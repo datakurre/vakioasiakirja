@@ -95,21 +95,28 @@ The `features` key is a list of optional features to turn on:
   trailing period (`1. Otsikko`), the established convention for
   agendas and minutes (6.4.1)
 - `toc` — `\tableofcontents` right after the title
-- `endmatter-newpage` — start the end matter on a fresh page
+- `endmatter-newpage` — start the end matter (attachments, distribution,
+  for-information, contact block) on a fresh page. Off by default — the end
+  matter otherwise flows on after the body, separated by a paragraph gap,
+  and never forces a page break unless you opt in here
 - `runin` — run body text into the heading line when the heading fits the
   2,3 cm heading column (on by default; use `no-runin` to keep the body on
   its own line below the heading)
+- `gap` — the block paragraph style: paragraphs separated by a paragraph gap
+  with no first-line indent, following clause 6.4.3 (on by default; use
+  `no-gap` for the compact run-on style — no gap between paragraphs, a
+  paragraph that follows another set apart by a one-column first-line indent
+  instead). Independent of `runin`
 
 A `no-` prefix turns a feature off (`features: [no-endmatter-newpage]`);
 unknown feature names are an error.
 
 The attachment, distribution and for-information lists and the contact
-block are placed after the body in the standard's order. They start on a
-fresh page whenever any of the three lists is present (like the
-standard's pöytäkirja example); add `no-endmatter-newpage` (or
-`endmatter-newpage`) to `features:` to override. When they stay on the
-same page, the class separates them from the body with an extra
-paragraph gap.
+block are placed after the body in the standard's order. By default they
+flow on after the body on the same page, separated from it by an extra
+paragraph gap — they never force a page break on their own. Add
+`endmatter-newpage` to `features:` to start them on a fresh page instead
+(as the standard's pöytäkirja example does).
 
 For a document in another language, renew the class's fixed strings via
 the `header-includes` key:
@@ -125,10 +132,15 @@ header-includes:
 Standard Markdown works as expected: `#`–`###` headings (at most three
 levels, as the standard recommends — deeper headings are an error),
 paragraphs, bullet and numbered lists (bullets render as the en dash `–`
-of Finnish convention), footnotes, pipe tables (caption above via
-`: Caption text`), images with captions placed in the text flow, and
-`"quotes"` rendered as Finnish `”quotes”`. Raw LaTeX passes through for
-anything exotic.
+of Finnish convention; a nested list sits flush against its parent),
+footnotes, pipe tables (caption above via `: Caption text`), images with
+captions placed in the text flow, and `"quotes"` rendered as Finnish
+`”quotes”`. The wider pandoc-Markdown feature set carries over too —
+**bold**, *italic*, `inline code`, ~~strikeout~~, super^script^ and
+sub~script~, `$math$`, block quotes, fenced code blocks (with syntax
+highlighting), task lists (`- [ ]` / `- [x]`), line blocks, horizontal
+rules, and column-aligned tables. Raw LaTeX passes through for anything
+exotic.
 
 Images — the `logo:` as well as images in the body — may also be SVG
 files: the converter turns them into PDF automatically (with

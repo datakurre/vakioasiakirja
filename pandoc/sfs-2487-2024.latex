@@ -5,15 +5,21 @@
 % only support for pandoc-generated body code is added here. Multi-line
 % fields (recipient, extrametadata, contact.lines, attachments, …) are YAML
 % lists joined with line breaks.
-\documentclass[$if(fontsize)$$fontsize$,$endif$$if(sfs-agenda)$agenda,$endif$$if(sfs-runin)$$else$no-runin,$endif$$if(font)$$font$,$endif$$for(classoption)$$classoption$,$endfor$]{sfs-2487-2024}
+\documentclass[$if(fontsize)$$fontsize$,$endif$$if(sfs-agenda)$agenda,$endif$$if(sfs-runin)$$else$no-runin,$endif$$if(sfs-gap)$$else$nogap,$endif$$if(font)$$font$,$endif$$for(classoption)$$classoption$,$endfor$]{sfs-2487-2024}
 
+% amsmath and amssymb come with pandoc's own default template; matching it
+% here enables richer math and the symbols its task lists render with
+% (\square for an open box, \boxtimes for a checked one).
+\usepackage{amsmath,amssymb}
 % Macros that pandoc-generated body code may reference
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \providecommand{\pandocbounded}[1]{#1}
+\providecommand{\passthrough}[1]{#1}
 $if(tables)$
 \usepackage{longtable,booktabs,array,calc}
 % Tables start at the body indent like the rest of the content instead of
-% longtable's default centering.
+% longtable's default centering. The class sets \LTpre/\LTpost to match the
+% \captionof+tabular footprint (begindocument/end, once longtable is loaded).
 \setlength{\LTleft}{0pt}
 \setlength{\LTright}{\fill}
 % Align longtable captions with the class's caption style (6.5.1); the

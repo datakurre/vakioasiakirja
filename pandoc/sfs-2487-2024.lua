@@ -92,14 +92,16 @@ end
 
 -- Optional features come in a single frontmatter list; the template cannot
 -- test list membership, so expand the tokens into per-feature sfs-* booleans
--- the template reads. A 'no-' prefix turns a feature off — needed because
--- endmatter-newpage defaults to true whenever attachments, distribution or
--- forinformation are present (the pöytäkirja model document starts its end
--- matter on a fresh page; contact info alone stays inline, as in the tarjous
--- model document; the class itself separates inline end matter from the body
--- by a paragraph gap), and runin defaults to true (the class runs body text
--- into the heading line, so the feature only carries a 'no-runin' opt-out).
-local feature_names = pandoc.List({'agenda', 'toc', 'endmatter-newpage', 'runin'})
+-- the template reads. A 'no-' prefix turns a feature off. endmatter-newpage,
+-- runin and gap default the way the class itself does: endmatter-newpage is
+-- off (the end matter flows on after the body, separated only by a paragraph
+-- gap — never forcing a page break unless the document opts in with
+-- features: [endmatter-newpage]); runin is on (the class runs body text into
+-- the heading line, so the feature only carries a 'no-runin' opt-out); gap is
+-- on (block paragraph style, so the feature only carries a 'no-gap' opt-out
+-- that switches to the compact run-on style).
+local feature_names = pandoc.List(
+  {'agenda', 'toc', 'endmatter-newpage', 'runin', 'gap'})
 
 local function parse_features(meta)
   for _, name in ipairs(feature_names) do
@@ -121,18 +123,18 @@ local function parse_features(meta)
       if not feature_names:includes(name) then
         error(("sfs-2487-2024: tuntematon ominaisuus (unknown feature) " ..
                "'%s' — tuetut (supported): agenda, toc, endmatter-newpage, " ..
-               "runin; no-etuliite poistaa käytöstä (a no- prefix disables " ..
-               "one)\n")
+               "runin, gap; no-etuliite poistaa käytöstä (a no- prefix " ..
+               "disables one)\n")
               :format(token))
       end
       features[name] = (name == token)
     end
   end
   if features['endmatter-newpage'] == nil then
-    features['endmatter-newpage'] = meta.attachments ~= nil
-      or meta.distribution ~= nil or meta.forinformation ~= nil
+    features['endmatter-newpage'] = false
   end
   if features['runin'] == nil then features['runin'] = true end
+  if features['gap'] == nil then features['gap'] = true end
   for _, name in ipairs(feature_names) do
     meta['sfs-' .. name] = pandoc.MetaBool(features[name] or false)
   end
@@ -270,7 +272,13 @@ end
 -- environment, caption in the figure's immediate proximity.
 function Figure(figure)
   local blocks = pandoc.List()
-  blocks:extend(figure.content)
+  local content = figure.content
+  -- The image belongs at the text indent (6.5.2), so it must not take the
+  -- run-in paragraph indent; \noindent the block that carries it.
+  if content[1] and content[1].content then
+    content[1].content:insert(1, pandoc.RawInline('latex', '\\noindent '))
+  end
+  blocks:extend(content)
   blocks:insert(rawblock('\\nopagebreak\\captionof{figure}{%s}',
     tex(pandoc.utils.blocks_to_inlines(figure.caption.long))))
   return blocks

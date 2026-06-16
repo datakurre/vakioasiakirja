@@ -1,5 +1,9 @@
 \documentclass{sfs-2487-2024}
 
+% Otsikkorivin ja rungon erottavat vaakaviivat kuten pandocin tuottamassa
+% markdown-vastineessa; pidetään latex- ja markdown-taulukot samannäköisinä.
+\usepackage{booktabs}
+
 % Monisivuinen raportti: sisällysluettelo heti pääotsikon jälkeen (6.10),
 % taulukko kuvatekstillä taulukon yläpuolella (6.5.1), alaviite (6.9),
 % kolme otsikkotasoa (6.4) ja perusmetatiedot jatkosivun ylätunnisteessa.
@@ -44,11 +48,14 @@ saatiin verkkolomakkeella, mutta myös puhelinpalvelun ja
 asiakastapaamisten kautta kirjattiin palautetta.
 
 \captionof{table}{Vastaukset palautekanavittain}
-\begin{tabular}{@{}lrr@{}}
+\noindent\begin{tabular}{@{}lrr@{}}
+  \toprule
   \textbf{Kanava} & \textbf{Vastauksia} & \textbf{Osuus} \\
+  \midrule
   Verkkolomake    & 318                 & 77~\%          \\
   Puhelinpalvelu  & 64                  & 16~\%          \\
   Asiakastapaaminen & 30                & 7~\%           \\
+  \bottomrule
 \end{tabular}
 
 \subsection{Keskeiset havainnot}
