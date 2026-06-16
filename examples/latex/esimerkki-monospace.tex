@@ -2,6 +2,8 @@
 
 % Muistio, joka on laadittu tasavälisellä kirjasinlajilla (Courier).
 % Vaihtoehto [monospace] latoo asiakirjan kirjoituskonetyylisesti.
+% Mukana sisäkkäinen luettelo, tasavälinen koodimerkintä ja koodilohko,
+% jotka vastaavat markdown-version vastaavia merkintöjä.
 
 \logo{\includegraphics{logo-organisaatio}}
 \doctype{Muistio}
@@ -33,15 +35,26 @@ järjestelmällisesti.
 
 \section{Ehdotus}
 
-Otetaan käyttöön keskitetty identiteetinhallintajärjestelmä. Se
-yhdistää kaikki organisaation järjestelmät yhteen hallintapisteeseen
-ja mahdollistaa automaattisen tunnusten elinkaarihallinnan.
+Otetaan käyttöön keskitetty identiteetinhallintajärjestelmä, joka
+tukee \texttt{SCIM}- ja \texttt{LDAP}-rajapintoja. Se yhdistää kaikki
+organisaation järjestelmät yhteen hallintapisteeseen ja mahdollistaa
+automaattisen tunnusten elinkaarihallinnan.
 
 \begin{enumerate}
   \item Valitaan järjestelmä ja kilpailutetaan toimittajat.
-  \item Toteutetaan pilotti kahdelle järjestelmälle.
+  \item Toteutetaan pilotti kahdelle järjestelmälle:
+    \begin{itemize}
+      \item sähköpostijärjestelmä
+      \item asianhallintajärjestelmä
+    \end{itemize}
   \item Laajennetaan käyttöönotto koko organisaatioon.
 \end{enumerate}
+
+Tunnusten synkronointi ajastetaan komennolla:
+
+\begin{verbatim}
+idm sync --scope all --remove-stale
+\end{verbatim}
 
 \forinformation{Johtoryhmä}
 

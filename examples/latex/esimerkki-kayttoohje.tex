@@ -1,9 +1,16 @@
 \documentclass[sans-serif]{sfs-2487-2024}
 
+% amssymb tarjoaa tehtävälistan valintaruudut ($\square$, $\boxtimes$),
+% samat kuin pandoc käyttää markdown-vastineen ''- [ ]'' / ''- [x]'' -kohdissa.
+\usepackage{amssymb}
+
 % Käyttöohje, jossa on kuvatekstillisiä kuvia tekstin tasossa ja tekstin
-% sisennyskohdassa (6.5.2) sekä numeroituja vaiheluetteloita (6.5.3).
-% Vaihtoehto [sans-serif] latoo asiakirjan groteskilla, joka vastaa
-% standardin omien esimerkkien ulkoasua.
+% sisennyskohdassa (6.5.2), numeroituja vaiheluetteloita sisäkkäisine
+% luetteloineen (6.5.3), tehtävälista valintaruuduin sekä korostuksia
+% (lihavointi, kursiivi, tasavälinen koodimerkintä). Nämä vastaavat
+% markdown-version ../markdown/esimerkki-kayttoohje.md merkintöjä. Vaihtoehto
+% [sans-serif] latoo asiakirjan groteskilla, joka vastaa standardin omien
+% esimerkkien ulkoasua.
 
 \logo{\includegraphics{logo-organisaatio}}
 \doctype{Käyttöohje}
@@ -24,10 +31,11 @@
 
 \section{Logon perusversio}
 
-Logon perusversiota käytetään kaikissa organisaation asiakirjoissa.
-Logo sijoitetaan asiakirjan vasempaan yläkulmaan, ja sähköisessä
-asiakirjassa sille annetaan vaihtoehtoinen teksti, esimerkiksi
-''Organisaatio Oy:n logo''.
+Logon perusversiota käytetään \textbf{kaikissa} organisaation
+asiakirjoissa. Logo sijoitetaan asiakirjan vasempaan yläkulmaan, ja
+\emph{sähköisessä} asiakirjassa sille annetaan vaihtoehtoinen teksti,
+esimerkiksi ''Organisaatio Oy:n logo''. Perusversion tiedostonimi on
+\texttt{logo-organisaatio.pdf}.
 
 \noindent\includegraphics{logo-organisaatio}
 \captionof{figure}{Logon perusversio}
@@ -47,13 +55,26 @@ Logo lisätään asiakirjamalliin seuraavasti:
 
 \begin{enumerate}
   \item Avaa asiakirjamalli ja siirry asiakirjan alkuun.
-  \item Lisää logotiedosto asiakirjan vasempaan yläkulmaan.
+  \item Lisää logotiedosto asiakirjan vasempaan yläkulmaan. Käytä
+    tarkoitukseen sopivaa tiedostomuotoa:
+    \begin{itemize}
+      \item painotuotteissa \texttt{.pdf} tai \texttt{.eps}
+      \item verkkojulkaisuissa \texttt{.png}
+    \end{itemize}
   \item Kirjoita logolle vaihtoehtoinen teksti.
   \item Tarkista, että perusmetatietojen alue ei mene logon päälle.
 \end{enumerate}
 
 Jos logon koko tai sijoittelu sitä vaatii, perus- ja lisämetatietojen
 alueita voi siirtää alemmas tai enemmän oikealle.
+
+\section{Tarkistuslista ennen julkaisua}
+
+\begin{itemize}
+  \item[$\boxtimes$] Logo on asiakirjan vasemmassa yläkulmassa.
+  \item[$\boxtimes$] Logolla on vaihtoehtoinen teksti.
+  \item[$\square$] Suoja-alue on tarkistettu.
+\end{itemize}
 
 \forinformation{Viestintäosasto}
 
