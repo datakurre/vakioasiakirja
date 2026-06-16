@@ -71,7 +71,8 @@ these same commands.
 | `serif` | Palatino body font (classic serif look) |
 | `monospace` | Courier typewriter font throughout |
 | `agenda` | Meeting-agenda numbering with a trailing period, `1. Otsikko` (an established alternative the standard permits, 6.4.1). Headings stay bold either way — clause 6.4 requires bold or a larger font size. |
-| `no-runin` | Switch from the default run-in layout to the block layout. By default a heading or margin label that fits inside the 2,3 cm heading column shares its line with the body text, and body paragraphs run together with no gap, a paragraph that follows another set apart by a first-line indent of one basic column (2,3 cm). With `no-runin` every heading starts the body on its own line and paragraphs are separated by a paragraph gap with no indent instead. Both are layouts the standard permits. |
+| `no-runin` | Always start body text on its own line below the heading. By default a heading or margin label that fits inside the 2,3 cm heading column shares its line with the body text, as in the standard's own model documents. |
+| `nogap` | Switch the body paragraph style from the default block style (paragraphs separated by a paragraph gap, no first-line indent — following clause 6.4.3) to a compact run-on style: no gap between paragraphs, a paragraph that follows another set apart by a first-line indent of one basic column (2,3 cm) instead. Independent of `no-runin`. |
 | `12pt` | Larger base font size (any other `article` option is passed through as well) |
 
 Options combine, e.g. `\documentclass[agenda,serif]{sfs-2487-2024}`.
@@ -239,11 +240,11 @@ description for images (6.5.2).
 
 Bullet lists are preconfigured (en-dash `–` markers per Finnish
 convention, first level flush at the body text edge, tight item spacing).
-A first-level list is set apart from the surrounding text by the paragraph
-spacing in force — a paragraph gap in the block (`no-runin`) layout,
-nothing in the run-in layout — while a nested list sits flush against its
-parent level, adding no extra top or bottom margin. For looser spacing
-pass [enumitem](https://ctan.org/pkg/enumitem) options:
+A first-level list is set apart from the surrounding text by one paragraph
+gap (6.5.3) in the default block style and sits flush in the compact
+`nogap` style, while a nested list always sits flush against its parent
+level, adding no extra top or bottom margin. For looser spacing pass
+[enumitem](https://ctan.org/pkg/enumitem) options:
 
 ```latex
 \begin{itemize}[itemsep=\sfsparskip]
@@ -253,9 +254,9 @@ pass [enumitem](https://ctan.org/pkg/enumitem) options:
 ```
 
 `\sfsparskip` is the class's paragraph-gap length (the *kappaleväli*); use
-it wherever you want exactly one paragraph gap, since in the run-in layout
-`\parskip` itself is zero. Use `\clearpage` to force a page break, e.g.
-before the attachments area.
+it wherever you want exactly one paragraph gap, since in the compact `nogap`
+style `\parskip` itself is zero. Use `\clearpage` to force a page break,
+e.g. before the attachments area.
 
 ## Other languages
 

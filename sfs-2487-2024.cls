@@ -30,13 +30,14 @@
 % [no-runin] always starts body text on its own line below the heading.
 % By default a heading or margin label that fits inside the 2,3 cm heading
 % column shares its line with the body text, as in the standard's own model
-% documents (Liite A/B). The option also picks the paragraph style: the
-% default run-in style runs body paragraphs together with no gap and sets a
-% paragraph that follows another apart with a first-line indent of one basic
-% column; [no-runin] is the block style, paragraphs separated by a paragraph
-% gap with no indent. The [no-runin] block style is the one that follows
-% 6.4.3 literally (paragraph spacing, no first-line indent); the run-in
-% style is the class default.
+% documents (Liite A/B).
+%
+% [nogap] switches the body paragraph style from the default block style
+% (paragraphs separated by a paragraph gap, no first-line indent, following
+% 6.4.3 literally) to a compact run-on style: no gap between paragraphs, a
+% paragraph that follows another set apart by a first-line indent of one
+% basic column instead. The two are independent of [no-runin]: headings can
+% run in with either paragraph style.
 %
 % [serif] typesets the document in Palatino (serif).
 % [sans-serif] (default) typesets in a Helvetica-like sans serif, matching
@@ -47,6 +48,8 @@
 \DeclareOption{agenda}{\sfs@agendatrue}
 \newif\ifsfs@norunin
 \DeclareOption{no-runin}{\sfs@norunintrue}
+\newif\ifsfs@nogap
+\DeclareOption{nogap}{\sfs@nogaptrue}
 \newif\ifsfs@font@serif
 \newif\ifsfs@font@mono
 \DeclareOption{serif}{\sfs@font@seriftrue}
@@ -120,26 +123,25 @@
 \AtBeginDocument{%
   \RaggedRight
   \setlength{\sfs@pargap}{.88\baselineskip}%
-  \ifsfs@norunin
-    % Block style (the [no-runin] companion): body paragraphs are set
-    % apart by a paragraph gap, with no first-line indentation.
-    \setlength{\parindent}{0pt}%
-    \setlength{\parskip}{\sfs@pargap}%
-    % Block style draws the gap above a heading and below a displayed one
-    % from \parskip, so the heading skips themselves need only the token
-    % positive value that keeps \@startsection on its display path.
-    \setlength{\sfs@gap}{1sp}%
-  \else
-    % Run-in style (the default): body paragraphs run on without a gap;
-    % a paragraph that follows another is set apart by a first-line indent
-    % of one basic column (2,3 cm) instead, the way the run-in headings
-    % carry the body onto the heading line. Lists then sit flush with the
-    % surrounding text. Structural gaps come from \sfs@pargap, not \parskip.
+  \ifsfs@nogap
+    % Compact style ([nogap]): body paragraphs run on without a gap; a
+    % paragraph that follows another is set apart by a first-line indent of
+    % one basic column (2,3 cm) instead. Lists then sit flush with the
+    % surrounding text. With \parskip zero, the gap above a heading and below
+    % a displayed one must come from the heading skips themselves, so
+    % \sfs@gap carries a whole paragraph gap.
     \setlength{\parindent}{\sfs@column}%
     \setlength{\parskip}{0pt}%
-    % With \parskip zero, the gap above a heading and below a displayed one
-    % must come from the heading skips themselves: one paragraph gap.
     \setlength{\sfs@gap}{\sfs@pargap}%
+  \else
+    % Block style (the default, following 6.4.3): body paragraphs are set
+    % apart by a paragraph gap with no first-line indentation. The gap above
+    % a heading, below a displayed one, and around a first-level list comes
+    % from \parskip, so the heading skips themselves need only the token
+    % positive value that keeps \@startsection on its display path.
+    \setlength{\parindent}{0pt}%
+    \setlength{\parskip}{\sfs@pargap}%
+    \setlength{\sfs@gap}{1sp}%
   \fi
   % Top-level headings get half a paragraph gap more above them (6.4 note);
   % \sfs@secgap is the section before skip, \sfs@gap the gap everywhere else.
@@ -150,18 +152,16 @@
 
 % Bulleted lists are marked with the en dash (ajatusviiva) of Finnish
 % typographic convention rather than LaTeX's default \textbullet. The first
-% level starts flush at the body indent (no extra margin); nested levels
-% keep their relative indentation. A first-level list is separated from the
-% surrounding text by one paragraph gap (6.5.3) in both paragraph styles —
-% the run-in no-gap rule is only for consecutive body paragraphs, so the
-% first-level top separation is \sfs@gap (which gives the gap on its own in
-% run-in style and lets \parskip supply it in block style). A nested list
-% cancels that gap (topsep=-\parskip) so it sits flush against its parent
-% level, adding no extra top or bottom margin.
+% level starts flush at the body indent (no extra margin); nested levels keep
+% their relative indentation. A first-level list is separated from the
+% surrounding text by the paragraph spacing in force (topsep=0): a paragraph
+% gap in the default block style, nothing in the compact [nogap] style. A
+% nested list cancels that gap (topsep=-\parskip) so it sits flush against
+% its parent level, adding no extra top or bottom margin.
 \setlist[itemize]{label=\textendash,topsep=-\parskip,partopsep=0pt,itemsep=0pt,parsep=0pt}
 \setlist[enumerate]{topsep=-\parskip,partopsep=0pt,itemsep=0pt,parsep=0pt}
-\setlist[itemize,1]{topsep=\sfs@gap,leftmargin=*}
-\setlist[enumerate,1]{topsep=\sfs@gap,leftmargin=*}
+\setlist[itemize,1]{topsep=0pt,leftmargin=*}
+\setlist[enumerate,1]{topsep=0pt,leftmargin=*}
 
 % Captions for tables, figures and charts (6.5.1-6.5.2): left-aligned at the
 % text indent like the spec's own "Taulukko 1 Otsikko" / "Kuva 1 Teksti"
@@ -180,15 +180,32 @@
 % Used in the text flow (outside any float or minipage), caption's \captionof
 % resets \parskip for the rest of the document, silently dropping below the
 % 10pt minimum paragraph gap of 6.4.3; scope it in a group. caption defines
-% \captionof in its own begin-document code, so this must run after it.
+% \captionof in its own begin-document code, so this must run after it. A
+% table caption additionally gets one paragraph gap above it (always, in both
+% paragraph styles) and is kept attached to the table below it (the trailing
+% \parskip the table paragraph would add is cancelled), so the caption+table
+% block matches pandoc's longtable on the Markdown side.
+\def\sfs@tabletype{table}
 \AddToHook{begindocument/end}{%
   \let\sfs@captionof\captionof
   \RenewDocumentCommand{\captionof}{s m o m}{%
+    \def\sfs@captiontype{#2}%
+    \ifx\sfs@captiontype\sfs@tabletype
+      \par\vspace{\sfs@pargap}%
+    \fi
     \begingroup
     \IfBooleanTF{#1}
       {\sfs@captionof*{#2}{#4}}
       {\IfNoValueTF{#3}{\sfs@captionof{#2}{#4}}{\sfs@captionof{#2}[#3]{#4}}}%
-    \endgroup}}
+    \endgroup
+    \ifx\sfs@captiontype\sfs@tabletype\nobreak\vskip-\parskip\fi}%
+  % longtable (Markdown tables) frames itself with \bigskip by default; match
+  % the \captionof+tabular footprint instead — one paragraph gap above, none
+  % below, caption attached.
+  \ifdefined\LTpre
+    \setlength{\LTpre}{\sfs@pargap}%
+    \setlength{\LTpost}{0pt}%
+  \fi}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Language
@@ -374,15 +391,19 @@
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
     \sfs@titlefont\@title}}\par
   \sfs@tagon
-  % Restore the body paragraph spacing pinned above: run-in style runs
-  % paragraphs together (no \parskip), block style keeps the paragraph gap.
-  \ifsfs@norunin\else\setlength{\parskip}{0pt}\fi
-  % The title is the document's top-level heading, so the first body
-  % paragraph follows it unindented in run-in style, like the first
-  % paragraph after any heading; \@afterheading also keeps it on the same
-  % page as the title. A heading or margin label that opens the body
-  % instead resets this hook itself, through \@startsection.
-  \@afterindentfalse\@afterheading
+  % Restore the body paragraph spacing pinned above: the compact style runs
+  % paragraphs together (no \parskip), the block style keeps the paragraph gap.
+  \ifsfs@nogap\setlength{\parskip}{0pt}\fi
+  % Always one paragraph gap below the title, in either paragraph style; a
+  % heading or label that opens the body keeps its own (possibly larger)
+  % before-gap, since \addvspace takes the maximum.
+  \addvspace{\sfs@gap}%
+  % The first body paragraph follows the title unindented, like the first
+  % paragraph after any heading (this matters only in the compact style,
+  % where \parindent is one column). A heading or label that opens the body
+  % resets this everypar hook itself, through \@startsection.
+  \@afterindentfalse
+  \everypar{\if@afterindent\else{\setbox\z@\lastbox}\fi\everypar{}}%
   % One-shot, like article's \maketitle: a second call is a no-op instead
   % of rendering the information areas again.
   \global\let\maketitle\relax

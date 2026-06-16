@@ -99,12 +99,14 @@ The `features` key is a list of optional features to turn on:
   for-information, contact block) on a fresh page. Off by default — the end
   matter otherwise flows on after the body, separated by a paragraph gap,
   and never forces a page break unless you opt in here
-- `runin` — the run-in layout: run body text into the heading line when the
-  heading fits the 2,3 cm heading column, run body paragraphs together with
-  no gap, and set a paragraph that follows another apart with a first-line
-  indent of one basic column (on by default; use `no-runin` for the block
-  layout, where every heading starts the body on its own line and paragraphs
-  are separated by a paragraph gap with no indent)
+- `runin` — run body text into the heading line when the heading fits the
+  2,3 cm heading column (on by default; use `no-runin` to keep the body on
+  its own line below the heading)
+- `gap` — the block paragraph style: paragraphs separated by a paragraph gap
+  with no first-line indent, following clause 6.4.3 (on by default; use
+  `no-gap` for the compact run-on style — no gap between paragraphs, a
+  paragraph that follows another set apart by a one-column first-line indent
+  instead). Independent of `runin`
 
 A `no-` prefix turns a feature off (`features: [no-endmatter-newpage]`);
 unknown feature names are an error.
