@@ -31,9 +31,12 @@ markdown: $(LOGOS)  ## Build every examples/markdown/esimerkki-*.md with the nix
 .PHONY: docs
 docs: examples markdown  ## Build the documentation site into site/
 	@rm -rf docs/pdf docs/src
-	@mkdir -p docs/pdf/latex docs/pdf/markdown
+	@mkdir -p docs/pdf/latex docs/pdf/markdown docs/pdf/typst
 	@cp examples/latex/esimerkki-*.pdf docs/pdf/latex/
 	@cp examples/markdown/esimerkki-*.pdf docs/pdf/markdown/
+	@# The same examples rendered through the markdown->typst pipeline (web/),
+	@# built reproducibly by the flake (node_modules + typst + embedded logos).
+	@cp "$$(nix build .#examplesTypst --no-link --print-out-paths)"/*.pdf docs/pdf/typst/
 	@# Copy the example sources next to the PDFs so the docs site can link
 	@# to them. The .txt suffix makes every host (GitHub Pages included)
 	@# serve them as text/plain, so browsers render them inline instead of
