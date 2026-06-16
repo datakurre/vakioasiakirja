@@ -8,6 +8,10 @@ confidentiality: Luottamuksellinen
 subject: Digiprojekti
 title: Asiakaspalautteet ja etusivun uudistaminen
 logo: ../logo-organisaatio.pdf
+# Liiteosa alkaa omalta sivultaan kuten Liite A:n mallidokumentissa;
+# endmatter-newpage ei ole enää oletus, joten se pyydetään erikseen
+# (vrt. .tex-version \clearpage).
+features: [endmatter-newpage]
 contact:
   name: Organisaatio Oy
   lines:

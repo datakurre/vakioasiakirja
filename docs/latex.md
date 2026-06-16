@@ -71,7 +71,7 @@ these same commands.
 | `serif` | Palatino body font (classic serif look) |
 | `monospace` | Courier typewriter font throughout |
 | `agenda` | Meeting-agenda numbering with a trailing period, `1. Otsikko` (an established alternative the standard permits, 6.4.1). Headings stay bold either way — clause 6.4 requires bold or a larger font size. |
-| `no-runin` | Always start body text on its own line below the heading. By default a heading or margin label that fits inside the 2,3 cm heading column shares its line with the body text, as in the standard's own model documents. |
+| `no-runin` | Switch from the default run-in layout to the block layout. By default a heading or margin label that fits inside the 2,3 cm heading column shares its line with the body text, and body paragraphs run together with no gap, a paragraph that follows another set apart by a first-line indent of one basic column (2,3 cm). With `no-runin` every heading starts the body on its own line and paragraphs are separated by a paragraph gap with no indent instead. Both are layouts the standard permits. |
 | `12pt` | Larger base font size (any other `article` option is passed through as well) |
 
 Options combine, e.g. `\documentclass[agenda,serif]{sfs-2487-2024}`.
@@ -207,7 +207,7 @@ start a fresh page).
 Prints the organization contact block set with `\contactinfo` at the left
 margin — place it at the end of the document. The standard requires
 contact details in the body area (not only in a footer). An extra
-paragraph gap above it is added automatically; `\vspace{...\parskip}`
+paragraph gap above it is added automatically; `\vspace{...\sfsparskip}`
 before it adds more.
 
 ### Tables and figures
@@ -238,19 +238,24 @@ description for images (6.5.2).
 ### Lists and page breaks
 
 Bullet lists are preconfigured (en-dash `–` markers per Finnish
-convention, first level flush at the body text edge, tight item spacing,
-one paragraph gap around the list). For
-looser spacing pass
-[enumitem](https://ctan.org/pkg/enumitem) options:
+convention, first level flush at the body text edge, tight item spacing).
+A first-level list is set apart from the surrounding text by the paragraph
+spacing in force — a paragraph gap in the block (`no-runin`) layout,
+nothing in the run-in layout — while a nested list sits flush against its
+parent level, adding no extra top or bottom margin. For looser spacing
+pass [enumitem](https://ctan.org/pkg/enumitem) options:
 
 ```latex
-\begin{itemize}[itemsep=\parskip]
+\begin{itemize}[itemsep=\sfsparskip]
   \item 20.5.2024 toimituksen kokoustilassa
   \item 27.5.2024 verkossa
 \end{itemize}
 ```
 
-Use `\clearpage` to force a page break, e.g. before the attachments area.
+`\sfsparskip` is the class's paragraph-gap length (the *kappaleväli*); use
+it wherever you want exactly one paragraph gap, since in the run-in layout
+`\parskip` itself is zero. Use `\clearpage` to force a page break, e.g.
+before the attachments area.
 
 ## Other languages
 

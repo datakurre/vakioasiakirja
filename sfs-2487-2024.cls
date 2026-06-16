@@ -30,7 +30,13 @@
 % [no-runin] always starts body text on its own line below the heading.
 % By default a heading or margin label that fits inside the 2,3 cm heading
 % column shares its line with the body text, as in the standard's own model
-% documents (Liite A/B).
+% documents (Liite A/B). The option also picks the paragraph style: the
+% default run-in style runs body paragraphs together with no gap and sets a
+% paragraph that follows another apart with a first-line indent of one basic
+% column; [no-runin] is the block style, paragraphs separated by a paragraph
+% gap with no indent. The [no-runin] block style is the one that follows
+% 6.4.3 literally (paragraph spacing, no first-line indent); the run-in
+% style is the class default.
 %
 % [serif] typesets the document in Palatino (serif).
 % [sans-serif] (default) typesets in a Helvetica-like sans serif, matching
@@ -85,6 +91,20 @@
 \newlength{\sfs@column}\setlength{\sfs@column}{23mm}
 \newlength{\sfs@metaindent}\setlength{\sfs@metaindent}{92mm}
 
+% One paragraph gap (kappaleväli): the structural spacing unit between
+% information areas, around headings and before the end matter. It stays
+% constant regardless of how body paragraphs are separated (see below), so
+% it is decoupled from \parskip. \sfsparskip exposes it to documents that
+% want to add the same gap by hand (\vspace{2\sfsparskip}).
+\newlength{\sfs@pargap}
+\let\sfsparskip\sfs@pargap
+
+% Heading skips, set per paragraph style at \begin{document}: \sfs@gap is
+% one paragraph gap above a heading and below a displayed one, \sfs@secgap
+% the slightly larger gap above a top-level heading.
+\newlength{\sfs@gap}
+\newlength{\sfs@secgap}
+
 % Left margin 2 cm + one basic column = 4,3 cm, so body text sits natively
 % at the standard's 2,3 cm indent and \textwidth is exactly the recommended
 % 15,7 cm maximum line width. Margin-level elements hang left by \sfs@column.
@@ -99,19 +119,49 @@
 \linespread{0.9706}
 \AtBeginDocument{%
   \RaggedRight
-  \setlength{\parindent}{0pt}%
-  \setlength{\parskip}{.88\baselineskip}%
+  \setlength{\sfs@pargap}{.88\baselineskip}%
+  \ifsfs@norunin
+    % Block style (the [no-runin] companion): body paragraphs are set
+    % apart by a paragraph gap, with no first-line indentation.
+    \setlength{\parindent}{0pt}%
+    \setlength{\parskip}{\sfs@pargap}%
+    % Block style draws the gap above a heading and below a displayed one
+    % from \parskip, so the heading skips themselves need only the token
+    % positive value that keeps \@startsection on its display path.
+    \setlength{\sfs@gap}{1sp}%
+  \else
+    % Run-in style (the default): body paragraphs run on without a gap;
+    % a paragraph that follows another is set apart by a first-line indent
+    % of one basic column (2,3 cm) instead, the way the run-in headings
+    % carry the body onto the heading line. Lists then sit flush with the
+    % surrounding text. Structural gaps come from \sfs@pargap, not \parskip.
+    \setlength{\parindent}{\sfs@column}%
+    \setlength{\parskip}{0pt}%
+    % With \parskip zero, the gap above a heading and below a displayed one
+    % must come from the heading skips themselves: one paragraph gap.
+    \setlength{\sfs@gap}{\sfs@pargap}%
+  \fi
+  % Top-level headings get half a paragraph gap more above them (6.4 note);
+  % \sfs@secgap is the section before skip, \sfs@gap the gap everywhere else.
+  \setlength{\sfs@secgap}{\sfs@gap}%
+  \addtolength{\sfs@secgap}{.5\sfs@pargap}%
   \setlength{\footskip}{\baselineskip}% unused (nofoot); silences fancyhdr warning
 }
 
 % Bulleted lists are marked with the en dash (ajatusviiva) of Finnish
 % typographic convention rather than LaTeX's default \textbullet. The first
 % level starts flush at the body indent (no extra margin); nested levels
-% keep their relative indentation.
-\setlist[itemize]{label=\textendash,topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
-\setlist[enumerate]{topsep=0pt,partopsep=0pt,itemsep=0pt,parsep=0pt}
-\setlist[itemize,1]{leftmargin=*}
-\setlist[enumerate,1]{leftmargin=*}
+% keep their relative indentation. A first-level list is separated from the
+% surrounding text by one paragraph gap (6.5.3) in both paragraph styles —
+% the run-in no-gap rule is only for consecutive body paragraphs, so the
+% first-level top separation is \sfs@gap (which gives the gap on its own in
+% run-in style and lets \parskip supply it in block style). A nested list
+% cancels that gap (topsep=-\parskip) so it sits flush against its parent
+% level, adding no extra top or bottom margin.
+\setlist[itemize]{label=\textendash,topsep=-\parskip,partopsep=0pt,itemsep=0pt,parsep=0pt}
+\setlist[enumerate]{topsep=-\parskip,partopsep=0pt,itemsep=0pt,parsep=0pt}
+\setlist[itemize,1]{topsep=\sfs@gap,leftmargin=*}
+\setlist[enumerate,1]{topsep=\sfs@gap,leftmargin=*}
 
 % Captions for tables, figures and charts (6.5.1-6.5.2): left-aligned at the
 % text indent like the spec's own "Taulukko 1 Otsikko" / "Kuva 1 Teksti"
@@ -286,6 +336,12 @@
 
 \renewcommand{\maketitle}{%
   \thispagestyle{empty}%
+  % The information areas are stacked as paragraphs, so their gaps come from
+  % \parskip. The body may set \parskip to zero (run-in style), so it is
+  % pinned to one paragraph gap here for the duration of \maketitle and the
+  % body value restored at the end; this keeps the metadata spacing of 5.2
+  % the same in both paragraph styles.
+  \setlength{\parskip}{\sfs@pargap}%
   \vspace*{\dimexpr-\headheight-\headsep-\parskip-\topskip+\ht\strutbox\relax}%
   \sfs@tagoff
   \noindent\hspace*{-\sfs@column}\sfs@metadatablock\par
@@ -296,16 +352,16 @@
   % extra half/full \parskip below restores the rendered gap to the required
   % size at any base font size.
   \ifx\sfs@extrametadata\@empty
-    \vspace{1.5\parskip}%
+    \vspace{1.5\sfs@pargap}%
   \else
-    \vspace{.5\parskip}%
+    \vspace{.5\sfs@pargap}%
     \noindent\hspace*{\dimexpr\sfs@metaindent-\sfs@column\relax}%
     \parbox[t]{\dimexpr\textwidth+\sfs@column-\sfs@metaindent\relax}{\sfs@extrametadata}\par
-    \vspace{.5\parskip}%
+    \vspace{.5\sfs@pargap}%
   \fi
   \ifx\sfs@recipient\@empty\else
     \noindent\hspace*{-\sfs@column}\parbox[t]{\textwidth}{\sfs@recipient}\par
-    \vspace{.5\parskip}%
+    \vspace{.5\sfs@pargap}%
   \fi
   % The main title is the document's level-1 heading (5.2, Taulukko 2);
   % in tagged documents the title parbox becomes a Title structure element.
@@ -318,6 +374,15 @@
     \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
     \sfs@titlefont\@title}}\par
   \sfs@tagon
+  % Restore the body paragraph spacing pinned above: run-in style runs
+  % paragraphs together (no \parskip), block style keeps the paragraph gap.
+  \ifsfs@norunin\else\setlength{\parskip}{0pt}\fi
+  % The title is the document's top-level heading, so the first body
+  % paragraph follows it unindented in run-in style, like the first
+  % paragraph after any heading; \@afterheading also keeps it on the same
+  % page as the title. A heading or margin label that opens the body
+  % instead resets this hook itself, through \@startsection.
+  \@afterindentfalse\@afterheading
   % One-shot, like article's \maketitle: a second call is a no-op instead
   % of rendering the information areas again.
   \global\let\maketitle\relax
@@ -394,14 +459,22 @@
 \newcommand{\sfs@runinsecthd}[1]{%
   \hskip-\sfs@column\hb@xt@\sfs@column{{\sfs@sectfont#1}\hfil}}
 
-% The 1sp before/after skips keep the heading a display heading while the
-% standard's "at least one paragraph gap" around it comes from \parskip;
-% the -1sp after skip engages the kernel's run-in path for headings that
-% fit the heading column. Top-level headings get half a paragraph gap
-% extra above, following the 6.4 note that there is typically more space
-% above them than below.
+% A heading is set off by one paragraph gap above it and, when it does not
+% run in, one below it before the body; the gap comes from \parskip in block
+% style and from the explicit \sfs@gap/\sfs@secgap skips in run-in style,
+% where \parskip is zero. The -1sp after skip engages the kernel's run-in
+% path for headings that fit the heading column (the body then shares the
+% line, so no gap below). Top-level headings get half a paragraph gap extra
+% above, following the 6.4 note that there is typically more space above
+% them than below.
+% The before skip is given negative so that \@startsection clears
+% \@afterindent: in run-in style (\parindent = one column) the paragraph
+% that opens a displayed heading's section stays flush, like the first
+% paragraph after any heading, while later paragraphs keep their indent.
+% The magnitude still sets the space above; the negative sign costs nothing
+% in block style, where \parindent is zero anyway.
 \newcommand{\sfs@displaysection}[3]{%
-  \@startsection{#1}{#2}{-\sfs@column}{#3}{1sp}{\sfs@sectfont}}
+  \@startsection{#1}{#2}{-\sfs@column}{-#3}{\sfs@gap}{\sfs@sectfont}}
 \ifsfs@norunin
   \newcommand{\sfs@makesection}[3]{%
     \@ifstar
@@ -427,16 +500,16 @@
       \sfs@displaysection{#1}{#2}{#3}[#4]{#5}%
     \fi}
 \fi
-\renewcommand{\section}{\sfs@makesection{section}{1}{.5\parskip}}
-\renewcommand{\subsection}{\sfs@makesection{subsection}{2}{1sp}}
-\renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}{1sp}}
+\renewcommand{\section}{\sfs@makesection{section}{1}{\sfs@secgap}}
+\renewcommand{\subsection}{\sfs@makesection{subsection}{2}{\sfs@gap}}
+\renewcommand{\subsubsection}{\sfs@makesection{subsubsection}{3}{\sfs@gap}}
 
 % The standard recommends at most three heading levels (6.4); article's
 % plain run-in \paragraph and \subparagraph would leave the heading
 % column's grid, so deeper levels degrade to unnumbered headings with the
 % same column-aware layout instead.
-\renewcommand{\paragraph}{\sfs@makesection{paragraph}{4}{1sp}}
-\renewcommand{\subparagraph}{\sfs@makesection{subparagraph}{5}{1sp}}
+\renewcommand{\paragraph}{\sfs@makesection{paragraph}{4}{\sfs@gap}}
+\renewcommand{\subparagraph}{\sfs@makesection{subparagraph}{5}{\sfs@gap}}
 
 % Unnumbered regular-weight label at the left margin ("Aika ja paikka"),
 % with the following content at the body indent — on the same line when
@@ -453,9 +526,14 @@
   \newcommand{\marginlabel}[1]{%
     \sfs@measurefit{\sfs@labelfont#1}%
     \ifsfs@runinfit
-      \@startsection{section}{6}{\z@}{1sp}{-1sp}{\sfs@runinlabelhd}*{#1}%
+      \@startsection{section}{6}{\z@}{\sfs@gap}{-1sp}{\sfs@runinlabelhd}*{#1}%
     \else
-      \@startsection{section}{6}{-\sfs@column}{1sp}{1sp}{\sfs@labelfont}*{#1}%
+      % A label too wide to share its line drops to a display heading; the
+      % negative before skip keeps the content below it flush at the body
+      % indent in run-in style, instead of taking the paragraph indent, while
+      % its magnitude still gives the gap above and the after skip the gap
+      % below.
+      \@startsection{section}{6}{-\sfs@column}{-\sfs@gap}{\sfs@gap}{\sfs@labelfont}*{#1}%
     \fi}
 \fi
 
@@ -474,15 +552,19 @@
 %
 
 % Electronic signature: the \esignaturestext lead-in sentence, then one
-% \esignee per signer.
+% \esignee per signer. Each signer starts flush at the body indent (not the
+% run-in paragraph indent) and is kept one paragraph gap apart from what
+% precedes it in either paragraph style — block style already has the gap in
+% \parskip, run-in style supplies it here.
 \newenvironment{esignatures}{%
   \par\esignaturestext
 }{\par}
-\newcommand{\esignee}[2]{\par #1\\#2}
+\newcommand{\esignee}[2]{%
+  \par\vspace{\dimexpr\sfs@pargap-\parskip\relax}\noindent #1\\#2}
 
 % Handwritten signature: reserve space (the standard allows 3-5 paragraph
 % gaps) above the printed "Name, role" line, given verbatim as in \esignee.
-\newcommand{\handsignature}[1]{\par\vspace{3\parskip}\noindent #1\par}
+\newcommand{\handsignature}[1]{\par\vspace{3\sfs@pargap}\noindent #1\par}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Attachments, distribution and for-information lists
@@ -494,7 +576,7 @@
 % starts a fresh page after \clearpage, so no special case is needed.
 \newif\ifsfs@endmatter
 \newcommand{\sfs@marginlist}[2]{%
-  \ifsfs@endmatter\else\vspace{\parskip}\global\sfs@endmattertrue\fi
+  \ifsfs@endmatter\else\vspace{\sfs@pargap}\global\sfs@endmattertrue\fi
   \marginlabel{#1}#2\par}
 \newcommand{\attachments}[1]{\sfs@marginlist{\attachmentsname}{#1}}
 \newcommand{\distribution}[1]{\sfs@marginlist{\distributionname}{#1}}
@@ -507,7 +589,7 @@
 % Separated from the preceding content by an extra paragraph gap, like the
 % end-matter lists; add \vspace for more, as in the standard's Liite A.
 \newcommand{\makecontactinfo}{%
-  \par\vspace{\parskip}%
+  \par\vspace{\sfs@pargap}%
   \noindent\hspace*{-\sfs@column}%
   \parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
     \textbf{\sfs@contactname}%
