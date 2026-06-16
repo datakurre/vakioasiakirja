@@ -58,6 +58,12 @@
       <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 6l12 12M18 6L6 18" />
       </symbol>
+      <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </symbol>
     </svg>
 
     <header>
@@ -121,11 +127,34 @@
         <button id="reset" type="button" class="iconbtn" title="Uusi esimerkki" aria-label="Uusi esimerkki">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
         </button>
+        <button id="share" type="button" class="iconbtn" hidden aria-pressed="false" title="Jaa esikatselu" aria-label="Jaa esikatselu">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share" /></svg>
+        </button>
         <button id="download" type="button" class="iconbtn" disabled title="Lataa PDF" aria-label="Lataa PDF">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
         </button>
       </div>
     </footer>
+
+    <!-- Broadcaster's sharing panel: the viewer link, a copy button, the live
+         viewer count and a stop control. Shown only while sharing. -->
+    <div id="share-panel" hidden role="dialog" aria-label="Jaettu esikatselu">
+      <p class="share-intro">Jaat esikatselua. Lähetä linkki katsojille:</p>
+      <div class="share-row">
+        <input id="share-url" type="text" readonly aria-label="Jakolinkki" />
+        <button id="share-copy" type="button" class="iconbtn" title="Kopioi linkki" aria-label="Kopioi linkki">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
+        </button>
+      </div>
+      <div class="share-foot">
+        <span>Katsojia: <strong id="share-count">0</strong></span>
+        <button id="share-stop" type="button" class="textbtn">Lopeta jako</button>
+      </div>
+    </div>
+
+    <!-- Viewer-mode banner: connection state for a read-only shared preview. -->
+    <div id="viewer-banner" hidden role="status"></div>
+
     <div id="toasts" role="region" aria-label="Ilmoitukset" aria-live="assertive"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

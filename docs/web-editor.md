@@ -240,3 +240,28 @@ serves the editor at
 [datakurre.github.io/vakioasiakirja/web/](https://datakurre.github.io/vakioasiakirja/web/).
 The existing `.github/workflows/docs.yml` runs `make docs`, so no
 workflow change is needed; the PR `smoke-test` workflow builds it too.
+
+## Sharing a live preview
+
+The editor can broadcast its live preview to many read-only viewers. The
+person editing clicks **Jaa** (Share); the editor mints a temporary room
+and shows a link of the form
+`…/web/#/watch/{roomId}`. Anyone who opens it sees a read-only
+view that re-renders on every edit — no account, no install, and the link
+stops working once the broadcaster stops sharing.
+
+Under the hood the broadcaster opens one **WebRTC** connection per viewer
+and sends a snapshot — the Markdown plus any uploaded logo — over a data
+channel; each viewer re-renders it with the same typst.ts pipeline. The
+data channels are DTLS-encrypted peer-to-peer, so **document content never
+reaches any server**. A small Cloudflare Worker + Durable Object
+(`signaling/`) does only the WebRTC handshake (SDP/ICE relaying) and
+reports the viewer count; it runs within Cloudflare's free plan. Viewers
+behind restrictive NATs are served by **Cloudflare TURN** when the Worker
+is configured with TURN credentials — otherwise connections fall back to
+STUN only and may fail on the strictest networks.
+
+Sharing is **off in the public build**: it appears only when the editor is
+built with `VITE_SIGNALING_URL` pointing at a deployed Worker. See
+[`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+for deploying the Worker and wiring the editor to it.

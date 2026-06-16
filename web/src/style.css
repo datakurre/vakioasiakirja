@@ -391,6 +391,99 @@ main {
   }
 }
 
+/* --- Live-preview sharing --- */
+/* The broadcaster's panel floats above the bottom bar; it mirrors the toast
+   placement so the two never fight for the same corner (toasts sit lower). */
+#share-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(3rem + env(safe-area-inset-bottom));
+  z-index: 1000;
+  width: min(24rem, 90vw);
+  background: #37474f;
+  color: #fff;
+  padding: 0.8rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+}
+
+.share-intro {
+  margin: 0 0 0.5rem;
+}
+
+.share-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+#share-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #607d8b;
+  border-radius: 0.25rem;
+  background: #263238;
+  color: #fff;
+}
+
+.share-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.6rem;
+}
+
+.textbtn {
+  appearance: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #fff;
+  background: #b71c1c;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.textbtn:hover {
+  background: #c62828;
+}
+
+.textbtn:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 1px;
+}
+
+/* Viewer mode: a status banner above the preview, and the editor chrome hidden
+   (a viewer only watches). */
+#viewer-banner {
+  flex: 0 0 auto;
+  order: -1; /* sit at the top of the body column, above the preview */
+  padding: 0.4rem 1rem;
+  background: #1565c0;
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+body.viewer #editor,
+body.viewer #divider,
+body.viewer #view-toggle,
+body.viewer #vim-label,
+body.viewer #vim-mode,
+body.viewer .bar-right,
+body.viewer #share-panel {
+  display: none !important;
+}
+
+body.viewer main {
+  grid-template-columns: 1fr;
+}
+
 /* --- Mobile / narrow screens --- */
 /* Two half-width panes are unusable on a phone, so collapse to a single column
    showing one pane at a time. The top header is dropped entirely and the bottom

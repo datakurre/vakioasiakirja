@@ -1,0 +1,23 @@
+# Cloudflare Worker that does WebRTC signaling for the editor's live-preview
+# sharing (web/src/share.ts). It relays SDP offers/answers and ICE candidates
+# between a broadcaster and its viewers and mints short-lived TURN credentials;
+# document content travels peer-to-peer and never reaches this Worker.
+#
+# Deploy:  cd signaling && npx wrangler deploy
+# TURN (optional, for restrictive NATs):
+#   npx wrangler secret put TURN_KEY_ID
+#   npx wrangler secret put TURN_API_TOKEN
+
+name = "broadcast-signaling"
+main = "src/index.ts"
+compatibility_date = "2026-06-15"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed Durable Object class — the form required to use Durable Objects
+# on the Workers free plan. State here is in-memory only; SQLite is unused.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

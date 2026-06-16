@@ -38,6 +38,11 @@
           src = ./web;
           npmDepsHash = "sha256-ES1ZxkVXxfDkQq4+KRznM2CBrEm1eHsqCVCnbcBKWm8=";
           VITE_BASE = "./";
+          # Base URL of the WebRTC signaling Worker (see signaling/) that powers
+          # live-preview sharing. Empty by default, which hides the "Jaa" button
+          # and leaves the public build unchanged; override to wire a deployed
+          # Worker, e.g. `VITE_SIGNALING_URL=https://… nix build .#web`.
+          VITE_SIGNALING_URL = builtins.getEnv "VITE_SIGNALING_URL";
           installPhase = ''
             runHook preInstall
             cp -r dist $out
