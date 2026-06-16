@@ -42,6 +42,73 @@ make help                               # Show all targets
 
 PDFs depend on `sfs-2487-2024.cls`, so editing the class triggers rebuilds.
 
+### Verifying output against the spec (all three pipelines)
+
+The class is the reference implementation; the markdown→LaTeX (pandoc) and
+markdown→typst (`web/`) pipelines must reproduce its layout. Tools come from
+nix ad-hoc (`nix shell --inputs-from . nixpkgs#<pkg>`), so nothing needs to be
+in `devenv.nix`.
+
+**Reading the spec PDF.** `pdftotext -layout SFS-2487-2024.pdf -` puts the body
+text in a deep right-hand column and repeats an SFS Online watermark on every
+page; strip it before reading clause text:
+
+```bash
+nix shell nixpkgs#poppler-utils --command pdftotext -layout SFS-2487-2024.pdf - \
+  | grep -viE 'Lataaja|kirjasto käyttöön|ladattu SFS Online' | sed -E 's/^ +//'
+```
+
+The authoritative numbers (clauses 6.4.2–6.4.3, 5.2, Taulukko 2): left & bottom
+margin 2 cm, other margins ≥ 1 cm, basic column 2,3 cm, body text 2,3 cm from
+the left margin (max line width 15,7 cm), basic metadata 9,2 cm from the left
+margin, body font 11–12 pt, line spacing 1,1–1,2, paragraph gap ≥ 10 pt, main
+title bold and 2–4 pt larger than body. Metadata order: doctype (bold), date,
+docid, confidentiality.
+
+**Measuring a PDF.** `pdftotext -bbox` emits per-*word* boxes (x-positions);
+`mutool draw -F stext` (nixpkgs#mupdf-headless) emits per-*line* boxes plus font
+name and size. Useful one-liners:
+
+```bash
+# x-grid tally — expect 56.69 pt (20 mm margin), 121.9 pt (43 mm body),
+# 317.5 pt (112 mm metadata):
+pdftotext -bbox -f 1 -l 1 file.pdf - | grep -oE 'xMin="[0-9.]+"' \
+  | sort -t'"' -k2 -n | uniq -c | sort -rn | head
+# font name + size per run (body 10.9091 pt = the 11pt class's \@xipt; title +3pt):
+mutool draw -F stext -o - file.pdf | grep -oE 'font name="[^"]+" size="[0-9.]+"' \
+  | sort | uniq -c | sort -rn
+# line-baseline deltas — within-paragraph leading ≈ 13.15 pt, paragraph gap
+# adds ≈ 11.6 pt on top (≈ 24.75 pt baseline-to-baseline):
+mutool draw -F stext -o - file.pdf | grep -oE '<line bbox="[0-9.]+ [0-9.]+' \
+  | sed -E 's/<line bbox=.[0-9.]+ //' \
+  | awk '{if(p!=""){d=$1-p; if(d>0)printf "%.1f d=%.2f\n",$1,d}; p=$1}'
+```
+
+**Compiling the typst pipeline outside the browser.** The web editor runs
+typst.ts in-browser, but the same `.typ` compiles with the nix `typst` CLI for
+measurement. Convert markdown with the shared porter, then compile against the
+class's root and the bundled metric-compatible fonts:
+
+```bash
+( cd web && nix shell --inputs-from .. nixpkgs#nodejs --command npm install )  # once
+cd web && nix shell --inputs-from .. nixpkgs#nodejs --command \
+  node --experimental-strip-types scripts/convert.ts ../examples/markdown/esimerkki-X.md \
+  > src/_tmp.typ
+nix shell --inputs-from .. nixpkgs#typst --command typst compile \
+  --root src --font-path public/fonts src/_tmp.typ /tmp/X-typst.pdf
+rm src/_tmp.typ   # keep the temp out of web/src
+```
+
+`convert.ts` imports the markdown deps, so `npm install` in `web/` is required
+first. The CLI `typst` (≈ 0.14) is a newer engine than the pinned
+`@myriaddreamin/typst.ts` (0.7.0-rc2 ≈ typst 0.13) the editor ships, but layout
+metrics match closely enough for the position/size checks above. The bundled
+`web/public/fonts/texgyre*.otf` are the metric-compatible stand-ins (Heros↔
+Helvetica, Pagella↔Palatino, Cursor↔Courier) the typst module names, so feeding
+them via `--font-path` reproduces the editor's spacing. Note the frontmatter
+`logo:` path is *not* read in the browser pipeline (logos are uploaded), so a
+CLI/LaTeX comparison of a logo document differs in the logo area only.
+
 ### CTAN Packaging
 
 The class is packaged for CTAN with **l3build** (configured in `build.lua`): `l3build ctan` builds the release zips, `l3build tag <version>` syncs the version/date strings across the class and its documentation. See `.claude/skills/latex-packaging.md` for the full release workflow.

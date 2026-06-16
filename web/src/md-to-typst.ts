@@ -89,17 +89,18 @@ function frontmatterToArgs(meta: Record<string, unknown>, opts: ConvertOptions):
   // Class options.
   if (meta.font != null) args.push(`font: ${str(String(meta.font))}`);
   if (meta.fontsize != null) args.push(`fontsize: ${String(meta.fontsize).replace(/pt$/, "")}pt`);
-  // features: [agenda, toc, endmatter-newpage, runin] with a `no-` prefix to
-  // disable; runin defaults on (only the `no-runin` opt-out is meaningful).
+  // features: [agenda, toc, endmatter-newpage, runin, gap] with a `no-` prefix
+  // to disable; runin and gap default on (only the `no-runin` / `no-gap`
+  // opt-outs are meaningful — no-gap switches to the compact run-on style).
   const features = parseFeatures(meta);
-  for (const f of ["agenda", "toc", "endmatter-newpage", "runin"] as const) {
+  for (const f of ["agenda", "toc", "endmatter-newpage", "runin", "gap"] as const) {
     args.push(`${f}: ${features[f] ? "true" : "false"}`);
   }
   return args.join(",\n  ");
 }
 
 function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
-  const names = ["agenda", "toc", "endmatter-newpage", "runin"];
+  const names = ["agenda", "toc", "endmatter-newpage", "runin", "gap"];
   for (const n of names) {
     if (meta[n] != null) {
       throw new ConversionError(
@@ -115,7 +116,7 @@ function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
     const name = off ? token.slice(3) : token;
     if (!names.includes(name)) {
       throw new ConversionError(
-        `sfs-2487-2024: tuntematon ominaisuus (unknown feature) '${token}' — tuetut (supported): agenda, toc, endmatter-newpage`,
+        `sfs-2487-2024: tuntematon ominaisuus (unknown feature) '${token}' — tuetut (supported): agenda, toc, endmatter-newpage, runin, gap`,
       );
     }
     out[name] = !off;
@@ -124,6 +125,7 @@ function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
     out["endmatter-newpage"] = meta.attachments != null || meta.distribution != null || meta.forinformation != null;
   }
   if (out["runin"] === undefined) out["runin"] = true;
+  if (out["gap"] === undefined) out["gap"] = true;
   return out;
 }
 
