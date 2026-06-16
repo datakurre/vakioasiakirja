@@ -143,12 +143,20 @@
   let metadata-block = {
     if logo != none {
       // Hang the logo in the 20 mm margin, capped at logo-max-height: scale
-      // down only when taller than the cap, never up (cls \logomaxheight).
+      // down only when taller than the cap, never up (cls \logomaxheight). The
+      // logo is wrapped in a scaled box so it carries an explicit size; a
+      // natural-size image placed inside the header otherwise fails to lay out
+      // (typst 0.13/0.14) and renders blank.
       place(top + left, dx: -column, dy: header-top, context {
-        if measure(logo).height > logo-max-height {
-          box(height: logo-max-height, logo)
+        let h = measure(logo).height
+        if h > logo-max-height {
+          // Oversized: scale down to the cap (scale carries an explicit size).
+          let f = logo-max-height / h
+          box(scale(logo, x: f * 100%, y: f * 100%, origin: top + left, reflow: true))
         } else {
-          logo
+          // A bare natural-size image placed in the header renders blank; an
+          // explicit box height makes it lay out.
+          box(height: h, logo)
         }
       })
     } else if contact != none and contact.at("name", default: "") != "" {

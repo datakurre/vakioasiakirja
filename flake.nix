@@ -57,6 +57,55 @@
             $out/pandoc/sfs-2487-2024.lua
         '';
 
+        # Logo and figure PDFs built from the TikZ sources in examples/. The
+        # LaTeX examples \includegraphics them; the typst examples embed the
+        # same PDFs, so both sides show an identical logo.
+        exampleLogos = pkgs.runCommandLocal "sfs-2487-2024-example-logos"
+          { nativeBuildInputs = [ texliveEnv ]; } ''
+            export HOME=$TMPDIR
+            mkdir -p $out build && cd build
+            for tex in ${./examples}/logo-*.tex; do
+              cp "$tex" .
+              latexmk -pdf -interaction=nonstopmode "$(basename "$tex")" >/dev/null
+              cp "$(basename "$tex" .tex).pdf" $out/
+            done
+          '';
+
+        # The example documents rendered through the markdown→typst pipeline
+        # (web/), one PDF each, for side-by-side comparison with the LaTeX and
+        # pandoc outputs in the docs site. buildNpmPackage supplies the porter's
+        # node_modules reproducibly; the logo PDFs are laid out one directory
+        # above the generated .typ files so the markdown's ../logo-*.pdf paths
+        # resolve, and typst embeds them directly (CLI ≥ 0.13).
+        examplesTypst = pkgs.buildNpmPackage {
+          pname = "sfs-2487-2024-examples-typst";
+          version = "2.0";
+          src = ./web;
+          inherit (web) npmDepsHash;
+          nativeBuildInputs = [ pkgs.typst ];
+          dontNpmBuild = true;
+          installPhase = ''
+            runHook preInstall
+            export HOME=$TMPDIR
+            work=$TMPDIR/typst
+            mkdir -p "$work/markdown" "$out"
+            cp src/sfs-2487-2024.typ "$work/sfs-2487-2024.typ"
+            cp ${exampleLogos}/*.pdf "$work/"
+            for md in ${./examples}/markdown/esimerkki-*.md; do
+              base=$(basename "$md" .md)
+              logo=$(sed -n 's/^logo:[[:space:]]*//p' "$md" | head -n1)
+              logoarg=()
+              [ -n "$logo" ] && logoarg=(--logo "$logo")
+              node --experimental-strip-types scripts/convert.ts "$md" "''${logoarg[@]}" \
+                > "$work/markdown/$base.typ"
+              typst compile --root "$work" --ignore-system-fonts \
+                --font-path "$PWD/public/fonts" \
+                "$work/markdown/$base.typ" "$out/$base.pdf"
+            done
+            runHook postInstall
+          '';
+        };
+
         default = pkgs.writeShellApplication {
           name = "vakioasiakirja";
           # librsvg's rsvg-convert turns SVG logos and images into PDFs
