@@ -2,7 +2,8 @@
 # Markdown-versio ../latex/esimerkki-raportti.tex-asiakirjasta:
 # monisivuinen raportti, jossa on sisällysluettelo heti pääotsikon
 # jälkeen (6.10), taulukko kuvatekstillä taulukon yläpuolella (6.5.1),
-# alaviite (6.9) ja kolme otsikkotasoa (6.4).
+# alaviite (6.9) ja kolme otsikkotasoa (6.4). Lisäksi korostuksia
+# (**lihava**, $matematiikka$) ja sisennetty lainaus (> ...).
 doctype: Raportti
 date: 31.5.2024
 modified: 5.6.2024
@@ -41,9 +42,10 @@ kaikille uutiskirjeen tilaajille.
 
 ## Vastaajamäärät kanavittain
 
-Palautetta kerättiin kolmessa kanavassa. Suurin osa vastauksista
-saatiin verkkolomakkeella, mutta myös puhelinpalvelun ja
-asiakastapaamisten kautta kirjattiin palautetta.
+Palautetta kerättiin kolmessa kanavassa, ja kyselyyn vastasi yhteensä
+$n = 412$ asiakasta. Suurin osa vastauksista saatiin
+verkkolomakkeella, mutta myös puhelinpalvelun ja asiakastapaamisten
+kautta kirjattiin palautetta.
 
 : Vastaukset palautekanavittain
 
@@ -57,11 +59,16 @@ asiakastapaamisten kautta kirjattiin palautetta.
 
 ### Verkkosivuston käytettävyys
 
-Selvästi yleisin kehitystoive koski verkkosivuston etusivua:
+Selvästi yleisin kehitystoive koski **verkkosivuston etusivua**:
 yhteystietoja ja ajankohtaisia tiedotteita pidettiin vaikeasti
 löydettävinä. Tuotehinnaston päivitystiheys sai kritiikkiä, ja
 vastaajista valtaosa toivoi hinnaston päivittämistä vähintään
 kahdesti kuukaudessa.
+
+Eräs vastaaja tiivisti yleisen toiveen näin:
+
+> Yhteystiedot ja ajankohtaiset tiedotteet pitäisi löytyä heti
+> etusivulta ilman valikkojen selailua.
 
 ### Asiakaspalvelun tavoitettavuus
 
