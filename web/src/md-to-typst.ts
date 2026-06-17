@@ -287,13 +287,20 @@ function list(tokens: Token[], cur: Cursor, close: string): string {
   while (cur.i < tokens.length && tokens[cur.i].type !== close) {
     if (tokens[cur.i].type === "list_item_open") {
       cur.i++;
-      items.push(blocks(tokens, cur, "list_item_close").trim());
+      items.push(tightenNestedLists(blocks(tokens, cur, "list_item_close").trim()));
       cur.i++; // list_item_close
     } else cur.i++;
   }
   cur.i++; // list_close
   const marker = ordered ? "+ " : "- ";
   return items.map((it) => marker + it.replace(/\n/g, "\n  ")).join("\n") + "\n\n";
+}
+
+function tightenNestedLists(item: string): string {
+  // Typst decides markup-list tightness from blank lines. A Markdown list item
+  // whose paragraph is immediately followed by a nested list should therefore
+  // become `text:\n- child`, not `text:\n\n- child`.
+  return item.replace(/\n{2,}(?=[+-] )/g, "\n");
 }
 
 // True if the next meaningful block token (from index j) opens a table.
