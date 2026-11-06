@@ -114,7 +114,7 @@ keyboard), so the Vim gate uses two complementary signals:
   hover means a mouse/trackpad, which implies a keyboard setup (desktops,
   laptops, an iPad with a trackpad keyboard). This reveals the control with no
   flash and no JavaScript.
-- A **runtime heuristic** (`src/main.ts`): a `keydown` for a key an on-screen
+- A **runtime heuristic** (`src/editor.ts`): a `keydown` for a key an on-screen
   keyboard rarely emits — Tab, Escape, an arrow, a function key, or a
   Ctrl/Alt/Meta combo — adds `body.keyboard` and enables Vim. This catches the
   case the media query misses: a tablet with a Bluetooth keyboard, which
@@ -202,7 +202,7 @@ viewport shows both panes with the switch hidden.
 
 That smoke test caught one real issue the CLI could not: by default typst.ts
 fetches its built-in fonts from a CDN (jsdelivr), which breaks offline /
-self-contained use. `web/src/main.ts` passes `preloadRemoteFonts(FONTS,
+self-contained use. `web/src/preview.ts` passes `preloadRemoteFonts(FONTS,
 { assets: false })` so only the bundled TeX Gyre faces are used and nothing is
 fetched from the network.
 
@@ -211,7 +211,7 @@ fetched from the network.
 The committed Markdown examples carry a `logo:` frontmatter key pointing at a
 file (`logo: ../logo-organisaatio.pdf`), but the browser has no filesystem
 access, so that path is ignored here. Instead the editor's **Logo** control
-uploads an image (PNG, JPEG or SVG): `src/main.ts` reads the file into a
+uploads an image (PNG, JPEG or SVG): `src/editor.ts` reads the file into a
 `Uint8Array` and registers it in typst.ts's shadow virtual filesystem with
 `$typst.mapShadow("/logo.<ext>", bytes)`, and the converter emits
 `logo: image("/logo.<ext>")` into the `sfs-document(...)` call. The template

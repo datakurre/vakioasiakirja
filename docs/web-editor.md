@@ -247,3 +247,39 @@ serves the editor at
 [datakurre.github.io/vakioasiakirja/web/](https://datakurre.github.io/vakioasiakirja/web/).
 The existing `.github/workflows/docs.yml` runs `make docs`, so no
 workflow change is needed; the PR `smoke-test` workflow builds it too.
+
+## Sharing a live preview
+
+The editor can broadcast its live preview to many read-only viewers. The
+person editing clicks **Jaa** (Share); the editor mints a temporary room
+and shows a link of the form
+`…/web/#/watch/{roomId}`. Anyone who opens it sees a read-only
+view that re-renders on every edit — no account, no install, and the link
+stops working once the broadcaster stops sharing.
+
+Under the hood the broadcaster opens one **WebRTC** connection per viewer
+and sends a snapshot — the Markdown plus any uploaded logo — over a data
+channel; each viewer re-renders it with the same typst.ts pipeline. The
+data channels are DTLS-encrypted peer-to-peer, so **document content never
+reaches any server**. A Cloudflare Worker + SQLite-backed Durable Object
+(`signaling/`) handles only WebRTC signaling (SDP/ICE relaying) and reports the
+viewer count. It is sized for the Workers Free daily allowances, but exceeding
+an allowance causes further operations of that type to fail; each room alarm
+counts as one SQLite row written. See [`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+for current limits and deployment details.
+
+Cloudflare Realtime TURN is an optional managed relay for restrictive NATs.
+It does not require Realtime SFU: Cloudflare's self-serve TURN service has a
+1,000 GB free tier, then costs $0.05 per real-time GB sent from Cloudflare to
+the TURN client. This editor uses peer-to-peer WebRTC, not the SFU. The
+signaling Worker must be configured with a TURN key to request short-lived
+credentials, but its current credential-generation handler still needs updating
+to Cloudflare's documented endpoint and response format before TURN can be
+relied on. Until then, connections use STUN and may fail on the strictest
+networks; see the signaling README's implementation caveat and Cloudflare's
+[TURN pricing FAQ](https://developers.cloudflare.com/realtime/turn/faq/).
+
+Sharing is **off in the public build**: it appears only when the editor is
+built with `VITE_SIGNALING_URL` pointing at a deployed Worker. See
+[`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+for deploying the Worker and wiring the editor to it.
