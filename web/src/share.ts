@@ -37,14 +37,18 @@ function roomWsUrl(roomId: string, role: "broadcaster" | "viewer"): string {
 // Short-lived ICE configuration (STUN + optional Cloudflare TURN). Fetched once
 // per session; falls back to STUN-only if the Worker is unreachable.
 export async function getIceConfig(): Promise<RTCConfiguration> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 5000);
   try {
-    const res = await fetch(`${SIGNALING_URL}/turn-credentials`);
+    const res = await fetch(`${SIGNALING_URL}/turn-credentials`, { signal: controller.signal });
     if (res.ok) {
       const data = (await res.json()) as { iceServers?: RTCIceServer[] };
       if (data.iceServers?.length) return { iceServers: data.iceServers };
     }
   } catch {
     /* offline or no TURN configured: STUN only */
+  } finally {
+    window.clearTimeout(timeout);
   }
   return { iceServers: DEFAULT_ICE };
 }
@@ -80,6 +84,8 @@ export class Broadcaster {
   private iceConfig: RTCConfiguration = { iceServers: DEFAULT_ICE };
   private snapshot?: Snapshot;
   private stopped = false;
+  private opened = false;
+  private rejectConnect?: (error: Error) => void;
 
   constructor(
     private readonly onViewers: (count: number) => void,
@@ -95,7 +101,9 @@ export class Broadcaster {
 
   async start(): Promise<void> {
     this.iceConfig = await getIceConfig();
-    this.connect();
+    if (this.stopped) return;
+    await this.connect();
+    if (this.stopped) return;
     // Best-effort tidy close so viewers learn the broadcast ended on tab close.
     window.addEventListener("beforeunload", this.beforeUnload);
   }
@@ -108,12 +116,51 @@ export class Broadcaster {
     }
   };
 
-  private connect() {
+  private connect(): Promise<void> {
     const ws = new WebSocket(roomWsUrl(this.roomId, "broadcaster"));
     this.ws = ws;
-    ws.addEventListener("message", (e) => this.onSignal(JSON.parse(e.data) as Signal));
-    ws.addEventListener("error", () => {
-      if (!this.stopped) this.onError("Jakopalveluun ei saatu yhteyttä.");
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        this.rejectConnect = undefined;
+        if (error) reject(error);
+        else resolve();
+      };
+      const fail = () => {
+        if (this.stopped || this.ws !== ws) return;
+        if (!this.opened) {
+          finish(new Error("Jakopalveluun ei saatu yhteyttä."));
+          ws.close();
+          return;
+        }
+        // WebSocket error is commonly followed by close. stop() makes this
+        // terminal transition idempotent so the UI is notified only once.
+        this.stop();
+        this.onError("Yhteys jakopalveluun katkesi. Jako lopetettiin.");
+      };
+      const timeout = window.setTimeout(() => {
+        if (!this.opened) {
+          finish(new Error("Jakopalveluun ei saatu yhteyttä."));
+          ws.close();
+        }
+      }, 15000);
+
+      this.rejectConnect = (error) => finish(error);
+      ws.addEventListener("open", () => {
+        if (this.stopped || this.ws !== ws) {
+          finish(new Error("Jako peruttiin."));
+          ws.close();
+          return;
+        }
+        this.opened = true;
+        finish();
+      });
+      ws.addEventListener("message", (e) => this.onSignal(JSON.parse(e.data) as Signal));
+      ws.addEventListener("error", fail);
+      ws.addEventListener("close", fail);
     });
   }
 
@@ -186,12 +233,21 @@ export class Broadcaster {
   }
 
   private send(msg: Signal) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(msg));
+      } catch {
+        /* the socket may close between the readyState check and send */
+      }
+    }
   }
 
   stop(): void {
+    if (this.stopped) return;
     this.stopped = true;
     window.removeEventListener("beforeunload", this.beforeUnload);
+    this.rejectConnect?.(new Error("Jako peruttiin."));
+    this.rejectConnect = undefined;
     this.send({ type: "close" });
     for (const id of [...this.pcs.keys()]) this.dropViewer(id);
     this.ws?.close();

@@ -139,17 +139,22 @@
     </footer>
 
     <!-- Broadcaster's sharing panel: the viewer link, a copy button, the live
-         viewer count and a stop control. Shown only while sharing. -->
-    <div id="share-panel" hidden role="dialog" aria-label="Jaettu esikatselu">
-      <p class="share-intro">Jaat esikatselua. Lähetä linkki katsojille:</p>
-      <div class="share-row">
+         viewer count and explicit close/stop controls. -->
+    <div id="share-panel" hidden role="region" aria-label="Jaetun esikatselun hallinta">
+      <div class="share-header">
+        <p id="share-status" class="share-intro" role="status" aria-live="polite"></p>
+        <button id="share-close" type="button" class="iconbtn" title="Sulje jakamisen tiedot" aria-label="Sulje jakamisen tiedot">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div id="share-row" class="share-row" hidden>
         <input id="share-url" type="text" readonly aria-label="Jakolinkki" />
         <button id="share-copy" type="button" class="iconbtn" title="Kopioi linkki" aria-label="Kopioi linkki">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
         </button>
       </div>
       <div class="share-foot">
-        <span>Katsojia: <strong id="share-count">0</strong></span>
+        <span id="share-viewers" hidden>Katsojia: <strong id="share-count">0</strong></span>
         <button id="share-stop" type="button" class="textbtn">Lopeta jako</button>
       </div>
     </div>

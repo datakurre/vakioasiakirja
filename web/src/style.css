@@ -469,7 +469,33 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .share-intro {
-  margin: 0 0 0.5rem;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.share-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+#share[aria-pressed="true"] {
+  position: relative;
+  color: #a5f0c4;
+}
+
+#share[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  top: 0.12rem;
+  right: 0.12rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 1px solid #263238;
+  border-radius: 50%;
+  background: #69f0ae;
+  pointer-events: none;
 }
 
 .share-row {
@@ -495,6 +521,10 @@ body.keyboard #vim-mode:not([hidden]) {
   align-items: center;
   justify-content: space-between;
   margin-top: 0.6rem;
+}
+
+#share-stop {
+  margin-left: auto;
 }
 
 .textbtn {
@@ -550,6 +580,11 @@ body.viewer main {
    bar — with the Muokkaa / Esikatselu switch — becomes the only chrome, for a
    focused, app-like feel (especially when installed as a standalone PWA). */
 @media (max-width: 700px) {
+  /* Clear the touch toolbar (including a wrapped two-row layout) and its safe area. */
+  #share-panel {
+    bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
   header {
     display: none;
   }

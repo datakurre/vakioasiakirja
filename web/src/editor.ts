@@ -32,6 +32,10 @@ export function initEditor() {
   const showPreviewEl = document.getElementById("show-preview") as HTMLButtonElement;
   const shareEl = document.getElementById("share") as HTMLButtonElement;
   const sharePanelEl = document.getElementById("share-panel")!;
+  const shareCloseEl = document.getElementById("share-close") as HTMLButtonElement;
+  const shareStatusEl = document.getElementById("share-status")!;
+  const shareRowEl = document.getElementById("share-row")!;
+  const shareViewersEl = document.getElementById("share-viewers")!;
   const shareUrlEl = document.getElementById("share-url") as HTMLInputElement;
   const shareCopyEl = document.getElementById("share-copy") as HTMLButtonElement;
   const shareStopEl = document.getElementById("share-stop") as HTMLButtonElement;
@@ -127,6 +131,50 @@ export function initEditor() {
 
   // --- live-preview sharing ("Jaa") ---
   let broadcaster: Broadcaster | undefined;
+  let shareState: "idle" | "starting" | "active" = "idle";
+
+  function syncShareControls() {
+    const active = shareState === "active";
+    const open = !sharePanelEl.hidden;
+    shareEl.setAttribute("aria-pressed", String(active));
+    if (shareState === "idle") {
+      shareEl.removeAttribute("aria-expanded");
+      shareEl.removeAttribute("aria-controls");
+    } else {
+      shareEl.setAttribute("aria-expanded", String(open));
+      shareEl.setAttribute("aria-controls", "share-panel");
+    }
+    shareEl.title = shareState === "idle"
+      ? "Jaa esikatselu"
+      : open ? "Piilota jakamisen tiedot" : "Näytä jakamisen tiedot";
+  }
+
+  function openSharePanel() {
+    if (!broadcaster) return;
+    sharePanelEl.hidden = false;
+    if (shareState === "starting") {
+      shareStatusEl.textContent = "Muodostetaan yhteyttä jakopalveluun…";
+    }
+    syncShareControls();
+  }
+
+  function closeSharePanel() {
+    const focusWasInPanel = sharePanelEl.contains(document.activeElement);
+    sharePanelEl.hidden = true;
+    syncShareControls();
+    if (focusWasInPanel) shareEl.focus();
+  }
+
+  function resetSharePanel() {
+    sharePanelEl.hidden = true;
+    shareStatusEl.textContent = "";
+    shareRowEl.hidden = true;
+    shareViewersEl.hidden = true;
+    shareUrlEl.value = "";
+    shareCountEl.textContent = "0";
+    shareStopEl.textContent = "Lopeta jako";
+    syncShareControls();
+  }
 
   // The snapshot pushed to viewers: the document plus the uploaded logo bytes,
   // so a viewer reproduces the preview with the same render() pipeline.
@@ -141,39 +189,75 @@ export function initEditor() {
 
   async function startSharing() {
     if (broadcaster) return;
-    const bc = new Broadcaster(
-      (count) => { shareCountEl.textContent = String(count); },
-      (message) => fail(message),
-    );
-    broadcaster = bc;
-    shareEl.setAttribute("aria-pressed", "true");
-    shareCountEl.textContent = "0";
+    let bc: Broadcaster | undefined;
     try {
+      bc = new Broadcaster(
+        (count) => { shareCountEl.textContent = String(count); },
+        (message) => {
+          if (broadcaster === bc) {
+            stopSharing();
+            fail(message);
+          }
+        },
+      );
+      broadcaster = bc;
+      shareState = "starting";
+      shareRowEl.hidden = true;
+      shareViewersEl.hidden = true;
+      shareStopEl.textContent = "Peruuta aloitus";
+      openSharePanel();
       await bc.start();
-      bc.push(snapshot());
+      // The user may have explicitly stopped the share while startup awaited
+      // signaling setup. Do not revive a stopped session or overwrite a new one.
+      if (broadcaster !== bc) {
+        bc.stop();
+        return;
+      }
+      shareState = "active";
+      shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
       shareUrlEl.value = bc.watchUrl();
-      sharePanelEl.hidden = false;
+      shareRowEl.hidden = false;
+      shareViewersEl.hidden = false;
+      shareStopEl.textContent = "Lopeta jako";
+      bc.push(snapshot());
+      syncShareControls();
     } catch (e) {
-      fail(String(e));
-      stopSharing();
+      bc?.stop();
+      if (!bc || broadcaster === bc) {
+        stopSharing();
+        fail(e instanceof Error ? e.message : String(e));
+      }
     }
   }
 
   function stopSharing() {
-    broadcaster?.stop();
+    const focusWasInPanel = sharePanelEl.contains(document.activeElement);
+    const bc = broadcaster;
     broadcaster = undefined;
-    shareEl.setAttribute("aria-pressed", "false");
-    sharePanelEl.hidden = true;
+    shareState = "idle";
+    bc?.stop();
+    resetSharePanel();
+    if (focusWasInPanel) shareEl.focus();
   }
 
   if (shareEl) {
     if (isSharingEnabled()) {
       shareEl.hidden = false;
       shareEl.addEventListener("click", () => {
-        if (broadcaster) stopSharing();
-        else startSharing();
+        if (!broadcaster) void startSharing();
+        else if (sharePanelEl.hidden) openSharePanel();
+        else closeSharePanel();
       });
-      shareStopEl.addEventListener("click", stopSharing);
+      shareCloseEl.addEventListener("click", () => closeSharePanel());
+      shareStopEl.addEventListener("click", () => stopSharing());
+      document.addEventListener("keydown", (event) => {
+        const focusInPanel = sharePanelEl.contains(document.activeElement);
+        const focusOnToggle = document.activeElement === shareEl;
+        if (event.key === "Escape" && !sharePanelEl.hidden && (focusInPanel || focusOnToggle)) {
+          event.preventDefault();
+          closeSharePanel();
+        }
+      });
       shareCopyEl.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(shareUrlEl.value);
