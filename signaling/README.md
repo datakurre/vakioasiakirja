@@ -20,8 +20,8 @@ the idle-room timeout. Each `setAlarm()` counts as one row written.
 
 - `wss://<worker-host>/room/{roomId}?role=broadcaster|viewer` — signaling socket.
 - `GET https://<worker-host>/turn-credentials` — JSON with an `iceServers` array.
-  STUN is always included; Cloudflare TURN is attempted when secrets are
-  configured (see the implementation caveat below).
+  Google STUN is always included; Cloudflare Realtime TURN servers are added
+  when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
 
 ## Deploy
 
@@ -81,14 +81,11 @@ npx wrangler secret put TURN_API_TOKEN
 Each `wrangler secret put` also creates and deploys a new Worker version, so no
 separate `wrangler deploy` is needed afterwards.
 
-**Current implementation caveat:** Cloudflare's current
-[credential guide](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
-uses `POST /v1/turn/keys/{id}/credentials/generate-ice-servers` and returns an
-`iceServers` array. `src/index.ts` still calls the older `/credentials/generate`
-endpoint and expects a single server object. As a result, configuring these
-secrets may still leave the Worker returning STUN only; update that handler to
-Cloudflare's current endpoint and response shape before relying on TURN. Without
-valid TURN credentials, viewers behind restrictive NATs may fail to connect.
+The Worker uses Cloudflare's current
+[credential endpoint](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
+to request short-lived ICE server credentials. If either secret is missing or
+the request fails, the endpoint logs a warning and returns Google STUN only;
+viewers behind restrictive NATs may then fail to connect.
 Cloudflare Realtime TURN does not require using Realtime SFU. The self-serve
 TURN service has a 1,000 GB free tier, then costs $0.05 per real-time GB sent
 from Cloudflare to the TURN client. Traffic between TURN and Realtime SFU or

@@ -271,13 +271,12 @@ for current limits and deployment details.
 Cloudflare Realtime TURN is an optional managed relay for restrictive NATs.
 It does not require Realtime SFU: Cloudflare's self-serve TURN service has a
 1,000 GB free tier, then costs $0.05 per real-time GB sent from Cloudflare to
-the TURN client. This editor uses peer-to-peer WebRTC, not the SFU. The
-signaling Worker must be configured with a TURN key to request short-lived
-credentials, but its current credential-generation handler still needs updating
-to Cloudflare's documented endpoint and response format before TURN can be
-relied on. Until then, connections use STUN and may fail on the strictest
-networks; see the signaling README's implementation caveat and Cloudflare's
-[TURN pricing FAQ](https://developers.cloudflare.com/realtime/turn/faq/).
+the TURN client. This editor uses peer-to-peer WebRTC, not the SFU. When
+configured with a TURN key, the signaling Worker requests short-lived ICE
+server credentials from Cloudflare and includes them in WebRTC negotiation.
+Without valid TURN credentials, connections use STUN only and may fail on the
+strictest networks. See the [signaling README](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+for setup and Cloudflare's [TURN pricing FAQ](https://developers.cloudflare.com/realtime/turn/faq/).
 
 Sharing is **off in the public build**: it appears only when the editor is
 built with `VITE_SIGNALING_URL` pointing at a deployed Worker. See

@@ -48,7 +48,7 @@ async function turnCredentials(env: Env): Promise<Response> {
   if (env.TURN_KEY_ID && env.TURN_API_TOKEN) {
     try {
       const res = await fetch(
-        `https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate`,
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/generate-ice-servers`,
         {
           method: "POST",
           headers: {
@@ -59,11 +59,17 @@ async function turnCredentials(env: Env): Promise<Response> {
         },
       );
       if (res.ok) {
-        const data = (await res.json()) as { iceServers?: IceServer };
-        if (data.iceServers) iceServers.push(data.iceServers);
+        const data = (await res.json()) as { iceServers?: IceServer[] };
+        if (Array.isArray(data.iceServers)) {
+          iceServers.push(...data.iceServers);
+        } else {
+          console.warn("Cloudflare TURN response did not contain an iceServers array");
+        }
+      } else {
+        console.warn(`Cloudflare TURN credential request failed (${res.status})`);
       }
-    } catch {
-      /* unreachable TURN API: fall back to STUN only */
+    } catch (error) {
+      console.warn("Cloudflare TURN credential request failed", error);
     }
   }
 
