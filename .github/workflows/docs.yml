@@ -18,6 +18,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +31,8 @@ jobs:
       # into docs/pdf/ and runs mkdocs; latexmk comes from the flake's
       # texliveEnv and mkdocs from its docsEnv.
       - name: Build documentation site
+        env:
+          VITE_SIGNALING_URL: ${{ vars.VITE_SIGNALING_URL }}
         run: nix shell .#texliveEnv --command make docs
 
       - uses: actions/configure-pages@v5
