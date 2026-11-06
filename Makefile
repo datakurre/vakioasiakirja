@@ -52,7 +52,7 @@ docs: examples markdown  ## Build the documentation site into site/
 	@# Place the browser editor under site/web/ so Pages serves it at
 	@# <site>/web/ (e.g. datakurre.github.io/vakioasiakirja/web/). Done after
 	@# mkdocs, which cleans site/; the bundle's relative base works at any path.
-	@nix build .#web
+	@nix build --impure .#web
 	@mkdir -p site/web && cp -rL result/. site/web/ && chmod -R u+w site/web
 
 .PHONY: watch
@@ -61,7 +61,7 @@ watch:  ## Develop PDF and watch for changes
 
 .PHONY: web
 web:  ## Build the browser editor prototype (nix build .#web → web/dist)
-	@nix build .#web --print-build-logs
+	@nix build --impure .#web --print-build-logs
 	@rm -rf web/dist && cp -rL result/ web/dist && chmod -R u+w web/dist
 	@echo "Built web/dist (open with any static file server)."
 

@@ -42,7 +42,7 @@
           # Base URL of the WebRTC signaling Worker (see signaling/) that powers
           # live-preview sharing. Empty by default, which hides the "Jaa" button
           # and leaves the public build unchanged; override to wire a deployed
-          # Worker, e.g. `VITE_SIGNALING_URL=https://… nix build .#web`.
+          # Worker, e.g. `VITE_SIGNALING_URL=https://… nix build --impure .#web`.
           VITE_SIGNALING_URL = builtins.getEnv "VITE_SIGNALING_URL";
           installPhase = ''
             runHook preInstall

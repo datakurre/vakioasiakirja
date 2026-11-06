@@ -236,7 +236,7 @@ left for the day byte-identical output becomes a requirement.
 
 ## Build and hosting
 
-The prototype builds reproducibly through the flake — `nix build .#web`
+The prototype builds through the flake — `nix build --impure .#web`
 (or `make web`) produces the static bundle, pinning the WebAssembly
 artifacts and fonts; `make web-dev` runs it live. The bundle uses a
 relative base, so it works at any path.
