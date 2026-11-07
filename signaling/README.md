@@ -40,15 +40,19 @@ The Worker does not store any document or room data:
     JSON object payloads, and strictly validates `offer`, `answer`, `candidate`,
     and `viewerId` parameters before relaying.
 - `GET https://<worker-host>/turn-credentials` — JSON with an `iceServers` array.
-  - Responses include `Cache-Control: public, max-age=3600`.
+  - Responses include `Cache-Control: public, max-age=3600` on success, or
+    `Cache-Control: no-store` when TURN credentials cannot be generated.
+  - Includes diagnostic header `X-Turn-Status` (`success`, `missing-secrets`,
+    `missing-key-id`, `missing-api-token`, `cf-error-<status>`, `cf-fetch-error`).
   - Non-`GET` and non-`OPTIONS` methods return `HTTP 405 Method Not Allowed`
     with `Allow: GET, OPTIONS`.
-  - Google STUN is always included; Cloudflare Realtime TURN servers are added
-    when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
+  - Cloudflare and Google STUN are always included; Cloudflare Realtime TURN
+    servers are added when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
 - `OPTIONS *` — Preflight requests return `HTTP 204 No Content` with standard
   CORS headers (`Access-Control-Allow-Origin: *`,
   `Access-Control-Allow-Methods: GET, OPTIONS`,
   `Access-Control-Allow-Headers: Content-Type`,
+  `Access-Control-Expose-Headers: X-Turn-Status`,
   `Access-Control-Max-Age: 86400`).
 
 ## Deploy
@@ -68,24 +72,35 @@ This prints the Worker host, e.g.
 
 ### Optional: Cloudflare TURN (for viewers behind restrictive NATs)
 
-Create a TURN key with Cloudflare's [Create a TURN key API](https://developers.cloudflare.com/api/resources/calls/subresources/turn/methods/create/).
-The Calls dashboard link currently opens Serverless SFU setup rather than TURN
-key creation, so use the API directly. Set `ACCOUNT_ID` to the account ID (not
-the zone ID), and use an active Cloudflare API token with **Account → Calls →
-Write** permission for that same account. This is not the TURN key token used
-later to generate credentials.
+Cloudflare Realtime TURN provides relay servers for peers behind restrictive NATs
+where direct STUN hole punching fails (e.g. symmetric NATs or restrictive firewalls).
 
-If the request returns `Authentication error`, first check that the account API
-token is active:
+#### 1. Distinguish the credentials
+
+It is easy to mix up the different IDs and tokens:
+- **`ACCOUNT_ID`**: Your Cloudflare Account ID (found on the Cloudflare dashboard
+  home page sidebar under "Account ID"). **Do not use a Zone ID** (which is tied
+  to a domain).
+- **`CLOUDFLARE_API_TOKEN`**: A User API token created in Cloudflare Dashboard
+  (*My Profile → API Tokens → Create Custom Token*) with **Account → Calls → Write**
+  permission. This token is used **only once** to create the TURN key. It is **not**
+  the secret stored in Wrangler.
+- **`result.uid` (`TURN_KEY_ID`)**: The TURN Key ID returned in the JSON response
+  when creating the TURN key.
+- **`result.key` (`TURN_API_TOKEN`)**: The TURN Key API token returned in the
+  JSON response. **This is what Wrangler needs**, NOT `CLOUDFLARE_API_TOKEN` and
+  NOT `result.secret`.
+
+#### 2. Create the TURN key
+
+Verify your user API token first:
 
 ```bash
 curl "https://api.cloudflare.com/client/v4/user/tokens/verify" \
   --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
 ```
 
-The response should report `"status":"active"`. If it does, check the token's
-Calls Write permission and that it applies to the account identified by
-`ACCOUNT_ID`. Do not share the token value.
+The response should report `"status":"active"`. Then create the TURN key:
 
 ```bash
 : "${ACCOUNT_ID:?Set ACCOUNT_ID to your Cloudflare account ID}"
@@ -97,25 +112,59 @@ curl --request POST \
   --data '{"name":"broadcast-signaling"}'
 ```
 
-From the response, use `result.uid` as `TURN_KEY_ID` and `result.key` as
-`TURN_API_TOKEN`. (Note: Cloudflare's API response returns the token in `key`;
-if you previously set `TURN_API_TOKEN` to `result.secret`, re-set it with
-`result.key`). Keep both values server-side; treat `key` as a sensitive
-credential.
-
-```bash
-npx wrangler secret put TURN_KEY_ID
-npx wrangler secret put TURN_API_TOKEN
+The response will look like:
+```json
+{
+  "result": {
+    "uid": "f10e4...",
+    "key": "2b9a7...",
+    "name": "broadcast-signaling"
+  },
+  "success": true
+}
 ```
 
-Each `wrangler secret put` also creates and deploys a new Worker version, so no
-separate `wrangler deploy` is needed afterwards.
+#### 3. Test the TURN key directly
 
-The Worker uses Cloudflare's current
-[credential endpoint](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
-to request short-lived ICE server credentials. If either secret is missing or
-the request fails, the endpoint logs a warning and returns Google STUN only;
-viewers behind restrictive NATs may then fail to connect.
+Confirm that the new key generates ICE servers:
+
+```bash
+TURN_KEY_ID="<paste result.uid>"
+TURN_API_TOKEN="<paste result.key>"
+curl --request POST \
+  "https://rtc.live.cloudflare.com/v1/turn/keys/$TURN_KEY_ID/credentials/generate-ice-servers" \
+  --header "Authorization: Bearer $TURN_API_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{"ttl": 86400}'
+```
+
+You should receive a JSON response containing `iceServers` with `turn:` URLs and temporary `username`/`credential` values.
+
+#### 4. Configure Worker secrets
+
+Store `result.uid` and `result.key` in Wrangler:
+
+```bash
+npx wrangler secret put TURN_KEY_ID     # paste result.uid
+npx wrangler secret put TURN_API_TOKEN  # paste result.key
+```
+
+Each `wrangler secret put` immediately deploys a new Worker version with the secret bound.
+
+#### 5. Verify the deployed Worker
+
+Check your deployed Worker endpoint:
+
+```bash
+curl -i https://<worker-host>/turn-credentials
+```
+
+Inspect the `X-Turn-Status` header:
+- `X-Turn-Status: success` — TURN is working! The response contains both STUN and Cloudflare TURN servers.
+- `X-Turn-Status: missing-secrets` (or `missing-key-id` / `missing-api-token`) — secrets have not been configured on this Worker environment.
+- `X-Turn-Status: cf-error-401` — `TURN_API_TOKEN` is invalid. Ensure you used `result.key`, not `CLOUDFLARE_API_TOKEN`.
+- `X-Turn-Status: cf-error-404` — `TURN_KEY_ID` was not found. Ensure you used `result.uid`.
+
 Cloudflare Realtime TURN does not require using Realtime SFU. The self-serve
 TURN service has a 1,000 GB free tier, then costs $0.05 per real-time GB sent
 from Cloudflare to the TURN client. Traffic between TURN and Realtime SFU or

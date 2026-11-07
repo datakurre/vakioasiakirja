@@ -11,7 +11,9 @@ const SIGNALING_URL = (import.meta.env.VITE_SIGNALING_URL ?? "").replace(/\/$/, 
 
 // STUN-only default. The Worker's /turn-credentials may add a Cloudflare TURN
 // entry for viewers behind restrictive NATs; without it those may fail to peer.
-const DEFAULT_ICE: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+const DEFAULT_ICE: RTCIceServer[] = [
+  { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302"] },
+];
 
 // Room IDs avoid the easily confused 0/O and 1/I; 7 chars over a 31-symbol
 // alphabet is ~35 bits, enough to make guessing a live room impractical.
@@ -39,18 +41,22 @@ function roomWsUrl(roomId: string, role: "broadcaster" | "viewer"): string {
 export async function getIceConfig(): Promise<RTCConfiguration> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 5000);
+  let iceServers = DEFAULT_ICE;
   try {
     const res = await fetch(`${SIGNALING_URL}/turn-credentials`, { signal: controller.signal });
     if (res.ok) {
       const data = (await res.json()) as { iceServers?: RTCIceServer[] };
-      if (data.iceServers?.length) return { iceServers: data.iceServers };
+      if (data.iceServers?.length) iceServers = data.iceServers;
     }
   } catch {
     /* offline or no TURN configured: STUN only */
   } finally {
     window.clearTimeout(timeout);
   }
-  return { iceServers: DEFAULT_ICE };
+  return {
+    iceServers,
+    bundlePolicy: "max-bundle",
+  };
 }
 
 // The full document state sent over a data channel. The logo travels as base64
@@ -96,6 +102,7 @@ export class Broadcaster {
   constructor(
     private readonly onViewers: (count: number) => void,
     private readonly onError: (message: string) => void,
+    private readonly onWarning?: (message: string) => void,
   ) {
     this.roomId = randomRoomId();
   }
@@ -275,8 +282,24 @@ export class Broadcaster {
         }
       }
     });
+    let failed = false;
+    const handleFailure = () => {
+      if (failed) return;
+      failed = true;
+      const msg = "WebRTC-yhteys katsojaan epäonnistui (ICE failed). Tarkista jakopalvelun TURN-asetukset.";
+      if (this.onWarning) {
+        this.onWarning(msg);
+      } else {
+        this.onError(msg);
+      }
+      this.dropViewer(viewerId);
+    };
+
     pc.addEventListener("connectionstatechange", () => {
-      if (pc.connectionState === "failed") this.dropViewer(viewerId);
+      if (pc.connectionState === "failed") handleFailure();
+    });
+    pc.addEventListener("iceconnectionstatechange", () => {
+      if (pc.iceConnectionState === "failed") handleFailure();
     });
 
     const offer = await pc.createOffer();
@@ -340,6 +363,7 @@ export class Viewer {
     private readonly roomId: string,
     private readonly onSnapshot: (s: Snapshot) => void,
     private readonly onStatus: (state: "connecting" | "live" | "reconnecting" | "ended") => void,
+    private readonly onError?: (message: string) => void,
   ) {}
 
   async start(): Promise<void> {
@@ -429,6 +453,20 @@ export class Viewer {
           this.send({ type: "candidate", candidate });
         }
       }
+    });
+
+    let failed = false;
+    const handleFailure = () => {
+      if (failed) return;
+      failed = true;
+      this.onError?.("WebRTC-yhteys jakajaan epäonnistui (ICE failed). Tarkista jakopalvelun TURN-asetukset.");
+    };
+
+    pc.addEventListener("connectionstatechange", () => {
+      if (pc.connectionState === "failed") handleFailure();
+    });
+    pc.addEventListener("iceconnectionstatechange", () => {
+      if (pc.iceConnectionState === "failed") handleFailure();
     });
 
     await pc.setRemoteDescription(offer);

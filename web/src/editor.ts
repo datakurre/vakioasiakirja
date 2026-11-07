@@ -199,6 +199,9 @@ export function initEditor() {
             fail(message);
           }
         },
+        (warning) => {
+          toast(warning);
+        },
       );
       broadcaster = bc;
       shareState = "starting";

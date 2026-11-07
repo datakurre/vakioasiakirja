@@ -20,7 +20,10 @@ interface IceServer {
   credential?: string;
 }
 
-const STUN: IceServer = { urls: "stun:stun.l.google.com:19302" };
+const DEFAULT_STUN_SERVERS: IceServer[] = [
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.l.google.com:19302" },
+];
 
 // Allow the GitHub Pages SPA (any origin) to read the JSON; no credentials are
 // involved, so a wildcard is fine.
@@ -28,6 +31,7 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Expose-Headers": "X-Turn-Status",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -83,10 +87,17 @@ function filterBlockedPorts(server: IceServer): IceServer | null {
 }
 
 async function turnCredentials(env: Env): Promise<Response> {
-  const iceServers: IceServer[] = [STUN];
+  const iceServers: IceServer[] = [...DEFAULT_STUN_SERVERS];
   let turnSuccess = false;
+  let turnStatus = "missing-secrets";
 
-  if (env.TURN_KEY_ID && env.TURN_API_TOKEN) {
+  if (!env.TURN_KEY_ID && !env.TURN_API_TOKEN) {
+    turnStatus = "missing-secrets";
+  } else if (!env.TURN_KEY_ID) {
+    turnStatus = "missing-key-id";
+  } else if (!env.TURN_API_TOKEN) {
+    turnStatus = "missing-api-token";
+  } else {
     try {
       const res = await fetch(
         `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/generate-ice-servers`,
@@ -101,7 +112,7 @@ async function turnCredentials(env: Env): Promise<Response> {
       );
       if (res.ok) {
         const data = (await res.json()) as { iceServers?: IceServer[] };
-        if (Array.isArray(data.iceServers)) {
+        if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
           const filtered: IceServer[] = [];
           for (const s of data.iceServers) {
             const cleaned = filterBlockedPorts(s);
@@ -110,15 +121,26 @@ async function turnCredentials(env: Env): Promise<Response> {
           if (filtered.length > 0) {
             iceServers.push(...filtered);
             turnSuccess = true;
+            turnStatus = "success";
+          } else {
+            turnStatus = "cf-all-ports-filtered";
+            console.warn("Cloudflare TURN response: all returned servers had blocked ports");
           }
         } else {
-          console.warn("Cloudflare TURN response did not contain an iceServers array");
+          turnStatus = "cf-empty-credentials";
+          console.warn("Cloudflare TURN response did not contain an iceServers array or was empty", data);
         }
       } else {
-        console.warn(`Cloudflare TURN credential request failed (${res.status})`);
+        turnStatus = `cf-error-${res.status}`;
+        const errorText = await res.text().catch(() => "");
+        console.error(
+          `Cloudflare TURN credential request failed (${res.status} ${res.statusText}):`,
+          errorText,
+        );
       }
     } catch (error) {
-      console.warn("Cloudflare TURN credential request failed", error);
+      turnStatus = "cf-fetch-error";
+      console.error("Cloudflare TURN credential request threw an error:", error);
     }
   }
 
@@ -126,6 +148,7 @@ async function turnCredentials(env: Env): Promise<Response> {
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": turnSuccess ? "public, max-age=3600" : "no-store",
+      "X-Turn-Status": turnStatus,
       ...CORS_HEADERS,
     },
   });

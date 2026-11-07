@@ -274,8 +274,11 @@ It does not require Realtime SFU: Cloudflare's self-serve TURN service has a
 the TURN client. This editor uses peer-to-peer WebRTC, not the SFU. When
 configured with a TURN key, the signaling Worker requests short-lived ICE
 server credentials from Cloudflare and includes them in WebRTC negotiation.
-Without valid TURN credentials, connections use STUN only and may fail on the
-strictest networks. See the [signaling README](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+Without valid TURN credentials, connections use STUN only (Cloudflare & Google
+STUN) and fail on restrictive networks where direct hole punching or mDNS
+resolution fails. The signaling endpoint returns an `X-Turn-Status` header
+(`success`, `missing-secrets`, or `cf-error-*`) for quick diagnostics.
+See the [signaling README](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
 for setup and Cloudflare's [TURN pricing FAQ](https://developers.cloudflare.com/realtime/turn/faq/).
 
 Sharing is **off in the public build**: it appears only when the editor is

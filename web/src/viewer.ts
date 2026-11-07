@@ -54,21 +54,26 @@ export function initViewer(roomId: string) {
   };
 
   banner("Yhdistetään jaettuun esikatseluun…");
-  const viewer = new Viewer(roomId, applySnapshot, (state) => {
-    switch (state) {
-      case "connecting":
-        banner("Yhdistetään jaettuun esikatseluun…");
-        break;
-      case "live":
-        banner("Katselet jaettua esikatselua");
-        break;
-      case "reconnecting":
-        banner("Yhteys katkesi – yhdistetään uudelleen…");
-        break;
-      case "ended":
-        banner("Lähetys päättyi.");
-        break;
-    }
-  });
+  const viewer = new Viewer(
+    roomId,
+    applySnapshot,
+    (state) => {
+      switch (state) {
+        case "connecting":
+          banner("Yhdistetään jaettuun esikatseluun…");
+          break;
+        case "live":
+          banner("Katselet jaettua esikatselua");
+          break;
+        case "reconnecting":
+          banner("Yhteys katkesi – yhdistetään uudelleen…");
+          break;
+        case "ended":
+          banner("Lähetys päättyi.");
+          break;
+      }
+    },
+    fail,
+  );
   void viewer.start();
 }
