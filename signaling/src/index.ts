@@ -1,10 +1,12 @@
 // Worker entry: route room WebSockets to per-room Durable Objects, and serve
 // ICE configuration (STUN, plus Cloudflare TURN when configured by secrets).
 
+import type { Room } from "./room.ts";
+
 export { Room } from "./room.ts";
 
 export interface Env {
-  ROOMS: DurableObjectNamespace;
+  ROOMS: DurableObjectNamespace<Room>;
   // Optional Cloudflare Realtime TURN credentials (set via `wrangler secret`).
   TURN_KEY_ID?: string;
   TURN_API_TOKEN?: string;
@@ -22,13 +24,34 @@ const STUN: IceServer = { urls: "stun:stun.l.google.com:19302" };
 
 // Allow the GitHub Pages SPA (any origin) to read the JSON; no credentials are
 // involved, so a wildcard is fine.
-const CORS = { "Access-Control-Allow-Origin": "*" };
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: CORS_HEADERS,
+      });
+    }
+
     const url = new URL(request.url);
 
     if (url.pathname === "/turn-credentials") {
+      if (request.method !== "GET") {
+        return new Response("Method not allowed", {
+          status: 405,
+          headers: {
+            Allow: "GET, OPTIONS",
+            ...CORS_HEADERS,
+          },
+        });
+      }
       return turnCredentials(env);
     }
 
@@ -74,6 +97,10 @@ async function turnCredentials(env: Env): Promise<Response> {
   }
 
   return new Response(JSON.stringify({ iceServers }), {
-    headers: { "Content-Type": "application/json", ...CORS },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=3600",
+      ...CORS_HEADERS,
+    },
   });
 }

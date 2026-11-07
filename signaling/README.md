@@ -12,16 +12,44 @@ SQLite-backed (the only storage backend available on Free), and the WebSocket
 Hibernation API keeps billed duration low. The Free plan has daily allowances
 (for example 100,000 Durable Object requests and 100,000 rows written per day,
 reset at 00:00 UTC); once one is exceeded, further operations of that type fail
-until the reset. The Worker does not store any document or room data: its only
-storage call is `setAlarm()`, made on each connection and each message, used for
-the idle-room timeout. Each `setAlarm()` counts as one row written.
+until the reset.
+
+The Worker does not store any document or room data:
+- Relaying signaling messages (SDP offers/answers and ICE trickling) happens
+  purely in-memory with **zero disk writes**, eliminating storage quota exhaustion.
+- While an active broadcaster is connected, no idle alarm is scheduled, so
+  active broadcast sessions are never interrupted by alarms.
+- An orphan idle alarm (15 minutes) is only scheduled when viewers are waiting
+  without a broadcaster (e.g. an orphan viewer connects before the broadcaster,
+  or the broadcaster drops unexpectedly while viewers remain).
+- When a broadcaster connects or explicitly sends `{ type: "close" }`, any
+  pending alarm is deleted (`deleteAlarm()`).
+- When an alarm fires, it verifies no broadcaster is connected before closing
+  orphan sockets (`1001 idle timeout`).
 
 ## Endpoints
 
 - `wss://<worker-host>/room/{roomId}?role=broadcaster|viewer` — signaling socket.
+  - **Room ID pattern**: 4 to 12 alphanumeric characters (`[A-Za-z0-9]{4,12}`),
+    case-insensitive (normalized to uppercase for the Durable Object name).
+  - **Single active broadcaster**: Only one active broadcaster is permitted per
+    room. If an active broadcaster is already connected (`readyState === WebSocket.OPEN`),
+    incoming connections requesting `?role=broadcaster` are rejected with
+    `HTTP 409 Conflict` ("Broadcaster already connected") to prevent room hijacking.
+  - **Message validation**: Enforces a 64 KB message size limit, verifies valid
+    JSON object payloads, and strictly validates `offer`, `answer`, `candidate`,
+    and `viewerId` parameters before relaying.
 - `GET https://<worker-host>/turn-credentials` — JSON with an `iceServers` array.
-  Google STUN is always included; Cloudflare Realtime TURN servers are added
-  when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
+  - Responses include `Cache-Control: public, max-age=3600`.
+  - Non-`GET` and non-`OPTIONS` methods return `HTTP 405 Method Not Allowed`
+    with `Allow: GET, OPTIONS`.
+  - Google STUN is always included; Cloudflare Realtime TURN servers are added
+    when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
+- `OPTIONS *` — Preflight requests return `HTTP 204 No Content` with standard
+  CORS headers (`Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Methods: GET, OPTIONS`,
+  `Access-Control-Allow-Headers: Content-Type`,
+  `Access-Control-Max-Age: 86400`).
 
 ## Deploy
 

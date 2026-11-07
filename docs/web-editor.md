@@ -263,9 +263,9 @@ channel; each viewer re-renders it with the same typst.ts pipeline. The
 data channels are DTLS-encrypted peer-to-peer, so **document content never
 reaches any server**. A Cloudflare Worker + SQLite-backed Durable Object
 (`signaling/`) handles only WebRTC signaling (SDP/ICE relaying) and reports the
-viewer count. It is sized for the Workers Free daily allowances, but exceeding
-an allowance causes further operations of that type to fail; each room alarm
-counts as one SQLite row written. See [`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
+viewer count. Signaling messages flow purely in-memory with zero storage writes;
+an idle alarm is only scheduled when viewers are waiting without a broadcaster,
+preserving the Workers Free daily write allowances. See [`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
 for current limits and deployment details.
 
 Cloudflare Realtime TURN is an optional managed relay for restrictive NATs.
