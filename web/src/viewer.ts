@@ -46,11 +46,14 @@ export function initViewer(roomId: string) {
     { setStatus, fail },
   );
 
+  let hasReceivedFirstSnapshot = false;
   const applySnapshot = (s: Snapshot) => {
     const logo: Logo | undefined = s.logo
       ? { path: s.logo.path, bytes: base64ToBytes(s.logo.b64) }
       : undefined;
-    void preview.render(s.markdown, logo);
+    const isLiveEdit = hasReceivedFirstSnapshot;
+    hasReceivedFirstSnapshot = true;
+    void preview.render(s.markdown, logo, { liveEdit: isLiveEdit });
   };
 
   banner("Yhdistetään jaettuun esikatseluun…");

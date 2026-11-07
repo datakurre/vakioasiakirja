@@ -13,6 +13,7 @@ import rendererWasmUrl from "@myriaddreamin/typst-ts-renderer/pkg/typst_ts_rende
 
 import { markdownToTypst, ConversionError } from "./md-to-typst.ts";
 import templateSource from "./sfs-2487-2024.typ?raw";
+import { HighlightTracker } from "./highlight.ts";
 
 const base = import.meta.env.BASE_URL;
 const FONTS = [
@@ -60,11 +61,17 @@ export interface PreviewCallbacks {
   onRendered?(): void;
   // localStorage key for the zoom/fit/two-up preferences (optional).
   viewStorageKey?: string;
+  // Optional highlight tracker instance override.
+  highlightTracker?: HighlightTracker;
+}
+
+export interface RenderOptions {
+  liveEdit?: boolean;
 }
 
 export interface Preview {
   // Convert Markdown and compile it to the live SVG preview.
-  render(md: string, logo?: Logo): Promise<void>;
+  render(md: string, logo?: Logo, options?: RenderOptions): Promise<void>;
   // The PDF of the last successfully rendered document (or undefined).
   pdf(): Promise<Uint8Array | undefined>;
   // Whether a document has been rendered (drives the Download button).
@@ -103,6 +110,7 @@ function lsSet(key: string, value: string) {
 export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Preview {
   initTypst();
 
+  const highlightTracker = cb.highlightTracker ?? new HighlightTracker();
   const setBusy = (busy: boolean) => els.previewEl.setAttribute("aria-busy", String(busy));
 
   let templateAdded = false;
@@ -160,7 +168,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   // typst.ts returns a single SVG with all pages stacked seamlessly in one
   // coordinate space (transparent page backgrounds). Split it into one cropped
   // <svg> per page so each shows as a separate, correctly proportioned sheet.
-  function showPages(svgText: string) {
+  function showPages(svgText: string, isLiveEdit = false) {
     const holder = document.createElement("div");
     holder.innerHTML = svgText;
     const baseSvg = holder.querySelector("svg");
@@ -172,6 +180,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     // typst.ts embeds a <script> for interactivity; cloned once per page it
     // would re-declare its globals (a console error). Drop it before cloning.
     baseSvg.querySelectorAll("script").forEach((s) => s.remove());
+    highlightTracker.process(baseSvg, isLiveEdit);
     const pages = Array.from(baseSvg.querySelectorAll("g.typst-page"));
     if (pages.length === 0) {
       pageSizes = [];
@@ -200,7 +209,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     applyView();
   }
 
-  async function render(md: string, logo?: Logo) {
+  async function render(md: string, logo?: Logo, options?: RenderOptions) {
     let typst: string;
     try {
       typst = markdownToTypst(md, { logoPath: logo?.path });
@@ -220,7 +229,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       // change or removal.
       if (logo) await $typst.mapShadow(logo.path, logo.bytes);
       const svg = await $typst.svg({ mainContent: typst });
-      showPages(svg);
+      showPages(svg, options?.liveEdit ?? false);
       rendered = true;
       cb.setStatus("käännetty");
       setBusy(false);

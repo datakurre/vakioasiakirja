@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "node --test --experimental-strip-types tests/**/*.test.ts",
     "convert": "node --experimental-strip-types scripts/convert.ts"
   },
   "dependencies": {
@@ -27,8 +28,10 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
+    "@types/jsdom": "^30.0.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.19.21",
+    "jsdom": "^31.0.0",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }

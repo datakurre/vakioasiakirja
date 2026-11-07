@@ -267,6 +267,30 @@ main {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
 }
 
+/* Neon yellow marker highlighter for live edits */
+.neon-highlight {
+  fill: #ffea00;
+  mix-blend-mode: multiply;
+  animation: neon-fade 3s forwards;
+  pointer-events: none;
+}
+
+@keyframes neon-fade {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-highlight {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* --- Bottom status bar / toolbar --- */
 #statusbar {
   display: flex;
