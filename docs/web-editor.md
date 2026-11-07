@@ -248,6 +248,33 @@ serves the editor at
 The existing `.github/workflows/docs.yml` runs `make docs`, so no
 workflow change is needed; the PR `smoke-test` workflow builds it too.
 
+## Editor modes and collaboration architecture
+
+The web editor supports three distinct operating modes designed around privacy, autonomy, and collaboration:
+
+### 1. Personal Editor (`#/`)
+- **Storage:** Local-only in the browser's `localStorage["sfs2487.doc"]`.
+- **Privacy & Offline:** 100% self-contained and private. No document data is sent over the network. Works completely offline via the installed Service Worker.
+- **Independence:** Edits made in personal mode never affect shared rooms, and shared rooms never overwrite personal drafts.
+
+### 2. Read-Only Preview Share (`#/watch/:roomId`)
+- **Transport:** Direct peer-to-peer WebRTC data channels negotiated via short-lived signaling (`Room` Durable Object).
+- **Zero Server Storage:** Document text and logos flow strictly peer-to-peer with DTLS encryption. The signaling Worker never inspects or stores document contents.
+- **Ephemeral:** Viewers receive live preview updates only while the broadcaster is active; once the broadcaster leaves or stops sharing, the room closes.
+
+### 3. Collaborative Editing (`#/edit/:roomId/:token`)
+- **Transport & Engine:** Yjs CRDT synchronization over WebSockets connected to a dedicated Cloudflare Worker and `CollabRoom` Durable Object.
+- **Real-time Features:** Live multi-user editing with cursor awareness, remote edit highlight pulse in CodeMirror 6, isolated local undo/redo trees (including in Vim mode via `yUndoManager`), and offline caching in IndexedDB (`sfs2487.collab.{roomId}`).
+- **Server Limits & Compaction:** Backed by embedded SQLite with automatic snapshot compaction (collapsing individual update logs into a single snapshot update every 50 updates or on disconnect) and a participant limit of 20 concurrent collaborators per room.
+
+### Privacy, Capability Security & Invariants
+
+- **Capability URLs in Hash Fragments:** The 128-bit secret token resides strictly in the URL hash fragment (`#/edit/{roomId}/{token}`). Because browsers do not transmit URL hash fragments in HTTP request headers, static hosting providers (such as GitHub Pages) never see the room token.
+- **Server Relay & Storage Disclosure:** The editor top banner explicitly discloses that collaborative documents are relayed through and temporarily cached on the collaboration server, unlike peer-to-peer live preview.
+- **7-Day Idle Cleanup:** When all collaborators disconnect from a room, a 7-day expiration alarm is scheduled in the `CollabRoom` Durable Object. If no activity occurs for 7 days, all room metadata and document updates are permanently purged from SQLite storage.
+- **Local-Only Logos:** Uploaded logos remain local to each user's browser session. They are not transmitted over the collaborative WebSocket to prevent unintentional leakage of proprietary graphics or exceeding message boundaries.
+- **Kill Switch & Error Recovery:** If collaboration is disabled on the server (`COLLAB_ENABLED="false"`), endpoints return HTTP 503, and the editor presents a clear Finnish notification with a direct button to return to the personal editor (`#/`). Similarly, if a room reaches its 20-collaborator cap (HTTP 429), a capacity warning is shown without disrupting existing sessions.
+
 ## Sharing a live preview
 
 The editor can broadcast its live preview to many read-only viewers. The

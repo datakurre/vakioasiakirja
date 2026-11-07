@@ -1,33 +1,78 @@
 # broadcast-signaling
 
-A tiny Cloudflare Worker + Durable Object that does **WebRTC signaling** for the
-web editor's live-preview sharing (`web/src/share.ts`). It relays SDP
-offers/answers and ICE candidates between a broadcaster and its viewers, reports
-the viewer count, and mints short-lived TURN credentials. **Document content
-never reaches this Worker** — it flows peer-to-peer over DTLS-encrypted WebRTC
-data channels.
+A lightweight Cloudflare Worker providing two real-time services for the SFS 2487:2024 web editor (`web/`):
+1. **WebRTC Signaling (`Room`)**: Relays SDP offers/answers and ICE candidates for peer-to-peer read-only live preview sharing (`web/src/share.ts`). Document content never reaches the server.
+2. **Yjs Collaborative Editing (`CollabRoom`)**: Coordinates real-time CRDT document synchronization, relays awareness state, and persists snapshots in embedded SQLite with transaction compaction and automatic expiration.
 
-It is sized for Cloudflare's **Workers Free** plan: the Durable Object class is
-SQLite-backed (the only storage backend available on Free), and the WebSocket
-Hibernation API keeps billed duration low. The Free plan has daily allowances
-(for example 100,000 Durable Object requests and 100,000 rows written per day,
-reset at 00:00 UTC); once one is exceeded, further operations of that type fail
-until the reset.
+It is sized for Cloudflare's **Workers Free** plan: the Durable Object classes (`Room` and `CollabRoom`) are SQLite-backed (`new_sqlite_classes`), and the WebSocket Hibernation API keeps billed duration low.
 
-The Worker does not store any document or room data:
-- Relaying signaling messages (SDP offers/answers and ICE trickling) happens
-  purely in-memory with **zero disk writes**, eliminating storage quota exhaustion.
-- While an active broadcaster is connected, no idle alarm is scheduled, so
-  active broadcast sessions are never interrupted by alarms.
-- An orphan idle alarm (15 minutes) is only scheduled when viewers are waiting
-  without a broadcaster (e.g. an orphan viewer connects before the broadcaster,
-  or the broadcaster drops unexpectedly while viewers remain).
-- When a broadcaster connects or explicitly sends `{ type: "close" }`, any
-  pending alarm is deleted (`deleteAlarm()`).
-- When an alarm fires, it verifies no broadcaster is connected before closing
-  orphan sockets (`1001 idle timeout`).
+---
+
+## 1. WebRTC Live Preview Signaling (`Room`)
+
+The `Room` Durable Object relays WebRTC signaling messages between a single broadcaster and multiple read-only viewers:
+- Relaying signaling messages (SDP offers/answers and ICE trickling) happens purely in-memory with **zero disk writes**.
+- While an active broadcaster is connected, no idle alarm is scheduled, so active broadcast sessions are never interrupted by alarms.
+- An orphan idle alarm (15 minutes) is only scheduled when viewers are waiting without a broadcaster.
+- When an alarm fires, it verifies no broadcaster is connected before closing orphan sockets (`1001 idle timeout`).
+
+---
+
+## 2. Collaborative Editing Service (`CollabRoom`)
+
+The `CollabRoom` Durable Object coordinates real-time multi-user document collaboration using pure JavaScript Yjs binary protocols (`y-protocols/sync`, `y-protocols/awareness`):
+
+### SQLite Schema
+Each room maintains an isolated embedded SQLite database via `this.ctx.storage.sql`:
+```sql
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  update_data BLOB NOT NULL,
+  created_at INTEGER NOT NULL
+);
+```
+
+- **`meta`**: Stores `token_hash` (SHA-256 digest of capability secret) and `created_at`.
+- **`updates`**: Stores binary Yjs document update blobs.
+
+### Update Lifecycle & Compaction
+- **Wake-up / Initialization**: Reconstructs current document state in memory by applying all update blobs sequentially.
+- **Compaction**: When update count exceeds **50** rows, or when the last collaborator disconnects, all updates are consolidated into a single snapshot blob inside an atomic transaction (`DELETE FROM updates; INSERT INTO updates VALUES (snapshot, now);`).
+- **7-Day Idle Retention**: When the connected socket count drops to zero, an expiration alarm is set for 7 days (`Date.now() + 7 * 24 * 3600 * 1000`). If a collaborator reconnects, the alarm is deleted (`deleteAlarm()`). If the alarm fires, all storage is deleted (`deleteAll()`).
+
+### Operational Limits
+- **Initial Markdown**: Maximum 512 KB on room creation.
+- **WebSocket Binary Frames**: Maximum 256 KB per frame. Frames exceeding 256 KB are rejected and close the socket (`1009 Message Too Big`).
+- **Participant Limit**: Maximum 20 concurrent WebSocket connections per room. Additional connection attempts return `HTTP 429 Too Many Requests`.
+- **Kill Switch (`COLLAB_ENABLED`)**: Setting `COLLAB_ENABLED = "false"` immediately disables collaboration endpoints, returning `HTTP 503 Service Unavailable` with CORS headers, while WebRTC signaling remains fully operational.
+
+---
 
 ## Endpoints
+
+### Collaborative Editing Endpoints
+
+- `POST https://<worker-host>/collab/create` — Creates a new collaborative room.
+  - **Request Body (JSON)**:
+    ```json
+    {
+      "roomId": "ROOM1234",
+      "token": "sec_0123456789abcdef0123456789abcdef",
+      "initialMarkdown": "# Document title..."
+    }
+    ```
+  - **Validation**: `roomId` must be 4–16 alphanumeric characters (case-insensitive, excluding reserved word `CREATE`). `token` must have at least 16 characters. `initialMarkdown` must not exceed 512 KB.
+  - **Returns**: `200 OK` on creation (`{ ok: true, roomId }`), `409 Conflict` if room already exists, `400 Bad Request` on invalid input, or `503 Service Unavailable` if `COLLAB_ENABLED="false"`.
+- `wss://<worker-host>/collab/{roomId}?token={token}` — WebSocket synchronization endpoint.
+  - **Handshake Verification**: Recomputes SHA-256 hash of `?token=` and checks against SQLite `meta.token_hash`. Returns `401 Unauthorized` if invalid or missing, `404 Not Found` if room does not exist, and `429 Too Many Requests` if 20 sockets are already active.
+  - **HTTP Probe Support**: Non-WebSocket `GET` requests with valid tokens return `200 OK` with `{ ok: true, activeConnections, maxConnections: 20 }` (or `429` if full), allowing clients to verify status before connecting.
+
+### WebRTC Signaling Endpoints
 
 - `wss://<worker-host>/room/{roomId}?role=broadcaster|viewer` — signaling socket.
   - **Room ID pattern**: 4 to 12 alphanumeric characters (`[A-Za-z0-9]{4,12}`),

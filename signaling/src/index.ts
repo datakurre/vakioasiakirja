@@ -116,10 +116,11 @@ export default {
         return new Response("Forbidden origin", { status: 403 });
       }
       if (env.COLLAB_ENABLED === "false") {
-        return new Response("Collaboration service disabled", {
-          status: 503,
-          headers: origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : undefined,
-        });
+        return jsonErrorResponse(
+          "Collaboration service is currently disabled (COLLAB_ENABLED=false)",
+          503,
+          origin,
+        );
       }
       if (request.method !== "POST") {
         const headers: Record<string, string> = {
@@ -191,10 +192,11 @@ export default {
         return new Response("Forbidden origin", { status: 403 });
       }
       if (env.COLLAB_ENABLED === "false") {
-        return new Response("Collaboration service disabled", {
-          status: 503,
-          headers: origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : undefined,
-        });
+        return jsonErrorResponse(
+          "Collaboration service is currently disabled (COLLAB_ENABLED=false)",
+          503,
+          origin,
+        );
       }
       const id = env.COLLAB_ROOMS.idFromName(collabMatch[1].toUpperCase());
       return env.COLLAB_ROOMS.get(id).fetch(request);

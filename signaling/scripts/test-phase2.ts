@@ -398,6 +398,156 @@ async function testWebRtcSignalingRegression(): Promise<void> {
   bcWs.close();
 }
 
+async function testCapacityAndFrameLimits(): Promise<void> {
+  console.log("\n--- 6. Testing Participant Limits (429) & WebSocket Frame Limits (256 KB) ---");
+
+  const roomId = "LIMIT" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  const token = "sec_" + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+
+  // Create room
+  const createRes = await fetch(`${BASE_URL}/collab/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roomId, token, initialMarkdown: "# Limits test" }),
+  });
+  assert(createRes.status === 200, "Created room for limit testing");
+
+  const wsUrl = `${WS_BASE_URL}/collab/${roomId}?token=${token}`;
+  const clients: WebSocket[] = [];
+
+  try {
+    console.log("  Connecting 20 concurrent collaborators...");
+    for (let i = 0; i < 20; i++) {
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+      await new Promise<void>((resolve, reject) => {
+        ws.onopen = () => resolve();
+        ws.onerror = (e) => reject(e);
+        setTimeout(() => reject(new Error("Timeout")), 3000);
+      });
+      clients.push(ws);
+    }
+    assert(clients.length === 20, "20 concurrent sockets connected successfully");
+
+    // 21st connection must be rejected with 429
+    console.log("  Attempting 21st concurrent connection (must be rejected with 429)...");
+    const rejected21 = await expectWebSocketFailure(wsUrl);
+    assert(rejected21, "21st concurrent WebSocket was rejected by server");
+
+    // HTTP probe must return 429
+    const probeFull = await fetch(`${BASE_URL}/collab/${roomId}?token=${token}`);
+    assert(probeFull.status === 429, `HTTP probe returned 429 when room is full (got ${probeFull.status})`);
+
+    // Frame size test: send > 256 KB binary frame on socket 0
+    console.log("  Testing WebSocket frame limit (> 256 KB)...");
+    const oversizedFrame = new Uint8Array(257 * 1024);
+    const ws0ClosedPromise = new Promise<{ code: number; reason: string }>((resolve) => {
+      clients[0].onclose = (ev) => resolve({ code: ev.code, reason: ev.reason });
+      setTimeout(() => resolve({ code: -1, reason: "timeout" }), 3000);
+    });
+    clients[0].send(oversizedFrame);
+    const closeEv = await ws0ClosedPromise;
+    assert(closeEv.code === 1009 || closeEv.code > 1000, `Oversized frame closed socket (got code ${closeEv.code})`);
+
+    // Remove clients[0]
+    clients.shift();
+
+    // Now 19 sockets connected: probe should return 200
+    await new Promise((r) => setTimeout(r, 200));
+    const probeAfterDrop = await fetch(`${BASE_URL}/collab/${roomId}?token=${token}`);
+    assert(
+      probeAfterDrop.status === 200,
+      `HTTP probe returned 200 after connection dropped below capacity (got ${probeAfterDrop.status})`,
+    );
+  } finally {
+    for (const ws of clients) {
+      try {
+        ws.close();
+      } catch {}
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+async function testCollabDisabledSwitch(): Promise<void> {
+  console.log("\n--- 7. Testing COLLAB_ENABLED=false Kill Switch (HTTP 503) ---");
+
+  const disabledUrl = "http://127.0.0.1:8789";
+  const disabledWsUrl = "ws://127.0.0.1:8789";
+
+  const proc = spawn(
+    "npx",
+    [
+      "wrangler",
+      "dev",
+      "--port",
+      "8789",
+      "--ip",
+      "127.0.0.1",
+      "--var",
+      "COLLAB_ENABLED:false",
+    ],
+    {
+      cwd: process.cwd(),
+      stdio: "ignore",
+      detached: false,
+    },
+  );
+
+  try {
+    const start = Date.now();
+    let up = false;
+    while (Date.now() - start < 15000) {
+      try {
+        const r = await fetch(`${disabledUrl}/turn-credentials`);
+        if (r.status === 200) {
+          up = true;
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    assert(up, "Worker with COLLAB_ENABLED=false booted on port 8789");
+
+    // POST /collab/create must return 503
+    const createRes = await fetch(`${disabledUrl}/collab/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId: "TESTDIS1",
+        token: "0123456789abcdef0123456789abcdef",
+      }),
+    });
+    assert(
+      createRes.status === 503,
+      `POST /collab/create returned 503 (got ${createRes.status})`,
+    );
+    const createData = (await createRes.json()) as { error: string };
+    assert(
+      createData.error.toLowerCase().includes("disabled"),
+      `Response body explains service is disabled: "${createData.error}"`,
+    );
+
+    // GET /collab/:roomId must return 503
+    const getRes = await fetch(
+      `${disabledUrl}/collab/TESTDIS1?token=0123456789abcdef0123456789abcdef`,
+    );
+    assert(getRes.status === 503, `GET /collab/:roomId returned 503 (got ${getRes.status})`);
+
+    // WebSocket handshake to /collab/:roomId must be rejected
+    const wsRejected = await expectWebSocketFailure(
+      `${disabledWsUrl}/collab/TESTDIS1?token=0123456789abcdef0123456789abcdef`,
+    );
+    assert(wsRejected, "WebSocket connection was rejected when COLLAB_ENABLED=false (503)");
+
+    // Existing WebRTC endpoints remain functional
+    const turnRes = await fetch(`${disabledUrl}/turn-credentials`);
+    assert(turnRes.status === 200, "WebRTC /turn-credentials unaffected by COLLAB_ENABLED=false");
+  } finally {
+    proc.kill("SIGTERM");
+  }
+}
+
 async function isServerUp(url: string): Promise<boolean> {
   try {
     const res = await fetch(`${url}/turn-credentials`);
@@ -437,6 +587,8 @@ async function run(): Promise<void> {
     await testSyncAndAwareness(roomId, token);
     await testPersistenceAndCompaction(roomId, token);
     await testWebRtcSignalingRegression();
+    await testCapacityAndFrameLimits();
+    await testCollabDisabledSwitch();
 
     console.log(`\n========================================`);
     console.log(`ALL TESTS PASSED! (${passed} passed, ${failed} failed)`);

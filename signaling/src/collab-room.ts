@@ -152,12 +152,13 @@ export class CollabRoom extends DurableObject<Env> {
     url: URL,
     origin: string | null,
   ): Promise<Response> {
-    if (request.headers.get("Upgrade") !== "websocket") {
-      return this.textResponse("Expected WebSocket", 426, origin);
-    }
+    const isWs = request.headers.get("Upgrade") === "websocket";
 
     const token = url.searchParams.get("token");
     if (!token) {
+      if (!isWs) {
+        return this.textResponse("Expected WebSocket", 426, origin);
+      }
       return this.textResponse("Missing token", 401, origin);
     }
 
@@ -178,7 +179,19 @@ export class CollabRoom extends DurableObject<Env> {
 
     const activeSockets = this.ctx.getWebSockets("collab");
     if (activeSockets.length >= MAX_CONCURRENT_SOCKETS) {
-      return this.textResponse("Too many concurrent connections", 429, origin);
+      return this.textResponse("Too many concurrent connections (max 20)", 429, origin);
+    }
+
+    if (!isWs) {
+      return this.jsonResponse(
+        {
+          ok: true,
+          activeConnections: activeSockets.length,
+          maxConnections: MAX_CONCURRENT_SOCKETS,
+        },
+        200,
+        origin,
+      );
     }
 
     // Cancel pending idle cleanup alarm while someone is connected
@@ -203,7 +216,14 @@ export class CollabRoom extends DurableObject<Env> {
     ws: WebSocket,
     message: ArrayBuffer | string,
   ): Promise<void> {
-    if (typeof message === "string" || message.byteLength > MAX_WS_MESSAGE_SIZE) {
+    if (typeof message === "string") {
+      return;
+    }
+    if (message.byteLength > MAX_WS_MESSAGE_SIZE) {
+      console.warn(
+        `CollabRoom: WebSocket binary frame rejected, exceeds 256 KB limit (${message.byteLength} bytes)`,
+      );
+      this.tryClose(ws, 1009, "Message exceeds 256 KB limit");
       return;
     }
 
@@ -369,6 +389,14 @@ export class CollabRoom extends DurableObject<Env> {
         this.ctx.storage.sql.exec("ROLLBACK;");
         throw err;
       }
+    }
+  }
+
+  private tryClose(ws: WebSocket, code = 1000, reason = "normal"): void {
+    try {
+      ws.close(code, reason);
+    } catch {
+      /* ignore */
     }
   }
 

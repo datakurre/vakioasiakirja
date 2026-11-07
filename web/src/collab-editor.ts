@@ -14,7 +14,7 @@ import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next"
 
 import type { Logo } from "./preview.ts";
 import { createToaster } from "./ui.ts";
-import { getCollabWsUrl } from "./config.ts";
+import { getCollabUrl, getCollabWsUrl } from "./config.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
 export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
@@ -159,9 +159,12 @@ export function setupVimForCollab() {
 }
 
 function escapeHtml(text: string): string {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 interface CollabUser {
@@ -225,6 +228,20 @@ function logoPathFor(file: File): string {
  * Initializes the full collaborative editor experience.
  */
 export async function initCollabEditor(roomId: string, token: string) {
+  // Probe room status first to catch 503 (disabled), 429 (room full), 404 (not found), 401 (unauthorized)
+  const collabUrl = getCollabUrl();
+  try {
+    const probeRes = await fetch(`${collabUrl}/collab/${roomId}?token=${token}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (handleCollabStatusError(probeRes.status)) {
+      return;
+    }
+  } catch (err) {
+    console.warn("Collab room pre-check error:", err);
+  }
+
   document.body.classList.remove("viewer", "collab-error-view");
   document.body.classList.add("collab-mode", "show-editor");
 
@@ -420,6 +437,40 @@ export async function initCollabEditor(roomId: string, token: string) {
   renderCollaborators();
 
   let isSynced = false;
+  let checkErrorInFlight = false;
+  const checkServerStatus = async () => {
+    if (checkErrorInFlight) return;
+    checkErrorInFlight = true;
+    try {
+      const probeRes = await fetch(`${collabUrl}/collab/${roomId}?token=${token}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      if (handleCollabStatusError(probeRes.status)) {
+        provider.disconnect();
+        idbProvider?.destroy();
+      }
+    } catch {
+      /* network or CORS error */
+    } finally {
+      checkErrorInFlight = false;
+    }
+  };
+
+  provider.on("connection-error", () => {
+    void checkServerStatus();
+  });
+
+  provider.on("closed", (event: { code: number; reason: string }) => {
+    if (event.code === 4429 || event.code === 1013) {
+      handleCollabStatusError(429);
+      provider.disconnect();
+    } else if (event.code === 4503) {
+      handleCollabStatusError(503);
+      provider.disconnect();
+    }
+  });
+
   provider.on("status", (event: { status: "connecting" | "connected" | "disconnected" }) => {
     if (event.status === "connected") {
       updateConnectionBadge(isSynced ? "connected" : "connecting");
@@ -716,10 +767,14 @@ export async function initCollabEditor(roomId: string, token: string) {
 }
 
 /**
- * Renders an informative error view when a collaborative link is malformed or missing tokens.
+ * Renders an informative error view when a collaborative link is malformed or server returns an error.
  * Guarantees personal localStorage is unaltered.
  */
-export function renderCollabError(message: string) {
+export function renderCollabError(
+  message: string,
+  title: string = "Virheellinen muokkauslinkki",
+  details: string = "Yhteismuokkaus vaatii toimivan huonetunnisteen sekä salaisen valtuutusavaimen. Tarkista linkki tai palaa henkilökohtaiseen editoriin.",
+) {
   document.body.classList.remove("show-editor", "show-preview");
   document.body.classList.add("collab-error-view");
 
@@ -727,12 +782,12 @@ export function renderCollabError(message: string) {
   if (bannerEl) {
     bannerEl.hidden = false;
     bannerEl.style.background = "#c62828";
-    bannerEl.textContent = message;
+    bannerEl.textContent = `${title}: ${message}`;
   }
 
   const statusEl = document.getElementById("status");
   if (statusEl) {
-    statusEl.textContent = "virheellinen linkki";
+    statusEl.textContent = title.toLowerCase();
     statusEl.classList.add("error");
   }
 
@@ -742,17 +797,21 @@ export function renderCollabError(message: string) {
       (child as HTMLElement).style.display = "none";
     }
 
+    const existingContainer = document.getElementById("collab-error-container");
+    if (existingContainer) {
+      existingContainer.remove();
+    }
+
     const errorContainer = document.createElement("div");
     errorContainer.id = "collab-error-container";
     errorContainer.className = "error-card-container";
     errorContainer.setAttribute("role", "alert");
     errorContainer.innerHTML = `
       <div class="collab-error-card">
-        <h2 style="margin-top: 0; color: #b71c1c;">Virheellinen muokkauslinkki</h2>
+        <h2 style="margin-top: 0; color: #b71c1c;">${escapeHtml(title)}</h2>
         <p style="margin: 1rem 0; font-size: 1rem; color: #37474f;">${escapeHtml(message)}</p>
         <p style="color: #607d8b; font-size: 0.9rem; line-height: 1.4;">
-          Yhteismuokkaus vaatii toimivan huonetunnisteen sekä salaisen valtuutusavaimen.
-          Tarkista linkki tai palaa henkilökohtaiseen editoriin.
+          ${escapeHtml(details)}
         </p>
         <div style="margin-top: 1.5rem;">
           <button id="return-personal-btn" class="textbtn" style="background: #1565c0; font-size: 0.95rem; padding: 0.6rem 1.2rem;">
@@ -768,4 +827,45 @@ export function renderCollabError(message: string) {
       window.location.reload();
     });
   }
+}
+
+/**
+ * Handles HTTP response codes from collaboration endpoints, rendering Finnish error cards for
+ * service disablement (503), participant caps (429), missing rooms (404), or authorization failures (401).
+ * Returns true if the status represented an error condition.
+ */
+export function handleCollabStatusError(status: number): boolean {
+  if (status === 503) {
+    renderCollabError(
+      "Yhteistyöominaisuus ei ole käytettävissä",
+      "Yhteistyöpalvelu on tilapäisesti pois käytöstä",
+      "Yhteistyöpalvelin ei tällä hetkellä ota vastaan yhteyksiä. Voit jatkaa asiakirjasi muokkausta henkilökohtaisessa editorissa.",
+    );
+    return true;
+  }
+  if (status === 429) {
+    renderCollabError(
+      "Huone on täynnä (enintään 20 osallistujaa)",
+      "Huone on täynnä",
+      "Tässä huoneessa on jo suurin sallittu määrä samanaikaisia osallistujia (20). Odota, että joku poistuu tai palaa henkilökohtaiseen editoriin.",
+    );
+    return true;
+  }
+  if (status === 404) {
+    renderCollabError(
+      "Huonetta ei löydy",
+      "Huonetta ei löydy",
+      "Pyydettyä yhteistyöhuonetta ei ole olemassa tai se on vanhentunut 7 päivän käyttämättömyyden jälkeen.",
+    );
+    return true;
+  }
+  if (status === 401) {
+    renderCollabError(
+      "Virheellinen valtuutusavain",
+      "Pääsy estetty",
+      "Yhteistyöhuoneeseen liittyminen vaatii toimivan valtuutusavaimen. Tarkista saamasi linkki tai palaa henkilökohtaiseen editoriin.",
+    );
+    return true;
+  }
+  return false;
 }

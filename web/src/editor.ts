@@ -357,11 +357,15 @@ export function initEditor() {
 
       if (!res.ok) {
         let errMsg = `Palvelinvirhe (${res.status})`;
-        try {
-          const data = (await res.json()) as { error?: string };
-          if (data.error) errMsg = data.error;
-        } catch {
-          /* ignore */
+        if (res.status === 503) {
+          errMsg = "Yhteistyöpalvelu on tilapäisesti pois käytöstä (COLLAB_ENABLED=false)";
+        } else {
+          try {
+            const data = (await res.json()) as { error?: string };
+            if (data.error) errMsg = data.error;
+          } catch {
+            /* ignore */
+          }
         }
         throw new Error(errMsg);
       }
