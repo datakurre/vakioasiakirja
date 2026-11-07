@@ -5,7 +5,8 @@
 
 import { createPreview, type Logo } from "./preview.ts";
 import { createToaster, base64ToBytes } from "./ui.ts";
-import { Viewer, type Snapshot } from "./share.ts";
+import { Viewer, type Snapshot, type SelectionPayload } from "./share.ts";
+import { SelectionHighlighter } from "./selection-highlighter.ts";
 
 export function initViewer(roomId: string) {
   document.body.classList.add("viewer");
@@ -15,6 +16,7 @@ export function initViewer(roomId: string) {
   const statusEl = document.getElementById("status")!;
   const bannerEl = document.getElementById("viewer-banner")!;
   const toastsEl = document.getElementById("toasts")!;
+  const pagesEl = document.getElementById("pages")!;
 
   const toast = createToaster(toastsEl);
   const setStatus = (text: string, error = false) => {
@@ -31,10 +33,13 @@ export function initViewer(roomId: string) {
     bannerEl.textContent = text;
   };
 
+  const selectionHighlighter = new SelectionHighlighter();
+  let currentSelection: SelectionPayload | null = null;
+
   const preview = createPreview(
     {
       previewEl: document.getElementById("preview")!,
-      pagesEl: document.getElementById("pages")!,
+      pagesEl,
       controlsEl: document.getElementById("preview-controls")!,
       zoomInEl: document.getElementById("zoom-in") as HTMLButtonElement,
       zoomOutEl: document.getElementById("zoom-out") as HTMLButtonElement,
@@ -47,13 +52,16 @@ export function initViewer(roomId: string) {
   );
 
   let hasReceivedFirstSnapshot = false;
-  const applySnapshot = (s: Snapshot) => {
+  const applySnapshot = async (s: Snapshot) => {
     const logo: Logo | undefined = s.logo
       ? { path: s.logo.path, bytes: base64ToBytes(s.logo.b64) }
       : undefined;
     const isLiveEdit = hasReceivedFirstSnapshot;
     hasReceivedFirstSnapshot = true;
-    void preview.render(s.markdown, logo, { liveEdit: isLiveEdit });
+    await preview.render(s.markdown, logo, { liveEdit: isLiveEdit });
+    if (currentSelection?.active) {
+      selectionHighlighter.update(pagesEl, currentSelection);
+    }
   };
 
   banner("Yhdistetään jaettuun esikatseluun…");
@@ -77,6 +85,10 @@ export function initViewer(roomId: string) {
       }
     },
     fail,
+    (payload) => {
+      currentSelection = payload;
+      selectionHighlighter.update(pagesEl, payload);
+    },
   );
   void viewer.start();
 }

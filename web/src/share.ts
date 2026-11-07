@@ -7,7 +7,7 @@
 // Configured by VITE_SIGNALING_URL at build time; when unset the feature is
 // inert (see isSharingEnabled) and the public demo build is unaffected.
 
-const SIGNALING_URL = (import.meta.env.VITE_SIGNALING_URL ?? "").replace(/\/$/, "");
+const SIGNALING_URL = (import.meta.env?.VITE_SIGNALING_URL ?? "").replace(/\/$/, "");
 
 // STUN-only default. The Worker's /turn-credentials may add a Cloudflare TURN
 // entry for viewers behind restrictive NATs; without it those may fail to peer.
@@ -67,6 +67,17 @@ export interface Snapshot {
   logo: { name: string; path: string; b64: string } | null;
 }
 
+export interface SelectionPayload {
+  active: boolean;
+  mode?: "visual" | "linewise" | "blockwise";
+  text: string;
+  prefix?: string;
+  suffix?: string;
+  fromLine?: number;
+  toLine?: number;
+  relPos?: number;
+}
+
 // --- signaling message envelopes (JSON over the WebSocket) ---
 type Signal =
   | { type: "viewer_join"; viewerId: string }
@@ -82,7 +93,8 @@ const DATA_CHANNEL = "state";
 
 type ChannelMessage =
   | { type: "snapshot"; data: Snapshot }
-  | { type: "chunk"; id: number; index: number; total: number; data: string };
+  | { type: "chunk"; id: number; index: number; total: number; data: string }
+  | { type: "selection"; data: SelectionPayload | null };
 
 // One broadcaster fans the current snapshot out to every connected viewer. It
 // holds a peer connection and data channel per viewer (the spec's state model).
@@ -94,17 +106,25 @@ export class Broadcaster {
   private readonly pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
   private iceConfig: RTCConfiguration = { iceServers: DEFAULT_ICE };
   private snapshot?: Snapshot;
+  private currentSelection: SelectionPayload | null = null;
   private stopped = false;
   private opened = false;
   private rejectConnect?: (error: Error) => void;
   private nextChunkId = 1;
 
+  private readonly onViewers: (count: number) => void;
+  private readonly onError: (message: string) => void;
+  private readonly onWarning?: (message: string) => void;
+
   constructor(
-    private readonly onViewers: (count: number) => void,
-    private readonly onError: (message: string) => void,
-    private readonly onWarning?: (message: string) => void,
+    onViewers: (count: number) => void,
+    onError: (message: string) => void,
+    onWarning?: (message: string) => void,
   ) {
     this.roomId = randomRoomId();
+    this.onViewers = onViewers;
+    this.onError = onError;
+    this.onWarning = onWarning;
   }
 
   // The shareable viewer link for this room (a client-side hash route).
@@ -183,6 +203,22 @@ export class Broadcaster {
     this.snapshot = snapshot;
     for (const dc of this.dcs.values()) {
       this.sendSnapshot(dc, snapshot);
+    }
+  }
+
+  // Push editor selection state to every open data channel.
+  pushSelection(selection: SelectionPayload | null): void {
+    this.currentSelection = selection;
+    const msg: ChannelMessage = { type: "selection", data: selection };
+    const raw = JSON.stringify(msg);
+    for (const dc of this.dcs.values()) {
+      if (dc.readyState === "open") {
+        try {
+          dc.send(raw);
+        } catch {
+          /* ignore send error */
+        }
+      }
     }
   }
 
@@ -267,6 +303,13 @@ export class Broadcaster {
     this.dcs.set(viewerId, dc);
     dc.addEventListener("open", () => {
       if (this.snapshot) this.sendSnapshot(dc, this.snapshot);
+      if (this.currentSelection?.active) {
+        try {
+          dc.send(JSON.stringify({ type: "selection", data: this.currentSelection } satisfies ChannelMessage));
+        } catch {
+          /* ignore */
+        }
+      }
     });
 
     const pendingOutgoing: RTCIceCandidateInit[] = [];
@@ -359,12 +402,29 @@ export class Viewer {
   private stopped = false;
   private backoff = 0;
 
+  private readonly roomId: string;
+  private readonly onSnapshot: (s: Snapshot) => void;
+  private readonly onStatus: (state: "connecting" | "live" | "reconnecting" | "ended") => void;
+  private readonly onError?: (message: string) => void;
+  private onSelection?: (payload: SelectionPayload | null) => void;
+
   constructor(
-    private readonly roomId: string,
-    private readonly onSnapshot: (s: Snapshot) => void,
-    private readonly onStatus: (state: "connecting" | "live" | "reconnecting" | "ended") => void,
-    private readonly onError?: (message: string) => void,
-  ) {}
+    roomId: string,
+    onSnapshot: (s: Snapshot) => void,
+    onStatus: (state: "connecting" | "live" | "reconnecting" | "ended") => void,
+    onError?: (message: string) => void,
+    onSelection?: (payload: SelectionPayload | null) => void,
+  ) {
+    this.roomId = roomId;
+    this.onSnapshot = onSnapshot;
+    this.onStatus = onStatus;
+    this.onError = onError;
+    this.onSelection = onSelection;
+  }
+
+  setOnSelection(cb: (payload: SelectionPayload | null) => void): void {
+    this.onSelection = cb;
+  }
 
   async start(): Promise<void> {
     this.iceConfig = await getIceConfig();
@@ -427,6 +487,8 @@ export class Viewer {
               this.onStatus("live");
             } else if (msg.type === "chunk") {
               this.handleChunk(msg);
+            } else if (msg.type === "selection") {
+              this.onSelection?.(msg.data);
             }
           } else if ("markdown" in msg) {
             this.onSnapshot(msg as unknown as Snapshot);

@@ -4,14 +4,15 @@
 // src/main.ts for the default (non-viewer) route.
 
 import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view";
-import { Compartment } from "@codemirror/state";
+import { Compartment, type EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { vim, getCM } from "@replit/codemirror-vim";
 
 import { createPreview, type Logo } from "./preview.ts";
 import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
-import { Broadcaster, isSharingEnabled, type Snapshot } from "./share.ts";
+import { Broadcaster, isSharingEnabled, type Snapshot, type SelectionPayload } from "./share.ts";
+import { SelectionHighlighter } from "./selection-highlighter.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
 import seed from "./seed.md?raw";
@@ -51,10 +52,16 @@ export function initEditor() {
     toast(message);
   };
 
+  const pagesEl = document.getElementById("pages")!;
+  const selectionHighlighter = new SelectionHighlighter();
+  let currentSelection: SelectionPayload | null = null;
+  let visualModeActive = false;
+  let visualSubMode: "visual" | "linewise" | "blockwise" = "visual";
+
   const preview = createPreview(
     {
       previewEl: document.getElementById("preview")!,
-      pagesEl: document.getElementById("pages")!,
+      pagesEl,
       controlsEl: document.getElementById("preview-controls")!,
       zoomInEl: document.getElementById("zoom-in") as HTMLButtonElement,
       zoomOutEl: document.getElementById("zoom-out") as HTMLButtonElement,
@@ -223,6 +230,9 @@ export function initEditor() {
       shareViewersEl.hidden = false;
       shareStopEl.textContent = "Lopeta jako";
       bc.push(snapshot());
+      if (currentSelection?.active) {
+        bc.pushSelection(currentSelection);
+      }
       syncShareControls();
     } catch (e) {
       bc?.stop();
@@ -279,7 +289,11 @@ export function initEditor() {
 
   // Render, and (when sharing) push the fresh snapshot to viewers.
   function update(md: string) {
-    void preview.render(md, logoForPreview());
+    void preview.render(md, logoForPreview()).then(() => {
+      if (currentSelection?.active) {
+        selectionHighlighter.update(pagesEl, currentSelection);
+      }
+    });
     broadcaster?.push(snapshot());
   }
 
@@ -344,6 +358,49 @@ export function initEditor() {
     },
   });
 
+  function getSelectionPayload(state: EditorState): SelectionPayload | null {
+    if (!visualModeActive) return null;
+    const main = state.selection.main;
+    if (main.empty) return null;
+
+    const from = main.from;
+    const to = main.to;
+    const text = state.sliceDoc(from, to);
+    if (!text || !text.trim()) return null;
+
+    const lineFrom = state.doc.lineAt(from);
+    const lineTo = state.doc.lineAt(to);
+    const prefix = state.sliceDoc(Math.max(0, from - 100), from);
+    const suffix = state.sliceDoc(to, Math.min(state.doc.length, to + 100));
+    const relPos = state.doc.length > 0 ? from / state.doc.length : 0;
+
+    return {
+      active: true,
+      mode: visualSubMode,
+      text,
+      prefix,
+      suffix,
+      fromLine: lineFrom.number,
+      toLine: lineTo.number,
+      relPos,
+    };
+  }
+
+  function syncSelection(state: EditorState) {
+    if (!visualModeActive) {
+      if (currentSelection !== null) {
+        currentSelection = null;
+        broadcaster?.pushSelection(null);
+        selectionHighlighter.update(pagesEl, null);
+      }
+      return;
+    }
+    const payload = getSelectionPayload(state);
+    currentSelection = payload;
+    broadcaster?.pushSelection(payload);
+    selectionHighlighter.update(pagesEl, payload);
+  }
+
   let timer: number | undefined;
   const editor = new EditorView({
     parent: editorEl,
@@ -358,11 +415,15 @@ export function initEditor() {
       markdown(),
       EditorView.lineWrapping,
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged) return;
-        const text = u.state.doc.toString();
-        lsSet(STORE.doc, text);
-        clearTimeout(timer);
-        timer = window.setTimeout(() => update(text), 300);
+        if (u.docChanged) {
+          const text = u.state.doc.toString();
+          lsSet(STORE.doc, text);
+          clearTimeout(timer);
+          timer = window.setTimeout(() => update(text), 300);
+        }
+        if (visualModeActive && (u.selectionSet || u.docChanged)) {
+          syncSelection(u.state);
+        }
       }),
     ],
   });
@@ -383,17 +444,40 @@ export function initEditor() {
   function syncVimMode() {
     if (!vimEl.checked || !keyboardPresent) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     const cm = getCM(editor);
     if (!cm) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     showVimMode("normal");
-    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) =>
-      showVimMode(e.mode, e.subMode),
-    );
+    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) => {
+      showVimMode(e.mode, e.subMode);
+      if (e.mode === "visual") {
+        visualModeActive = true;
+        visualSubMode =
+          e.subMode === "linewise"
+            ? "linewise"
+            : e.subMode === "blockwise"
+            ? "blockwise"
+            : "visual";
+        syncSelection(editor.state);
+      } else {
+        if (visualModeActive) {
+          visualModeActive = false;
+          syncSelection(editor.state);
+        }
+      }
+    });
   }
   // Apply Vim only when the user wants it AND a keyboard is present; the
   // preference is persisted regardless, so it takes effect once a keyboard
@@ -401,6 +485,10 @@ export function initEditor() {
   // on-screen keyboard).
   function applyVim() {
     const on = vimEl.checked && keyboardPresent;
+    if (!on && visualModeActive) {
+      visualModeActive = false;
+      syncSelection(editor.state);
+    }
     editor.dispatch({ effects: vimCompartment.reconfigure(on ? vim() : []) });
     syncVimMode();
   }

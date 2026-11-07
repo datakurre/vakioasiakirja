@@ -275,6 +275,13 @@ main {
   pointer-events: none;
 }
 
+/* Vim visual selection highlight (synchronized to viewers) */
+.selection-highlight {
+  fill: #86efac;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
 @keyframes neon-fade {
   0% {
     opacity: 0.85;
