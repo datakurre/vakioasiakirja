@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --test --experimental-strip-types tests/**/*.test.ts",
+    "test": "node --test --experimental-strip-types tests/**/*.test.ts && node --experimental-strip-types scripts/test-phase1.ts",
     "convert": "node --experimental-strip-types scripts/convert.ts"
   },
   "dependencies": {

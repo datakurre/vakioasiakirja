@@ -1,18 +1,50 @@
-// Entry point / router. The default route boots the full editor; the
-// #/watch/{roomId} route boots the read-only live-preview viewer. The two share
-// the typst.ts preview core (src/preview.ts) but otherwise load independently.
+// Entry point / router.
+// - Default route (#/ or empty): boots personal editor (src/editor.ts)
+// - #/watch/{roomId}: boots read-only live-preview viewer (src/viewer.ts)
+// - #/edit/{roomId}/{token} or #/edit/{roomId}?token={token}: boots collaborative editor (src/collab-editor.ts)
 
 import "./style.css";
 import { initEditor } from "./editor.ts";
 import { initViewer } from "./viewer.ts";
+import { initCollabEditor, renderCollabError } from "./collab-editor.ts";
+import { parseRoute, isSameRoute, type Route } from "./router.ts";
 
-// #/watch/{roomId} — roomId is 6–8 chars from the share.ts alphabet.
-const watch = location.hash.match(/^#\/watch\/([A-Z0-9]{4,12})/i);
-if (watch) {
-  initViewer(watch[1].toUpperCase());
-} else {
-  initEditor();
+export { parseRoute, isSameRoute, type Route };
+
+let currentRoute: Route | null = null;
+
+function handleRoute() {
+  const route = parseRoute(location.hash);
+  if (currentRoute !== null && !isSameRoute(currentRoute, route)) {
+    window.location.reload();
+    return;
+  }
+  currentRoute = route;
+  switch (route.type) {
+    case "viewer":
+      initViewer(route.roomId);
+      break;
+    case "collab":
+      initCollabEditor(route.roomId, route.token);
+      break;
+    case "collab-error":
+      renderCollabError(route.message);
+      break;
+    case "personal":
+    default:
+      initEditor();
+      break;
+  }
 }
+
+handleRoute();
+
+window.addEventListener("hashchange", () => {
+  const nextRoute = parseRoute(location.hash);
+  if (!isSameRoute(currentRoute, nextRoute)) {
+    window.location.reload();
+  }
+});
 
 // Register the service worker so an installed (home-screen) app launches
 // instantly and works offline. Only in production builds — in dev it would cache

@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   // Base URL of the signaling Worker (see signaling/). Empty disables sharing.
   readonly VITE_SIGNALING_URL?: string;
+  // Base URL of the collaborative editing service (see signaling/). Falls back to VITE_SIGNALING_URL.
+  readonly VITE_COLLAB_URL?: string;
 }
 
 declare module "markdown-it-deflist" {

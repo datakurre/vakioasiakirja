@@ -116,6 +116,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   let templateAdded = false;
   let currentTypst = "";
   let rendered = false;
+  let nextRenderSeq = 0;
 
   let view: ViewPrefs = { zoom: 1, fit: "width", twoUp: false };
   // Natural page sizes (pt) recorded by showPages; the fit math scales from these.
@@ -210,14 +211,16 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   }
 
   async function render(md: string, logo?: Logo, options?: RenderOptions) {
+    const currentSeq = ++nextRenderSeq;
     let typst: string;
     try {
       typst = markdownToTypst(md, { logoPath: logo?.path });
     } catch (e) {
+      if (currentSeq !== nextRenderSeq) return;
+      setBusy(false);
       cb.fail(e instanceof ConversionError ? e.message : String(e));
       return;
     }
-    currentTypst = typst;
     cb.setStatus("kääntää…");
     setBusy(true);
     try {
@@ -229,12 +232,15 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       // change or removal.
       if (logo) await $typst.mapShadow(logo.path, logo.bytes);
       const svg = await $typst.svg({ mainContent: typst });
+      if (currentSeq !== nextRenderSeq) return;
+      currentTypst = typst;
       showPages(svg, options?.liveEdit ?? false);
       rendered = true;
       cb.setStatus("käännetty");
       setBusy(false);
       cb.onRendered?.();
     } catch (e) {
+      if (currentSeq !== nextRenderSeq) return;
       setBusy(false);
       cb.fail(String(e));
     }

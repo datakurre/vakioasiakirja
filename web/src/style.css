@@ -838,3 +838,46 @@ body.viewer main {
     min-height: 2.5rem;
   }
 }
+
+/* --- Collaborative mode stub & error views --- */
+.error-card-container,
+.collab-stub-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  background: #eceff1;
+}
+
+.collab-error-card,
+.collab-stub-card {
+  max-width: 520px;
+  background: #ffffff;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+.collab-stub-notice {
+  text-align: left;
+  background: #f5f5f5;
+  border-left: 4px solid #1976d2;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0;
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+body.collab-error-view #statusbar,
+body.collab-error-view #preview-controls,
+body.collab-error-view #share-panel {
+  display: none !important;
+}
+
+body.collab-error-view main {
+  grid-template-columns: 1fr;
+}
+
