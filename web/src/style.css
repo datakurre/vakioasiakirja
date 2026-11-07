@@ -292,10 +292,33 @@ main {
   }
 }
 
+/* Page modification pulse animation in preview */
+#pages svg.page.page-pulse,
+#pages svg.page.page-modified,
+.page-pulse,
+.page-modified {
+  animation: page-pulse-glow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes page-pulse-glow {
+  0% {
+    box-shadow: 0 0 0 3px #1976d2, 0 4px 16px rgba(25, 118, 210, 0.45);
+  }
+  100% {
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .neon-highlight {
     animation: none;
     opacity: 0;
+  }
+  #pages svg.page.page-pulse,
+  #pages svg.page.page-modified,
+  .page-pulse,
+  .page-modified {
+    animation: none;
   }
 }
 
@@ -475,11 +498,16 @@ body.keyboard #vim-mode:not([hidden]) {
 
 @media (prefers-reduced-motion: reduce) {
   .toast,
-  #preview-controls {
-    transition: none;
+  #preview-controls,
+  .cm-remote-edit-highlight {
+    transition: none !important;
   }
-  #preview[aria-busy="true"]::after {
-    animation: none;
+  #preview[aria-busy="true"]::after,
+  #pages svg.page.page-pulse,
+  #pages svg.page.page-modified,
+  .page-pulse,
+  .page-modified {
+    animation: none !important;
   }
 }
 
@@ -1162,6 +1190,14 @@ body.collab-error-view main {
 .collab-btn.collab-btn-exit:hover {
   background: #d32f2f;
   border-color: #d32f2f;
+}
+
+/* Remote change highlight in CodeMirror */
+.cm-remote-edit-highlight {
+  background-color: rgba(255, 235, 59, 0.38);
+  border-bottom: 1.5px solid rgba(251, 192, 45, 0.85);
+  border-radius: 2px;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
 /* Remote cursors & selection styling */

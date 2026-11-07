@@ -14,6 +14,9 @@ import rendererWasmUrl from "@myriaddreamin/typst-ts-renderer/pkg/typst_ts_rende
 import { markdownToTypst, ConversionError } from "./md-to-typst.ts";
 import templateSource from "./sfs-2487-2024.typ?raw";
 import { HighlightTracker } from "./highlight.ts";
+import { createPagePulseTracker, type PagePulseTracker } from "./pulse.ts";
+
+export { createPagePulseTracker, type PagePulseTracker };
 
 const base = import.meta.env.BASE_URL;
 const FONTS = [
@@ -78,7 +81,11 @@ export interface Preview {
   hasContent(): boolean;
   // Briefly reveal the floating view controls (for touch, where there is no hover).
   flashControls(): void;
+  // Reset cached page SVGs for pulse detection.
+  resetPulse?(): void;
 }
+
+
 
 interface ViewPrefs {
   zoom: number; // explicit scale when fit === "none" (1 = natural pt → px)
@@ -117,6 +124,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   let currentTypst = "";
   let rendered = false;
   let nextRenderSeq = 0;
+  const pulseTracker = createPagePulseTracker();
 
   let view: ViewPrefs = { zoom: 1, fit: "width", twoUp: false };
   // Natural page sizes (pt) recorded by showPages; the fit math scales from these.
@@ -188,9 +196,13 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       els.pagesEl.replaceChildren(baseSvg);
       return;
     }
+    const pageContents = pages.map((p) => p.innerHTML);
+    const modifiedPages = pulseTracker.checkModified(pageContents);
+
     const cards: SVGSVGElement[] = [];
     const sizes: { w: number; h: number }[] = [];
-    for (const page of pages) {
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
       const t = (page.getAttribute("transform") ?? "").match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)/);
       const y = t ? parseFloat(t[2]) : 0;
       const w = parseFloat(page.getAttribute("data-page-width") ?? "0");
@@ -201,7 +213,10 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       card.style.overflow = "hidden";
       card.removeAttribute("data-width");
       card.removeAttribute("data-height");
-      card.classList.add("page");
+      card.classList.add("page", "preview-page");
+      if (modifiedPages[i]) {
+        card.classList.add("page-pulse", "page-modified");
+      }
       cards.push(card);
       sizes.push({ w, h });
     }
@@ -286,6 +301,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     render,
     hasContent: () => rendered,
     flashControls,
+    resetPulse: () => pulseTracker.reset(),
     pdf: async () => {
       if (!rendered) return undefined;
       return (await $typst.pdf({ mainContent: currentTypst })) as Uint8Array | undefined;

@@ -2,19 +2,161 @@
 // Powered by Yjs CRDTs, WebSocket synchronization, IndexedDB persistence,
 // CodeMirror 6 binding with Y.UndoManager isolation, and live Typst.ts preview.
 
-import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view";
-import { Compartment } from "@codemirror/state";
-import { defaultKeymap } from "@codemirror/commands";
+import { EditorView, keymap, lineNumbers, drawSelection, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension } from "@codemirror/state";
+import { defaultKeymap, undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { vim, getCM } from "@replit/codemirror-vim";
+import { vim, getCM, Vim } from "@replit/codemirror-vim";
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { IndexeddbPersistence } from "y-indexeddb";
-import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
+import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next";
 
-import { createPreview, type Logo } from "./preview.ts";
+import type { Logo } from "./preview.ts";
 import { createToaster } from "./ui.ts";
 import { getCollabWsUrl } from "./config.ts";
+
+export const clearRemoteHighlight = StateEffect.define<void>();
+export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
+
+export function isRemoteTransaction(tr: Transaction): boolean {
+  if (tr.annotation(ySyncAnnotation) != null) return true;
+  if (Boolean(tr.annotation(Transaction.remote))) return true;
+  return false;
+}
+
+export function getRemoteChangedRanges(tr: Transaction): { from: number; to: number }[] {
+  const ranges: { from: number; to: number }[] = [];
+  tr.changes.iterChanges((_fromA, _toA, fromB, toB) => {
+    if (fromB < toB && toB <= tr.newDoc.length) {
+      ranges.push({ from: fromB, to: toB });
+    } else if (fromB === toB && tr.newDoc.length > 0) {
+      const from = Math.min(fromB, tr.newDoc.length - 1);
+      const to = Math.min(from + 1, tr.newDoc.length);
+      if (from < to) {
+        ranges.push({ from, to });
+      }
+    }
+  });
+  return ranges;
+}
+
+export const remoteHighlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(clearRemoteHighlight)) {
+        return Decoration.none;
+      }
+      if (effect.is(addRemoteHighlight)) {
+        const mark = Decoration.mark({ class: "cm-remote-edit-highlight" });
+        const newDecos = effect.value
+          .filter((r) => r.from < r.to && r.to <= tr.newDoc.length)
+          .map((r) => mark.range(r.from, r.to));
+        if (newDecos.length > 0) {
+          decorations = decorations.update({ add: newDecos, sort: true });
+        }
+      }
+    }
+    if (isRemoteTransaction(tr)) {
+      const ranges = getRemoteChangedRanges(tr);
+      if (ranges.length > 0) {
+        const mark = Decoration.mark({ class: "cm-remote-edit-highlight" });
+        const newDecos: Range<Decoration>[] = [];
+        for (const r of ranges) {
+          if (r.from < r.to && r.to <= tr.newDoc.length) {
+            newDecos.push(mark.range(r.from, r.to));
+          }
+        }
+        if (newDecos.length > 0) {
+          decorations = decorations.update({ add: newDecos, sort: true });
+        }
+      }
+    }
+    return decorations;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+export function createRemoteHighlightPlugin(timeoutMs = 1500) {
+  return ViewPlugin.fromClass(
+    class {
+      private view: EditorView;
+      private timer: ReturnType<typeof setTimeout> | null = null;
+      constructor(view: EditorView) {
+        this.view = view;
+      }
+
+      update(update: ViewUpdate) {
+        const hasRemote = update.transactions.some(isRemoteTransaction);
+        if (hasRemote) {
+          if (this.timer) clearTimeout(this.timer);
+          this.timer = setTimeout(() => {
+            this.view.dispatch({ effects: clearRemoteHighlight.of() });
+            this.timer = null;
+          }, timeoutMs);
+        }
+      }
+
+      destroy() {
+        if (this.timer) {
+          clearTimeout(this.timer);
+          this.timer = null;
+        }
+      }
+    },
+  );
+}
+
+export function remoteHighlightExtension(timeoutMs = 1500): Extension {
+  return [remoteHighlightField, createRemoteHighlightPlugin(timeoutMs)];
+}
+
+const yUndoCommand = yUndoManagerKeymap.find((k) => k.key === "Mod-z")?.run;
+const yRedoCommand = yUndoManagerKeymap.find((k) => k.key === "Mod-y")?.run;
+
+let vimActionsConfigured = false;
+export function setupVimForCollab() {
+  if (vimActionsConfigured) return;
+  vimActionsConfigured = true;
+
+  Vim.defineAction("undo", (cm: any, actionArgs: any) => {
+    const repeat = (actionArgs && actionArgs.repeat) || 1;
+    for (let i = 0; i < repeat; i++) {
+      let handled = false;
+      if (yUndoCommand && cm?.cm6) {
+        try {
+          handled = Boolean(yUndoCommand(cm.cm6 as EditorView));
+        } catch {
+          handled = false;
+        }
+      }
+      if (!handled && cm?.cm6) {
+        cmUndo(cm.cm6 as EditorView);
+      }
+    }
+  });
+
+  Vim.defineAction("redo", (cm: any, actionArgs: any) => {
+    const repeat = (actionArgs && actionArgs.repeat) || 1;
+    for (let i = 0; i < repeat; i++) {
+      let handled = false;
+      if (yRedoCommand && cm?.cm6) {
+        try {
+          handled = Boolean(yRedoCommand(cm.cm6 as EditorView));
+        } catch {
+          handled = false;
+        }
+      }
+      if (!handled && cm?.cm6) {
+        cmRedo(cm.cm6 as EditorView);
+      }
+    }
+  });
+}
 
 function escapeHtml(text: string): string {
   const div = document.createElement("div");
@@ -82,7 +224,7 @@ function logoPathFor(file: File): string {
 /**
  * Initializes the full collaborative editor experience.
  */
-export function initCollabEditor(roomId: string, token: string) {
+export async function initCollabEditor(roomId: string, token: string) {
   document.body.classList.remove("viewer", "collab-error-view");
   document.body.classList.add("collab-mode", "show-editor");
 
@@ -201,6 +343,7 @@ export function initCollabEditor(roomId: string, token: string) {
   }
   showLogoControls();
 
+  const { createPreview } = await import("./preview.ts");
   const preview = createPreview(
     {
       previewEl: document.getElementById("preview")!,
@@ -317,7 +460,8 @@ export function initCollabEditor(roomId: string, token: string) {
   // --- Initialize CodeMirror 6 ---
   editorEl.innerHTML = ""; // Clear stub
 
-  // Vim preference support
+  // Vim preference support and collaborative undo/redo mapping
+  setupVimForCollab();
   const STORE_VIM = "sfs2487.vim";
   const vimCompartment = new Compartment();
   const vimWanted = localStorage.getItem(STORE_VIM) === "1";
@@ -345,6 +489,7 @@ export function initCollabEditor(roomId: string, token: string) {
       selectionTheme,
       markdown(),
       EditorView.lineWrapping,
+      remoteHighlightExtension(),
       // Collaborative extension: binds ytext and remote cursors/selections
       yCollab(ytext, provider.awareness, { undoManager }),
       // Collaborative undo/redo keymap: isolates local changes without reverting remote edits
