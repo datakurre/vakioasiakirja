@@ -81,26 +81,20 @@ export function getBBoxInParent(textNode: SVGGElement): BBox | null {
 }
 
 /**
- * Computes the set of indices in `curr` that are newly added or modified
- * (i.e. not part of the longest common subsequence with `prev`).
- * Uses prefix/suffix trimming for speed, followed by LCS DP.
+ * Aligns lines in `curr` against `prev` using prefix/suffix trimming and LCS DP.
+ * Returns a Map from curr index -> matched prev index.
  */
-export function diffLines(prev: readonly string[], curr: readonly string[]): Set<number> {
-  const addedIndices = new Set<number>();
+export function alignLines(prev: readonly string[], curr: readonly string[]): Map<number, number> {
   const n = prev.length;
   const m = curr.length;
+  const currToPrev = new Map<number, number>();
 
-  if (n === 0) {
-    for (let j = 0; j < m; j++) addedIndices.add(j);
-    return addedIndices;
-  }
-  if (m === 0) {
-    return addedIndices;
-  }
+  if (n === 0 || m === 0) return currToPrev;
 
   // 1. Trim common prefix
   let prefix = 0;
   while (prefix < n && prefix < m && prev[prefix] === curr[prefix]) {
+    currToPrev.set(prefix, prefix);
     prefix++;
   }
 
@@ -111,6 +105,7 @@ export function diffLines(prev: readonly string[], curr: readonly string[]): Set
     suffix < m - prefix &&
     prev[n - 1 - suffix] === curr[m - 1 - suffix]
   ) {
+    currToPrev.set(m - 1 - suffix, n - 1 - suffix);
     suffix++;
   }
 
@@ -122,16 +117,7 @@ export function diffLines(prev: readonly string[], curr: readonly string[]): Set
   const midN = prevMidEnd - prevMidStart;
   const midM = currMidEnd - currMidStart;
 
-  if (midN === 0) {
-    for (let j = currMidStart; j < currMidEnd; j++) {
-      addedIndices.add(j);
-    }
-    return addedIndices;
-  }
-
-  if (midM === 0) {
-    return addedIndices;
-  }
+  if (midN === 0 || midM === 0) return currToPrev;
 
   // DP matrix on the middle slice
   const dp: number[][] = Array.from({ length: midN + 1 }, () =>
@@ -150,12 +136,11 @@ export function diffLines(prev: readonly string[], curr: readonly string[]): Set
   }
 
   // Backtrack to find matched indices in currMid
-  const matchedInCurrMid = new Set<number>();
   let i = midN;
   let j = midM;
   while (i > 0 && j > 0) {
     if (prev[prevMidStart + i - 1] === curr[currMidStart + j - 1]) {
-      matchedInCurrMid.add(j - 1);
+      currToPrev.set(currMidStart + j - 1, prevMidStart + i - 1);
       i--;
       j--;
     } else if (dp[i - 1][j] >= dp[i][j - 1]) {
@@ -165,12 +150,22 @@ export function diffLines(prev: readonly string[], curr: readonly string[]): Set
     }
   }
 
-  for (let j = 0; j < midM; j++) {
-    if (!matchedInCurrMid.has(j)) {
-      addedIndices.add(currMidStart + j);
+  return currToPrev;
+}
+
+/**
+ * Computes the set of indices in `curr` that are newly added or modified
+ * (i.e. not part of the longest common subsequence with `prev`).
+ * Uses prefix/suffix trimming for speed, followed by LCS DP.
+ */
+export function diffLines(prev: readonly string[], curr: readonly string[]): Set<number> {
+  const alignment = alignLines(prev, curr);
+  const addedIndices = new Set<number>();
+  for (let j = 0; j < curr.length; j++) {
+    if (!alignment.has(j)) {
+      addedIndices.add(j);
     }
   }
-
   return addedIndices;
 }
 
@@ -197,7 +192,7 @@ export function extractTextLines(root: Element | DocumentFragment): TextLineInfo
 
 export class HighlightTracker {
   private prevTids: string[] = [];
-  private activeHighlights = new Map<string, number>(); // tid -> timestamp
+  private prevTimestamps: (number | undefined)[] = [];
   readonly fadeDurationMs: number;
   readonly padX: number;
   readonly padY: number;
@@ -214,11 +209,18 @@ export class HighlightTracker {
 
   reset(): void {
     this.prevTids = [];
-    this.activeHighlights.clear();
+    this.prevTimestamps = [];
   }
 
   getActiveHighlights(): ReadonlyMap<string, number> {
-    return this.activeHighlights;
+    const active = new Map<string, number>();
+    for (let i = 0; i < this.prevTids.length; i++) {
+      const ts = this.prevTimestamps[i];
+      if (ts !== undefined) {
+        active.set(this.prevTids[i], ts);
+      }
+    }
+    return active;
   }
 
   getPrevTids(): readonly string[] {
@@ -229,7 +231,7 @@ export class HighlightTracker {
    * Processes the rendered SVG DOM:
    * - Finds all text lines and their tids.
    * - If not liveEdit (e.g. initial load), stores baseline tids and does not highlight.
-   * - If liveEdit, diffs against previous tids to find additions/modifications.
+   * - If liveEdit, aligns against previous tids to find additions/modifications.
    * - Injects `<rect class="neon-highlight">` in parent `<g>` before each active text line.
    * - Preserves negative animation-delay for recent active highlights across re-renders.
    */
@@ -241,39 +243,40 @@ export class HighlightTracker {
     const currTids = lines.map((l) => l.tid);
 
     if (!isLiveEdit) {
-      this.activeHighlights.clear();
       this.prevTids = currTids;
+      this.prevTimestamps = new Array(currTids.length).fill(undefined);
       return;
     }
 
-    // Prune expired active highlights older than fadeDurationMs
-    for (const [tid, timestamp] of this.activeHighlights.entries()) {
-      if (now - timestamp >= this.fadeDurationMs) {
-        this.activeHighlights.delete(tid);
-      }
-    }
+    const alignment = alignLines(this.prevTids, currTids);
+    const currTimestamps: (number | undefined)[] = new Array(currTids.length).fill(undefined);
 
-    // Sequence diff between previous and current rendered text lines
-    const addedIndices = diffLines(this.prevTids, currTids);
-    for (const idx of addedIndices) {
-      const tid = currTids[idx];
-      if (tid) {
-        this.activeHighlights.set(tid, now);
+    for (let j = 0; j < currTids.length; j++) {
+      const prevIdx = alignment.get(j);
+      if (prevIdx !== undefined) {
+        const prevTs = this.prevTimestamps[prevIdx];
+        if (prevTs !== undefined && now - prevTs < this.fadeDurationMs) {
+          currTimestamps[j] = prevTs;
+        }
+      } else {
+        currTimestamps[j] = now;
       }
     }
 
     this.prevTids = currTids;
+    this.prevTimestamps = currTimestamps;
 
     // Inject highlight rects for currently active highlights
     const doc = root.ownerDocument ?? (root instanceof Document ? root : document);
 
-    for (const line of lines) {
-      const timestamp = this.activeHighlights.get(line.tid);
+    for (let i = 0; i < lines.length; i++) {
+      const timestamp = currTimestamps[i];
       if (timestamp === undefined) continue;
 
       const elapsed = Math.max(0, now - timestamp);
       if (elapsed >= this.fadeDurationMs) continue;
 
+      const line = lines[i];
       const rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
       rect.setAttribute("class", "neon-highlight");
       rect.setAttribute("x", (line.bbox.x - this.padX).toFixed(2));

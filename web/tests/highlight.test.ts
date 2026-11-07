@@ -304,3 +304,45 @@ test("Real Typst SVG integration: end-to-end highlighting on live document edits
   const uneditedNum2 = textLines[3]; // "2."
   assert.equal(uneditedNum2.parent.querySelectorAll(".neon-highlight").length, 0);
 });
+
+test("HighlightTracker: duplicate tids (e.g. repeated bullets/symbols) do not cause false-positive highlights", async () => {
+  const tracker = new HighlightTracker();
+
+  // Initial document with 2 bullet points
+  const svg1 = await $typst.svg({
+    mainContent: "= Lista\n\n- Omena\n- Banaani",
+  });
+  const dom1 = new JSDOM(svg1);
+  tracker.process(dom1.window.document.body, false, 1000);
+  assert.equal(dom1.window.document.querySelectorAll(".neon-highlight").length, 0);
+
+  // Presenter appends a 3rd bullet item
+  const svg2 = await $typst.svg({
+    mainContent: "= Lista\n\n- Omena\n- Banaani\n- Sitruuna",
+  });
+  const dom2 = new JSDOM(svg2);
+  tracker.process(dom2.window.document.body, true, 1500);
+
+  // Exactly 2 text elements added: 3rd bullet symbol and "Sitruuna"
+  const rects = dom2.window.document.querySelectorAll(".neon-highlight");
+  assert.equal(rects.length, 2);
+
+  // The first two bullets must NOT be highlighted!
+  const textLines = extractTextLines(dom2.window.document.body);
+  // textLines: [Title, Bullet1, "Omena", Bullet2, "Banaani", Bullet3, "Sitruuna"]
+  const bullet1 = textLines[1];
+  assert.equal(bullet1.parent.querySelectorAll(".neon-highlight").length, 0);
+  const omena = textLines[2];
+  assert.equal(omena.parent.querySelectorAll(".neon-highlight").length, 0);
+  const bullet2 = textLines[3];
+  assert.equal(bullet2.parent.querySelectorAll(".neon-highlight").length, 0);
+  const banaani = textLines[4];
+  assert.equal(banaani.parent.querySelectorAll(".neon-highlight").length, 0);
+
+  // Only bullet 3 and "Sitruuna" are highlighted
+  const bullet3 = textLines[5];
+  assert.equal(bullet3.parent.querySelectorAll(".neon-highlight").length, 1);
+  const sitruuna = textLines[6];
+  assert.equal(sitruuna.parent.querySelectorAll(".neon-highlight").length, 1);
+});
+
