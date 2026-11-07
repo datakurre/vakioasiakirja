@@ -85,7 +85,8 @@ body {
   cursor: not-allowed;
 }
 
-.iconbtn[aria-pressed="true"] {
+.iconbtn[aria-pressed="true"],
+.iconbtn[aria-expanded="true"] {
   background: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.45);
 }
@@ -480,6 +481,164 @@ body.keyboard #vim-mode:not([hidden]) {
   #preview[aria-busy="true"]::after {
     animation: none;
   }
+}
+
+/* --- File manager drawer / panel --- */
+#files-toggle[aria-expanded="true"] {
+  color: #a5f0c4;
+}
+
+#files-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(3rem + env(safe-area-inset-bottom));
+  z-index: 1000;
+  width: min(24rem, 90vw);
+  max-height: min(28rem, calc(100vh - 5rem));
+  display: flex;
+  flex-direction: column;
+  background: #37474f;
+  color: #fff;
+  padding: 0.8rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+}
+
+.files-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #455a64;
+}
+
+.files-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.files-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.files-new-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #fff;
+  background: #455a64;
+  border: 1px solid #546e7a;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.files-new-btn:hover {
+  background: #546e7a;
+}
+
+.files-new-btn:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 1px;
+}
+
+.files-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 18rem;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.15);
+  border-left: 3px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.file-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.file-item.active {
+  background: #263238;
+  border-left-color: #69f0ae;
+}
+
+.file-select-btn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+
+.file-select-btn:focus-visible {
+  outline: 2px solid #90caf9;
+  outline-offset: 1px;
+}
+
+.file-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.file-item.active .file-name {
+  font-weight: 600;
+  color: #a5f0c4;
+}
+
+.file-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.2rem;
+  background: rgba(105, 240, 174, 0.2);
+  color: #69f0ae;
+  flex: 0 0 auto;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+}
+
+.file-actions .iconbtn {
+  padding: 0.25rem;
+  min-width: 1.8rem;
+  min-height: 1.8rem;
 }
 
 /* --- Live-preview sharing --- */

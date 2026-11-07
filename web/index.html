@@ -64,6 +64,9 @@
       <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
       </symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      </symbol>
     </svg>
 
     <header>
@@ -126,6 +129,9 @@
         <button id="logo-clear" type="button" class="iconbtn" hidden title="Poista logo" aria-label="Poista logo">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash" /></svg>
         </button>
+        <button id="files-toggle" type="button" class="iconbtn" aria-expanded="false" aria-controls="files-panel" title="Tiedostot" aria-label="Tiedostot">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder" /></svg>
+        </button>
         <button id="reset" type="button" class="iconbtn" title="Uusi esimerkki" aria-label="Uusi esimerkki">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
         </button>
@@ -137,6 +143,23 @@
         </button>
       </div>
     </footer>
+
+    <!-- File manager drawer / panel -->
+    <div id="files-panel" hidden role="region" aria-label="Tiedostot">
+      <div class="files-header">
+        <h2 class="files-title">Tiedostot</h2>
+        <button id="files-close" type="button" class="iconbtn" title="Sulje tiedostopaneeli" aria-label="Sulje tiedostopaneeli">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="files-toolbar">
+        <button id="files-new" type="button" class="files-new-btn" title="Luo uusi tiedosto">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
+          <span>Uusi tiedosto</span>
+        </button>
+      </div>
+      <ul id="files-list" class="files-list" role="list"></ul>
+    </div>
 
     <!-- Broadcaster's sharing panel: the viewer link, a copy button, the live
          viewer count and explicit close/stop controls. -->

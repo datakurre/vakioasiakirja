@@ -7,12 +7,13 @@ import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view
 import { Compartment, type EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { vim, getCM } from "@replit/codemirror-vim";
+import { vim, getCM, Vim } from "@replit/codemirror-vim";
 
 import { createPreview, type Logo } from "./preview.ts";
 import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
 import { Broadcaster, isSharingEnabled, type Snapshot, type SelectionPayload } from "./share.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
+import { FileManager } from "./files.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
 import seed from "./seed.md?raw";
@@ -31,6 +32,11 @@ export function initEditor() {
   const dividerEl = document.getElementById("divider")!;
   const showEditorEl = document.getElementById("show-editor") as HTMLButtonElement;
   const showPreviewEl = document.getElementById("show-preview") as HTMLButtonElement;
+  const filesToggleEl = document.getElementById("files-toggle") as HTMLButtonElement;
+  const filesPanelEl = document.getElementById("files-panel")!;
+  const filesCloseEl = document.getElementById("files-close") as HTMLButtonElement;
+  const filesNewEl = document.getElementById("files-new") as HTMLButtonElement;
+  const filesListEl = document.getElementById("files-list")!;
   const shareEl = document.getElementById("share") as HTMLButtonElement;
   const sharePanelEl = document.getElementById("share-panel")!;
   const shareCloseEl = document.getElementById("share-close") as HTMLButtonElement;
@@ -117,6 +123,10 @@ export function initEditor() {
     return md.replace(/^logo:.*$/m, "");
   }
 
+  const fileManager = new FileManager({
+    defaultSeed: withoutLogo(seed),
+  });
+
   function logoPathFor(file: File): string {
     if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name)) return "/logo.svg";
     if (file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)) return "/logo.jpg";
@@ -158,6 +168,7 @@ export function initEditor() {
 
   function openSharePanel() {
     if (!broadcaster) return;
+    if (!filesPanelEl.hidden) closeFilesPanel();
     sharePanelEl.hidden = false;
     if (shareState === "starting") {
       shareStatusEl.textContent = "Muodostetaan yhteyttä jakopalveluun…";
@@ -271,6 +282,13 @@ export function initEditor() {
           closeSharePanel();
         }
       });
+      document.addEventListener("pointerdown", (event) => {
+        if (sharePanelEl.hidden) return;
+        const target = event.target as Node | null;
+        if (target && !sharePanelEl.contains(target) && !shareEl.contains(target)) {
+          closeSharePanel();
+        }
+      });
       shareCopyEl.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(shareUrlEl.value);
@@ -305,7 +323,8 @@ export function initEditor() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "asiakirja.pdf";
+      const baseName = fileManager.getActiveFile().name.replace(/\.[^.]+$/, "") || "asiakirja";
+      a.download = `${baseName}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -404,7 +423,7 @@ export function initEditor() {
   let timer: number | undefined;
   const editor = new EditorView({
     parent: editorEl,
-    doc: lsGet(STORE.doc) ?? withoutLogo(seed),
+    doc: fileManager.getActiveFile().content,
     extensions: [
       vimCompartment.of(vimWanted && keyboardPresent ? vim() : []),
       lineNumbers(),
@@ -417,7 +436,7 @@ export function initEditor() {
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           const text = u.state.doc.toString();
-          lsSet(STORE.doc, text);
+          fileManager.saveActiveContent(text);
           clearTimeout(timer);
           timer = window.setTimeout(() => update(text), 300);
         }
@@ -535,14 +554,201 @@ export function initEditor() {
   showEditorEl.addEventListener("click", () => showPane("editor"));
   showPreviewEl.addEventListener("click", () => showPane("preview"));
 
+  function applyFileContentToEditor(content: string) {
+    clearTimeout(timer);
+    const cm = getCM(editor);
+    if (cm) {
+      try {
+        Vim.exitVisualMode(cm as any, false);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (visualModeActive) {
+      visualModeActive = false;
+    }
+    currentSelection = null;
+    broadcaster?.pushSelection(null);
+    selectionHighlighter.update(pagesEl, null);
+
+    editor.dispatch({
+      changes: { from: 0, to: editor.state.doc.length, insert: content },
+      selection: { anchor: 0 },
+    });
+    update(content);
+  }
+
+  function switchToFile(fileId: string) {
+    fileManager.saveActiveContent(editor.state.doc.toString());
+    const newFile = fileManager.setActiveFile(fileId);
+    applyFileContentToEditor(newFile.content);
+    renderFilesList();
+  }
+
   resetEl.addEventListener("click", () => {
-    if (!confirm("Aloitetaanko alusta esimerkkiasiakirjasta? Nykyiset muutokset ja logo poistetaan.")) return;
+    if (!confirm("Aloitetaanko alusta esimerkkiasiakirjasta? Nykyisen tiedoston muutokset ja logo poistetaan.")) return;
     const fresh = withoutLogo(seed);
-    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: fresh } });
+    fileManager.resetActiveFile(fresh);
     clearLogo();
-    lsRemove(STORE.doc);
-    update(fresh);
+    applyFileContentToEditor(fresh);
+    renderFilesList();
   });
+
+  // --- file manager drawer (tiedostonhallinta) ---
+  function syncFilesControls() {
+    const open = !filesPanelEl.hidden;
+    filesToggleEl.setAttribute("aria-expanded", String(open));
+    filesToggleEl.setAttribute("aria-pressed", String(open));
+    filesToggleEl.title = open ? "Piilota tiedostot" : "Tiedostot";
+    filesToggleEl.setAttribute("aria-label", filesToggleEl.title);
+  }
+
+  function openFilesPanel() {
+    if (!sharePanelEl.hidden) closeSharePanel();
+    renderFilesList();
+    filesPanelEl.hidden = false;
+    syncFilesControls();
+  }
+
+  function closeFilesPanel() {
+    const focusWasInPanel = filesPanelEl.contains(document.activeElement);
+    filesPanelEl.hidden = true;
+    syncFilesControls();
+    if (focusWasInPanel) filesToggleEl.focus();
+  }
+
+  function toggleFilesPanel() {
+    if (filesPanelEl.hidden) openFilesPanel();
+    else closeFilesPanel();
+  }
+
+  if (filesToggleEl) {
+    filesToggleEl.addEventListener("click", () => toggleFilesPanel());
+    filesCloseEl?.addEventListener("click", () => closeFilesPanel());
+    filesNewEl?.addEventListener("click", () => {
+      fileManager.saveActiveContent(editor.state.doc.toString());
+      const freshSeed = withoutLogo(seed);
+      const newFile = fileManager.createFile(undefined, freshSeed);
+      applyFileContentToEditor(newFile.content);
+      renderFilesList();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !filesPanelEl.hidden) {
+        event.preventDefault();
+        closeFilesPanel();
+      }
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (filesPanelEl.hidden) return;
+      const target = event.target as Node | null;
+      if (target && !filesPanelEl.contains(target) && !filesToggleEl.contains(target)) {
+        closeFilesPanel();
+      }
+    });
+  }
+
+  function renderFilesList() {
+    if (!filesListEl) return;
+    const files = fileManager.listFiles();
+    const activeId = fileManager.getActiveFileId();
+    filesListEl.innerHTML = "";
+
+    for (const file of files) {
+      const li = document.createElement("li");
+      const isActive = file.id === activeId;
+      li.className = "file-item" + (isActive ? " active" : "");
+      li.dataset.id = file.id;
+
+      const selectBtn = document.createElement("button");
+      selectBtn.type = "button";
+      selectBtn.className = "file-select-btn";
+      selectBtn.setAttribute("title", `Avaa ${file.name}`);
+      if (isActive) {
+        selectBtn.setAttribute("aria-current", "true");
+      }
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "file-name";
+      nameSpan.textContent = file.name;
+      selectBtn.appendChild(nameSpan);
+
+      if (isActive) {
+        const badge = document.createElement("span");
+        badge.className = "file-badge";
+        badge.textContent = "Aktiivinen";
+        selectBtn.appendChild(badge);
+      }
+
+      selectBtn.addEventListener("click", () => {
+        if (file.id !== fileManager.getActiveFileId()) {
+          switchToFile(file.id);
+        }
+      });
+      li.appendChild(selectBtn);
+
+      const actions = document.createElement("div");
+      actions.className = "file-actions";
+
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "iconbtn file-rename-btn";
+      renameBtn.setAttribute("title", `Nimeä uudelleen: ${file.name}`);
+      renameBtn.setAttribute("aria-label", `Nimeä uudelleen: ${file.name}`);
+      renameBtn.innerHTML =
+        '<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>';
+      renameBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newName = window.prompt("Anna uusi tiedostonimi:", file.name);
+        if (newName && newName.trim() && newName.trim() !== file.name) {
+          try {
+            fileManager.renameFile(file.id, newName.trim());
+            renderFilesList();
+          } catch (err) {
+            fail(err instanceof Error ? err.message : String(err));
+          }
+        }
+      });
+      actions.appendChild(renameBtn);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "iconbtn file-delete-btn";
+      deleteBtn.setAttribute("title", `Poista tiedosto: ${file.name}`);
+      deleteBtn.setAttribute("aria-label", `Poista tiedosto: ${file.name}`);
+      deleteBtn.innerHTML =
+        '<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash" /></svg>';
+      if (files.length <= 1) {
+        deleteBtn.disabled = true;
+        deleteBtn.setAttribute("title", "Viimeistä tiedostoa ei voi poistaa");
+      }
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (files.length <= 1) {
+          toast("Viimeistä tiedostoa ei voi poistaa.");
+          return;
+        }
+        if (!window.confirm(`Haluatko varmasti poistaa tiedoston "${file.name}"?`)) {
+          return;
+        }
+        try {
+          const wasActive = file.id === fileManager.getActiveFileId();
+          const res = fileManager.deleteFile(file.id);
+          if (wasActive) {
+            applyFileContentToEditor(res.activeFile.content);
+          }
+          renderFilesList();
+        } catch (err) {
+          fail(err instanceof Error ? err.message : String(err));
+        }
+      });
+      actions.appendChild(deleteBtn);
+
+      li.appendChild(actions);
+      filesListEl.appendChild(li);
+    }
+  }
 
   // --- movable split divider (editor | preview) ---
   function setSplit(px: number) {
