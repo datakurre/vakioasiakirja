@@ -3,7 +3,7 @@
 // CodeMirror 6 binding with Y.UndoManager isolation, and live Typst.ts preview.
 
 import { EditorView, keymap, lineNumbers, drawSelection, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension } from "@codemirror/state";
+import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension, type EditorState } from "@codemirror/state";
 import { defaultKeymap, undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { vim, getCM, Vim } from "@replit/codemirror-vim";
@@ -12,9 +12,11 @@ import { WebsocketProvider } from "y-websocket";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next";
 
-import type { Logo } from "./preview.ts";
+import type { Logo, RenderOptions } from "./preview.ts";
 import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
 import { getCollabUrl, getCollabWsUrl } from "./config.ts";
+import { SelectionHighlighter } from "./selection-highlighter.ts";
+import type { SelectionPayload } from "./share.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
 export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
@@ -113,6 +115,164 @@ export function createRemoteHighlightPlugin(timeoutMs = 1500) {
 
 export function remoteHighlightExtension(timeoutMs = 1500): Extension {
   return [remoteHighlightField, createRemoteHighlightPlugin(timeoutMs)];
+}
+
+export function computeSelectionPayload(
+  state: EditorState,
+  visualModeActive: boolean,
+  visualSubMode: "visual" | "linewise" | "blockwise" = "visual",
+): SelectionPayload | null {
+  if (!visualModeActive) return null;
+  const main = state.selection.main;
+  if (main.empty) return null;
+
+  const from = main.from;
+  const to = main.to;
+  const text = state.sliceDoc(from, to);
+  if (!text || !text.trim()) return null;
+
+  const lineFrom = state.doc.lineAt(from);
+  const lineTo = state.doc.lineAt(to);
+  const prefix = state.sliceDoc(Math.max(0, from - 100), from);
+  const suffix = state.sliceDoc(to, Math.min(state.doc.length, to + 100));
+  const relPos = state.doc.length > 0 ? from / state.doc.length : 0;
+
+  return {
+    active: true,
+    mode: visualSubMode,
+    text,
+    prefix,
+    suffix,
+    fromLine: lineFrom.number,
+    toLine: lineTo.number,
+    relPos,
+  };
+}
+
+export class CollabRenderCoordinator {
+  private hasInitialRendered = false;
+  private preview: { render(md: string, logo?: Logo, options?: RenderOptions): Promise<void> };
+  private getMarkdown: () => string;
+  private getLogo: () => Logo | undefined;
+  private onRenderComplete?: () => void;
+  private renderDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private debounceMs: number;
+
+  constructor(options: {
+    preview: { render(md: string, logo?: Logo, options?: RenderOptions): Promise<void> };
+    getMarkdown: () => string;
+    getLogo?: () => Logo | undefined;
+    onRenderComplete?: () => void;
+    debounceMs?: number;
+  }) {
+    this.preview = options.preview;
+    this.getMarkdown = options.getMarkdown;
+    this.getLogo = options.getLogo ?? (() => undefined);
+    this.onRenderComplete = options.onRenderComplete;
+    this.debounceMs = options.debounceMs ?? 300;
+  }
+
+  isInitialRendered(): boolean {
+    return this.hasInitialRendered;
+  }
+
+  async initialRender(): Promise<void> {
+    this.hasInitialRendered = true;
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+      this.renderDebounceTimer = null;
+    }
+    await this.preview.render(this.getMarkdown(), this.getLogo(), { liveEdit: false });
+    this.onRenderComplete?.();
+  }
+
+  scheduleRender(liveEdit = true): void {
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+    }
+    this.renderDebounceTimer = setTimeout(async () => {
+      this.renderDebounceTimer = null;
+      const isLive = this.hasInitialRendered ? liveEdit : false;
+      this.hasInitialRendered = true;
+      await this.preview.render(this.getMarkdown(), this.getLogo(), { liveEdit: isLive });
+      this.onRenderComplete?.();
+    }, this.debounceMs);
+  }
+
+  cancelScheduledRender(): void {
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+      this.renderDebounceTimer = null;
+    }
+  }
+
+  destroy(): void {
+    this.cancelScheduledRender();
+  }
+}
+
+export class CollabSelectionManager {
+  private selectionHighlighter: SelectionHighlighter;
+  private pagesEl: Element;
+  private awareness: {
+    clientID: number;
+    getStates: () => Map<number, Record<string, any>>;
+    setLocalStateField: (field: string, val: any) => void;
+  };
+  private localSelection: SelectionPayload | null = null;
+
+  constructor(options: {
+    selectionHighlighter: SelectionHighlighter;
+    pagesEl: Element;
+    awareness: {
+      clientID: number;
+      getStates: () => Map<number, Record<string, any>>;
+      setLocalStateField: (field: string, val: any) => void;
+    };
+  }) {
+    this.selectionHighlighter = options.selectionHighlighter;
+    this.pagesEl = options.pagesEl;
+    this.awareness = options.awareness;
+  }
+
+  getLocalSelection(): SelectionPayload | null {
+    return this.localSelection;
+  }
+
+  setLocalSelection(payload: SelectionPayload | null): void {
+    this.localSelection = payload;
+    this.awareness.setLocalStateField("selection", payload);
+    this.render();
+  }
+
+  clearLocalSelection(): void {
+    this.setLocalSelection(null);
+  }
+
+  getActiveSelections(): SelectionPayload[] {
+    const active: SelectionPayload[] = [];
+    if (this.localSelection && this.localSelection.active && this.localSelection.text?.trim()) {
+      active.push(this.localSelection);
+    }
+    const states = this.awareness.getStates();
+    states.forEach((state, clientId) => {
+      if (clientId === this.awareness.clientID) return;
+      const sel = (state as { selection?: SelectionPayload | null })?.selection;
+      if (sel && sel.active && sel.text && sel.text.trim()) {
+        active.push(sel);
+      }
+    });
+    return active;
+  }
+
+  render(): void {
+    const active = this.getActiveSelections();
+    if (active.length === 0) {
+      this.selectionHighlighter.clear(this.pagesEl);
+    } else {
+      this.selectionHighlighter.update(this.pagesEl, active);
+    }
+  }
 }
 
 const yUndoCommand = yUndoManagerKeymap.find((k) => k.key === "Mod-z")?.run;
@@ -369,11 +529,15 @@ export async function initCollabEditor(roomId: string, token: string) {
   }
   updateLogoControls();
 
+  const pagesEl = document.getElementById("pages")!;
+  const selectionHighlighter = new SelectionHighlighter();
+  let collabSelectionManager: CollabSelectionManager | undefined;
+
   const { createPreview } = await import("./preview.ts");
   const preview = createPreview(
     {
       previewEl: document.getElementById("preview")!,
-      pagesEl: document.getElementById("pages")!,
+      pagesEl,
       controlsEl: document.getElementById("preview-controls")!,
       zoomInEl: document.getElementById("zoom-in") as HTMLButtonElement,
       zoomOutEl: document.getElementById("zoom-out") as HTMLButtonElement,
@@ -388,19 +552,22 @@ export async function initCollabEditor(roomId: string, token: string) {
       viewStorageKey: "sfs2487.collab.view",
       onRendered: () => {
         downloadEl.disabled = false;
+        collabSelectionManager?.render();
       },
     },
   );
 
-  let renderDebounceTimer: number | undefined;
   let savingTimer: number | undefined;
 
-  function schedulePreviewRender() {
-    clearTimeout(renderDebounceTimer);
-    renderDebounceTimer = window.setTimeout(() => {
-      void preview.render(ytext.toString(), logoForPreview());
-    }, 300);
-  }
+  const renderCoordinator = new CollabRenderCoordinator({
+    preview,
+    getMarkdown: () => ytext.toString(),
+    getLogo: logoForPreview,
+    onRenderComplete: () => {
+      collabSelectionManager?.render();
+    },
+    debounceMs: 300,
+  });
 
   function syncLogoFromMeta() {
     const rawLogo = metaMap.get("logo") as SharedLogoData | null | undefined;
@@ -422,7 +589,7 @@ export async function initCollabEditor(roomId: string, token: string) {
   metaMap.observe((event) => {
     if (event.keysChanged.has("logo")) {
       syncLogoFromMeta();
-      schedulePreviewRender();
+      renderCoordinator.scheduleRender(true);
     }
   });
 
@@ -433,7 +600,9 @@ export async function initCollabEditor(roomId: string, token: string) {
     idbProvider = new IndexeddbPersistence("sfs2487.collab." + roomId, ydoc);
     idbProvider.on("synced", () => {
       syncLogoFromMeta();
-      schedulePreviewRender();
+      if (!renderCoordinator.isInitialRendered() && ytext.length > 0) {
+        void renderCoordinator.initialRender();
+      }
     });
   } catch (err) {
     console.warn("IndexedDB persistence could not be initialized:", err);
@@ -442,6 +611,12 @@ export async function initCollabEditor(roomId: string, token: string) {
   const wsUrl = getCollabWsUrl();
   const provider = new WebsocketProvider(wsUrl, roomId, ydoc, {
     params: { token },
+  });
+
+  collabSelectionManager = new CollabSelectionManager({
+    selectionHighlighter,
+    pagesEl,
+    awareness: provider.awareness,
   });
 
   // Local user identity in Awareness
@@ -478,7 +653,10 @@ export async function initCollabEditor(roomId: string, token: string) {
     });
   }
 
-  provider.awareness.on("change", renderCollaborators);
+  provider.awareness.on("change", () => {
+    renderCollaborators();
+    collabSelectionManager?.render();
+  });
   renderCollaborators();
 
   let isSynced = false;
@@ -532,19 +710,41 @@ export async function initCollabEditor(roomId: string, token: string) {
       updateConnectionBadge("connected");
       syncLogoFromMeta();
       // Initial render once document content is synced
-      void preview.render(ytext.toString(), logoForPreview());
+      if (!renderCoordinator.isInitialRendered()) {
+        void renderCoordinator.initialRender();
+      } else {
+        renderCoordinator.scheduleRender(true);
+      }
     }
   });
 
   ytext.observe((event) => {
-    // If not local origin, trigger preview update
+    // If not local origin, trigger preview update with liveEdit: true
     if (event.transaction.origin !== ytext) {
-      schedulePreviewRender();
+      renderCoordinator.scheduleRender(true);
     }
   });
 
   // --- Initialize CodeMirror 6 ---
   editorEl.innerHTML = ""; // Clear stub
+
+  let visualModeActive = false;
+  let visualSubMode: "visual" | "linewise" | "blockwise" = "visual";
+
+  function getSelectionPayload(state: EditorState): SelectionPayload | null {
+    return computeSelectionPayload(state, visualModeActive, visualSubMode);
+  }
+
+  function syncSelection(state: EditorState) {
+    if (!visualModeActive) {
+      if (collabSelectionManager?.getLocalSelection() !== null) {
+        collabSelectionManager?.clearLocalSelection();
+      }
+      return;
+    }
+    const payload = getSelectionPayload(state);
+    collabSelectionManager?.setLocalSelection(payload);
+  }
 
   // Vim preference support and collaborative undo/redo mapping
   setupVimForCollab();
@@ -581,14 +781,18 @@ export async function initCollabEditor(roomId: string, token: string) {
       // Collaborative undo/redo keymap: isolates local changes without reverting remote edits
       keymap.of([...defaultKeymap, ...yUndoManagerKeymap]),
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged) return;
-        // Indicate saving state temporarily
-        updateConnectionBadge("saving");
-        clearTimeout(savingTimer);
-        savingTimer = window.setTimeout(() => {
-          updateConnectionBadge(isSynced ? "connected" : "connecting");
-        }, 600);
-        schedulePreviewRender();
+        if (u.docChanged) {
+          // Indicate saving state temporarily
+          updateConnectionBadge("saving");
+          clearTimeout(savingTimer);
+          savingTimer = window.setTimeout(() => {
+            updateConnectionBadge(isSynced ? "connected" : "connecting");
+          }, 600);
+          renderCoordinator.scheduleRender(true);
+        }
+        if (visualModeActive && (u.selectionSet || u.docChanged)) {
+          syncSelection(u.state);
+        }
       }),
     ],
   });
@@ -610,20 +814,47 @@ export async function initCollabEditor(roomId: string, token: string) {
   function syncVimMode() {
     if (!vimEl.checked || !keyboardPresent) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     const cm = getCM(editor);
     if (!cm) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     showVimMode("normal");
-    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) =>
-      showVimMode(e.mode, e.subMode),
-    );
+    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) => {
+      showVimMode(e.mode, e.subMode);
+      if (e.mode === "visual") {
+        visualModeActive = true;
+        visualSubMode =
+          e.subMode === "linewise"
+            ? "linewise"
+            : e.subMode === "blockwise"
+            ? "blockwise"
+            : "visual";
+        syncSelection(editor.state);
+      } else {
+        if (visualModeActive) {
+          visualModeActive = false;
+          syncSelection(editor.state);
+        }
+      }
+    });
   }
   function applyVim() {
     const on = vimEl.checked && keyboardPresent;
+    if (!on && visualModeActive) {
+      visualModeActive = false;
+      syncSelection(editor.state);
+    }
     editor.dispatch({ effects: vimCompartment.reconfigure(on ? vim() : []) });
     syncVimMode();
   }
@@ -749,12 +980,11 @@ export async function initCollabEditor(roomId: string, token: string) {
   // --- PDF Download Button ---
   downloadEl.addEventListener("click", async () => {
     try {
-      if (renderDebounceTimer !== undefined) {
-        clearTimeout(renderDebounceTimer);
-        renderDebounceTimer = undefined;
-        await preview.render(ytext.toString(), logoForPreview());
-      } else if (!preview.hasContent()) {
-        await preview.render(ytext.toString(), logoForPreview());
+      renderCoordinator.cancelScheduledRender();
+      if (!preview.hasContent()) {
+        await renderCoordinator.initialRender();
+      } else {
+        await preview.render(ytext.toString(), logoForPreview(), { liveEdit: true });
       }
       const pdf = await preview.pdf();
       if (!pdf) return;
@@ -807,6 +1037,8 @@ export async function initCollabEditor(roomId: string, token: string) {
     "beforeunload",
     () => {
       try {
+        collabSelectionManager?.clearLocalSelection();
+        renderCoordinator.destroy();
         idbProvider?.destroy();
         provider.destroy();
         ydoc.destroy();

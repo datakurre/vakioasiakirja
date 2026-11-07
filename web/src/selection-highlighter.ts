@@ -237,10 +237,19 @@ export class SelectionHighlighter {
   }
 
   /**
-   * Updates selection highlights on the given root container based on the selection payload.
+   * Updates selection highlights on the given root container based on the selection payload(s).
    */
-  update(root: Element, payload: SelectionPayload | null): void {
-    if (!payload || !payload.active || !payload.text.trim()) {
+  update(root: Element, payload: SelectionPayload | SelectionPayload[] | null): void {
+    if (!payload) {
+      this.clear(root);
+      return;
+    }
+
+    const payloads = (Array.isArray(payload) ? payload : [payload]).filter(
+      (p) => Boolean(p && p.active && p.text && p.text.trim()),
+    );
+
+    if (payloads.length === 0) {
       this.clear(root);
       return;
     }
@@ -250,26 +259,28 @@ export class SelectionHighlighter {
     const lines = this.getVisibleLines(root);
     if (lines.length === 0) return;
 
-    const matched = this.matchLines(lines, payload);
-    if (matched.length === 0) return;
-
     const doc = root.ownerDocument ?? (root instanceof Document ? root : document);
 
-    for (const line of matched) {
-      // Re-verify bounding box in parent coordinates if needed
-      const bbox = line.bbox ?? getBBoxInParent(line.element);
-      if (!bbox) continue;
+    for (const p of payloads) {
+      const matched = this.matchLines(lines, p);
+      if (matched.length === 0) continue;
 
-      const rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("class", "selection-highlight");
-      rect.setAttribute("x", (bbox.x - this.padX).toFixed(2));
-      rect.setAttribute("y", (bbox.y - this.padY).toFixed(2));
-      rect.setAttribute("width", (bbox.width + this.padX * 2).toFixed(2));
-      rect.setAttribute("height", (bbox.height + this.padY * 2).toFixed(2));
-      rect.setAttribute("rx", String(this.rx));
-      rect.setAttribute("ry", String(this.ry));
+      for (const line of matched) {
+        // Re-verify bounding box in parent coordinates if needed
+        const bbox = line.bbox ?? getBBoxInParent(line.element);
+        if (!bbox) continue;
 
-      line.parent.insertBefore(rect, line.element);
+        const rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("class", "selection-highlight");
+        rect.setAttribute("x", (bbox.x - this.padX).toFixed(2));
+        rect.setAttribute("y", (bbox.y - this.padY).toFixed(2));
+        rect.setAttribute("width", (bbox.width + this.padX * 2).toFixed(2));
+        rect.setAttribute("height", (bbox.height + this.padY * 2).toFixed(2));
+        rect.setAttribute("rx", String(this.rx));
+        rect.setAttribute("ry", String(this.ry));
+
+        line.parent.insertBefore(rect, line.element);
+      }
     }
   }
 }

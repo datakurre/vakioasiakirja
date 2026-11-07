@@ -7,6 +7,9 @@ import { ySyncAnnotation, yCollab, yUndoManagerKeymap } from "y-codemirror.next"
 import { Vim, vim } from "@replit/codemirror-vim";
 import * as Y from "yjs";
 
+import * as awarenessProtocol from "y-protocols/awareness";
+import { JSDOM } from "jsdom";
+
 import { createPagePulseTracker } from "../src/pulse.ts";
 import {
   isRemoteTransaction,
@@ -16,7 +19,14 @@ import {
   addRemoteHighlight,
   createRemoteHighlightPlugin,
   setupVimForCollab,
+  computeSelectionPayload,
+  CollabRenderCoordinator,
+  CollabSelectionManager,
 } from "../src/collab-editor.ts";
+import { SelectionHighlighter } from "../src/selection-highlighter.ts";
+import { HighlightTracker } from "../src/highlight.ts";
+import type { RenderOptions } from "../src/preview.ts";
+import type { SelectionPayload } from "../src/share.ts";
 
 test("Page pulse tracker: initial render, modified detection, unchanged pages, and reset", () => {
   const tracker = createPagePulseTracker();
@@ -415,4 +425,264 @@ test("Vim mode state toggling: compartment reconfiguration preserves editor stab
   assert.ok(state);
 
   ydoc.destroy();
+});
+
+test("Collaborative render coordinator: initial render uses liveEdit: false and subsequent edits use liveEdit: true", async () => {
+  const renderCalls: { md: string; options?: RenderOptions }[] = [];
+  const mockPreview = {
+    async render(md: string, _logo?: any, options?: RenderOptions) {
+      renderCalls.push({ md, options });
+    },
+  };
+
+  let currentDoc = "Otsikko: Pöytäkirja";
+  let completedCount = 0;
+
+  const coordinator = new CollabRenderCoordinator({
+    preview: mockPreview,
+    getMarkdown: () => currentDoc,
+    onRenderComplete: () => {
+      completedCount++;
+    },
+    debounceMs: 25,
+  });
+
+  assert.equal(coordinator.isInitialRendered(), false);
+
+  // 1. Initial document synchronization: must use liveEdit: false to establish baseline without flashing
+  await coordinator.initialRender();
+  assert.equal(coordinator.isInitialRendered(), true);
+  assert.equal(renderCalls.length, 1);
+  assert.equal(renderCalls[0].md, "Otsikko: Pöytäkirja");
+  assert.equal(renderCalls[0].options?.liveEdit, false, "Initial render must have liveEdit: false");
+  assert.equal(completedCount, 1);
+
+  // 2. Subsequent local or remote edits: scheduleRender() must use liveEdit: true
+  currentDoc = "Otsikko: Pöytäkirja\n1 § Kokouksen avaus";
+  coordinator.scheduleRender(true);
+  assert.equal(renderCalls.length, 1, "Render should be debounced");
+
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(renderCalls.length, 2);
+  assert.equal(renderCalls[1].md, "Otsikko: Pöytäkirja\n1 § Kokouksen avaus");
+  assert.equal(renderCalls[1].options?.liveEdit, true, "Subsequent render must have liveEdit: true");
+  assert.equal(completedCount, 2);
+
+  // 3. HighlightTracker integration: verify neon yellow highlight injection when liveEdit: true
+  const dom = new JSDOM(`
+    <svg xmlns="http://www.w3.org/2000/svg">
+      <g class="typst-page">
+        <g class="typst-text" data-tid="t1" transform="scale(0.011, -0.011)">
+          <g transform="scale(16, -16)"><foreignObject x="0" y="-50" width="100" height="60">Rivi 1</foreignObject></g>
+        </g>
+      </g>
+    </svg>
+  `);
+  const tracker = new HighlightTracker();
+  const baseSvg = dom.window.document.querySelector("svg")!;
+
+  // Initial baseline with liveEdit: false -> no neon highlights
+  tracker.process(baseSvg, false);
+  assert.equal(baseSvg.querySelectorAll(".neon-highlight").length, 0, "No neon highlight on initial baseline");
+
+  // Modify SVG (new line added) and process with liveEdit: true -> neon highlight injected
+  const newTextGroup = dom.window.document.createElementNS("http://www.w3.org/2000/svg", "g");
+  newTextGroup.setAttribute("class", "typst-text");
+  newTextGroup.setAttribute("data-tid", "t2");
+  newTextGroup.setAttribute("transform", "scale(0.011, -0.011)");
+  const inner = dom.window.document.createElementNS("http://www.w3.org/2000/svg", "g");
+  inner.setAttribute("transform", "scale(16, -16)");
+  const fo = dom.window.document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+  fo.setAttribute("x", "0");
+  fo.setAttribute("y", "-100");
+  fo.setAttribute("width", "100");
+  fo.setAttribute("height", "60");
+  fo.textContent = "Rivi 2 (Uusi)";
+  inner.appendChild(fo);
+  newTextGroup.appendChild(inner);
+  baseSvg.querySelector(".typst-page")!.appendChild(newTextGroup);
+
+  tracker.process(baseSvg, true);
+  const neonRects = baseSvg.querySelectorAll(".neon-highlight");
+  assert.equal(neonRects.length, 1, "Neon highlight rect must be injected for new line on live edit");
+  assert.equal(neonRects[0].getAttribute("class"), "neon-highlight");
+
+  coordinator.destroy();
+});
+
+test("Collaborative Vim visual mode selection: payload computation and awareness propagation across peers", () => {
+  const doc1 = new Y.Doc();
+  const doc2 = new Y.Doc();
+  const text1 = doc1.getText("content");
+  const text2 = doc2.getText("content");
+
+  const sampleDoc = "Hallituksen kokous 1/2026\n\n1 § Kokouksen avaus\nPuheenjohtaja avasi kokouksen.";
+  text1.insert(0, sampleDoc);
+  text2.insert(0, sampleDoc);
+
+  const awareness1 = new awarenessProtocol.Awareness(doc1);
+  const awareness2 = new awarenessProtocol.Awareness(doc2);
+
+  interface AwarenessUpdate {
+    added: number[];
+    updated: number[];
+    removed: number[];
+  }
+
+  awareness1.on("update", ({ added, updated, removed }: AwarenessUpdate) => {
+    const changed = added.concat(updated).concat(removed);
+    const update = awarenessProtocol.encodeAwarenessUpdate(awareness1, changed);
+    awarenessProtocol.applyAwarenessUpdate(awareness2, update, "remote");
+  });
+
+  awareness2.on("update", ({ added, updated, removed }: AwarenessUpdate) => {
+    const changed = added.concat(updated).concat(removed);
+    const update = awarenessProtocol.encodeAwarenessUpdate(awareness2, changed);
+    awarenessProtocol.applyAwarenessUpdate(awareness1, update, "remote");
+  });
+
+  // Client 1 EditorState with selection on "1 § Kokouksen avaus"
+  const start = sampleDoc.indexOf("1 § Kokouksen avaus");
+  const end = start + "1 § Kokouksen avaus".length;
+
+  const state1 = EditorState.create({
+    doc: sampleDoc,
+    selection: { anchor: start, head: end },
+  });
+
+  // 1. Not in visual mode -> computeSelectionPayload returns null
+  assert.equal(computeSelectionPayload(state1, false, "visual"), null);
+
+  // 2. Entering visual mode -> computeSelectionPayload calculates valid SelectionPayload
+  const payload = computeSelectionPayload(state1, true, "visual");
+  assert.ok(payload);
+  assert.equal(payload.active, true);
+  assert.equal(payload.text, "1 § Kokouksen avaus");
+  assert.equal(payload.mode, "visual");
+  assert.equal(payload.fromLine, 3);
+  assert.equal(payload.toLine, 3);
+  assert.ok(payload.prefix !== undefined);
+  assert.ok(payload.suffix !== undefined);
+  assert.ok(payload.relPos !== undefined && payload.relPos > 0);
+
+  // 3. Client 1 broadcasts selection via awareness
+  awareness1.setLocalStateField("selection", payload);
+
+  // Client 2 observes Client 1's selection
+  const client2States = awareness2.getStates();
+  const remoteSel1 = (client2States.get(doc1.clientID) as { selection?: SelectionPayload })?.selection;
+  assert.ok(remoteSel1);
+  assert.equal(remoteSel1.active, true);
+  assert.equal(remoteSel1.text, "1 § Kokouksen avaus");
+
+  // 4. Client 1 leaves visual mode -> broadcasts null
+  awareness1.setLocalStateField("selection", null);
+  const clearedState = (awareness2.getStates().get(doc1.clientID) as { selection?: SelectionPayload | null })?.selection;
+  assert.equal(clearedState, null, "Selection must be null after leaving visual mode");
+
+  doc1.destroy();
+  doc2.destroy();
+});
+
+test("CollabSelectionManager: preview selection highlight and clear lifecycle across collaborators", () => {
+  const dom = new JSDOM(`
+    <div id="pages">
+      <svg class="page" viewBox="0 0 595 842">
+        <g class="typst-page">
+          <g class="typst-text" data-tid="t1" transform="scale(0.011, -0.011)">
+            <g transform="scale(16, -16)"><foreignObject x="0" y="-50" width="100" height="60">Asiakirjan otsikko</foreignObject></g>
+          </g>
+          <g class="typst-text" data-tid="t2" transform="scale(0.011, -0.011)">
+            <g transform="scale(16, -16)"><foreignObject x="0" y="-150" width="100" height="60">Ensimmäinen pykälä</foreignObject></g>
+          </g>
+        </g>
+      </svg>
+    </div>
+  `);
+
+  const pagesEl = dom.window.document.getElementById("pages")!;
+  const highlighter = new SelectionHighlighter();
+
+  const localState: Record<string, any> = {};
+  const mockAwarenessStates = new Map<number, Record<string, any>>();
+  mockAwarenessStates.set(1, localState);
+
+  const mockAwareness = {
+    clientID: 1,
+    getStates: () => mockAwarenessStates,
+    setLocalStateField: (field: string, val: any) => {
+      localState[field] = val;
+    },
+  };
+
+  const manager = new CollabSelectionManager({
+    selectionHighlighter: highlighter,
+    pagesEl,
+    awareness: mockAwareness,
+  });
+
+  // 1. Initial state: no highlights
+  assert.equal(pagesEl.querySelectorAll(".selection-highlight").length, 0);
+
+  // 2. Local user selects "Asiakirjan otsikko"
+  const localPayload: SelectionPayload = {
+    active: true,
+    mode: "visual",
+    text: "Asiakirjan otsikko",
+  };
+  manager.setLocalSelection(localPayload);
+
+  assert.equal(localState.selection, localPayload);
+  assert.equal(manager.getLocalSelection(), localPayload);
+  let highlights = pagesEl.querySelectorAll(".selection-highlight");
+  assert.equal(highlights.length, 1, "Local selection highlight injected into SVG preview");
+
+  // 3. Remote peer (client 2) selects "Ensimmäinen pykälä"
+  const remotePayload: SelectionPayload = {
+    active: true,
+    mode: "visual",
+    text: "Ensimmäinen pykälä",
+  };
+  mockAwarenessStates.set(2, { selection: remotePayload });
+  manager.render();
+
+  highlights = pagesEl.querySelectorAll(".selection-highlight");
+  assert.equal(highlights.length, 2, "Both local and remote selection highlights visible simultaneously");
+
+  // 4. Local user leaves visual mode
+  manager.clearLocalSelection();
+  assert.equal(localState.selection, null);
+  assert.equal(manager.getLocalSelection(), null);
+
+  // Remote highlight must persist!
+  highlights = pagesEl.querySelectorAll(".selection-highlight");
+  assert.equal(highlights.length, 1, "Remote selection remains after local leaves visual mode");
+
+  // 5. Remote user leaves visual mode
+  mockAwarenessStates.set(2, { selection: null });
+  manager.render();
+  highlights = pagesEl.querySelectorAll(".selection-highlight");
+  assert.equal(highlights.length, 0, "All highlights cleared once all collaborators exit visual mode");
+
+  // 6. Preview DOM rebuild lifecycle (onRendered retention)
+  manager.setLocalSelection(localPayload);
+  assert.equal(pagesEl.querySelectorAll(".selection-highlight").length, 1);
+
+  // Simulate preview re-rendering (DOM replaced with fresh Typst SVG)
+  const freshSvg = dom.window.document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  freshSvg.setAttribute("class", "page");
+  freshSvg.innerHTML = `
+    <g class="typst-page">
+      <g class="typst-text" data-tid="t1" transform="scale(0.011, -0.011)">
+        <g transform="scale(16, -16)"><foreignObject x="0" y="-50" width="100" height="60">Asiakirjan otsikko</foreignObject></g>
+      </g>
+    </g>
+  `;
+  pagesEl.replaceChildren(freshSvg);
+  assert.equal(pagesEl.querySelectorAll(".selection-highlight").length, 0, "Fresh render initially lacks highlights");
+
+  // onRendered calls manager.render() -> re-applies active selection
+  manager.render();
+  highlights = pagesEl.querySelectorAll(".selection-highlight");
+  assert.equal(highlights.length, 1, "Active selection successfully re-applied after preview DOM rebuild");
 });
