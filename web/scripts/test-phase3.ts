@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import * as awarenessProtocol from "y-protocols/awareness";
 import { parseRoute, isSameRoute } from "../src/router.ts";
 import { getCollabWsUrl } from "../src/config.ts";
+import { bytesToBase64, base64ToBytes } from "../src/ui.ts";
 import {
   ROOM_ALPHABET,
   randomCollabRoomId,
@@ -299,4 +300,123 @@ test("Collab routing and lifecycle transitions", () => {
     ),
     true,
   );
+});
+
+test("Collaborative logo: propagation over Yjs metaMap across peers", () => {
+  const doc1 = new Y.Doc();
+  const doc2 = new Y.Doc();
+  const meta1 = doc1.getMap("meta");
+  const meta2 = doc2.getMap("meta");
+
+  // Wire bidirectional sync
+  doc1.on("update", (update) => Y.applyUpdate(doc2, update));
+  doc2.on("update", (update) => Y.applyUpdate(doc1, update));
+
+  const testBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  const b64 = bytesToBase64(testBytes);
+  const logoPayload = {
+    name: "organisaatio-logo.png",
+    path: "/logo.png",
+    b64,
+  };
+
+  let observerFired = false;
+  let observedKey = "";
+  meta2.observe((event) => {
+    if (event.keysChanged.has("logo")) {
+      observerFired = true;
+      observedKey = "logo";
+    }
+  });
+
+  // Client 1 uploads / sets the logo
+  meta1.set("logo", logoPayload);
+
+  // Client 2 receives the update via Yjs sync
+  assert.equal(observerFired, true);
+  assert.equal(observedKey, "logo");
+
+  const remoteLogo = meta2.get("logo") as typeof logoPayload;
+  assert.ok(remoteLogo, "remoteLogo must be defined in meta2");
+  assert.equal(remoteLogo.name, "organisaatio-logo.png");
+  assert.equal(remoteLogo.path, "/logo.png");
+  assert.equal(remoteLogo.b64, b64);
+
+  doc1.destroy();
+  doc2.destroy();
+});
+
+test("Collaborative logo: clearing logo propagates deletion to peer metaMap", () => {
+  const doc1 = new Y.Doc();
+  const doc2 = new Y.Doc();
+  const meta1 = doc1.getMap("meta");
+  const meta2 = doc2.getMap("meta");
+
+  doc1.on("update", (update) => Y.applyUpdate(doc2, update));
+  doc2.on("update", (update) => Y.applyUpdate(doc1, update));
+
+  // Initialize with a logo
+  meta1.set("logo", {
+    name: "poistettava-logo.svg",
+    path: "/logo.svg",
+    b64: bytesToBase64(new TextEncoder().encode("<svg></svg>")),
+  });
+  assert.ok(meta2.get("logo"));
+
+  let clearObserved = false;
+  meta2.observe((event) => {
+    if (event.keysChanged.has("logo")) {
+      clearObserved = true;
+    }
+  });
+
+  // Client 1 clears the logo
+  meta1.delete("logo");
+
+  assert.equal(clearObserved, true);
+  assert.equal(meta2.has("logo"), false);
+  assert.equal(meta2.get("logo"), undefined);
+
+  // Client 2 sets logo to null variant
+  meta2.set("logo", null);
+  assert.equal(meta1.get("logo"), null);
+
+  doc1.destroy();
+  doc2.destroy();
+});
+
+test("Collaborative logo: base64 encoding/decoding preserves image bytes across peers (including 256 KB payloads)", () => {
+  const doc1 = new Y.Doc();
+  const doc2 = new Y.Doc();
+  const meta1 = doc1.getMap("meta");
+  const meta2 = doc2.getMap("meta");
+
+  doc1.on("update", (update) => Y.applyUpdate(doc2, update));
+  doc2.on("update", (update) => Y.applyUpdate(doc1, update));
+
+  // Test full 256 KB payload with pseudorandom bytes (all 256 byte values represented)
+  const size = 256 * 1024; // 256 KB limit
+  const originalBytes = new Uint8Array(size);
+  for (let i = 0; i < size; i++) {
+    originalBytes[i] = (i * 31 + 17) & 0xff;
+  }
+
+  const encodedB64 = bytesToBase64(originalBytes);
+  meta1.set("logo", {
+    name: "large-hd-logo.png",
+    path: "/logo.png",
+    b64: encodedB64,
+  });
+
+  const peerData = meta2.get("logo") as { name: string; path: string; b64: string };
+  assert.ok(peerData);
+  assert.equal(peerData.name, "large-hd-logo.png");
+  assert.equal(peerData.path, "/logo.png");
+
+  const decodedBytes = base64ToBytes(peerData.b64);
+  assert.equal(decodedBytes.length, originalBytes.length);
+  assert.deepEqual(decodedBytes, originalBytes);
+
+  doc1.destroy();
+  doc2.destroy();
 });

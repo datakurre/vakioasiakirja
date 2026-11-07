@@ -438,9 +438,9 @@ async function testCapacityAndFrameLimits(): Promise<void> {
     const probeFull = await fetch(`${BASE_URL}/collab/${roomId}?token=${token}`);
     assert(probeFull.status === 429, `HTTP probe returned 429 when room is full (got ${probeFull.status})`);
 
-    // Frame size test: send > 256 KB binary frame on socket 0
-    console.log("  Testing WebSocket frame limit (> 256 KB)...");
-    const oversizedFrame = new Uint8Array(257 * 1024);
+    // Frame size test: send > 512 KB binary frame on socket 0
+    console.log("  Testing WebSocket frame limit (> 512 KB)...");
+    const oversizedFrame = new Uint8Array(513 * 1024);
     const ws0ClosedPromise = new Promise<{ code: number; reason: string }>((resolve) => {
       clients[0].onclose = (ev) => resolve({ code: ev.code, reason: ev.reason });
       setTimeout(() => resolve({ code: -1, reason: "timeout" }), 3000);

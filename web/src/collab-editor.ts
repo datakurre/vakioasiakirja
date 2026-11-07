@@ -13,7 +13,7 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next";
 
 import type { Logo } from "./preview.ts";
-import { createToaster } from "./ui.ts";
+import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
 import { getCollabUrl, getCollabWsUrl } from "./config.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
@@ -266,9 +266,8 @@ export async function initCollabEditor(roomId: string, token: string) {
   if (resetEl) resetEl.hidden = true;
   if (shareEl) shareEl.hidden = true;
 
-  // Clarify in the UI that uploaded logos are purely local
   if (logoLabelEl) {
-    logoLabelEl.title = "Lisää logo (vain omaan esikatseluun – ei jaeta)";
+    logoLabelEl.title = "Lisää logo (jaetaan kaikille muokkaajille)";
   }
 
   const toast = createToaster(toastsEl);
@@ -349,16 +348,26 @@ export async function initCollabEditor(roomId: string, token: string) {
     }
   }
 
-  // --- Initialize Typst Preview ---
-  let localLogo: { path: string; name: string; bytes: Uint8Array } | undefined;
-  const logoForPreview = (): Logo | undefined =>
-    localLogo ? { path: localLogo.path, bytes: localLogo.bytes } : undefined;
+  // --- Initialize Yjs CRDT & Shared Document State ---
+  const ydoc = new Y.Doc();
+  const ytext = ydoc.getText("content");
+  const metaMap = ydoc.getMap<SharedLogoData | null>("meta");
 
-  function showLogoControls() {
-    logoClearEl.hidden = localLogo === undefined;
-    logoClearEl.title = localLogo ? localLogo.name : "";
+  interface SharedLogoData {
+    name: string;
+    path: string;
+    b64: string;
   }
-  showLogoControls();
+
+  let sharedLogo: { path: string; name: string; bytes: Uint8Array } | undefined;
+  const logoForPreview = (): Logo | undefined =>
+    sharedLogo ? { path: sharedLogo.path, bytes: sharedLogo.bytes } : undefined;
+
+  function updateLogoControls() {
+    logoClearEl.hidden = sharedLogo === undefined;
+    logoClearEl.title = sharedLogo ? sharedLogo.name : "";
+  }
+  updateLogoControls();
 
   const { createPreview } = await import("./preview.ts");
   const preview = createPreview(
@@ -383,13 +392,49 @@ export async function initCollabEditor(roomId: string, token: string) {
     },
   );
 
-  // --- Initialize Yjs CRDT & Providers ---
-  const ydoc = new Y.Doc();
-  const ytext = ydoc.getText("content");
+  let renderDebounceTimer: number | undefined;
+  let savingTimer: number | undefined;
+
+  function schedulePreviewRender() {
+    clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = window.setTimeout(() => {
+      void preview.render(ytext.toString(), logoForPreview());
+    }, 300);
+  }
+
+  function syncLogoFromMeta() {
+    const rawLogo = metaMap.get("logo") as SharedLogoData | null | undefined;
+    if (rawLogo && rawLogo.b64 && rawLogo.path && rawLogo.name) {
+      try {
+        const bytes = base64ToBytes(rawLogo.b64);
+        sharedLogo = { path: rawLogo.path, name: rawLogo.name, bytes };
+      } catch (err) {
+        console.warn("Failed to decode shared logo base64:", err);
+        sharedLogo = undefined;
+      }
+    } else {
+      sharedLogo = undefined;
+      logoEl.value = "";
+    }
+    updateLogoControls();
+  }
+
+  metaMap.observe((event) => {
+    if (event.keysChanged.has("logo")) {
+      syncLogoFromMeta();
+      schedulePreviewRender();
+    }
+  });
+
+  syncLogoFromMeta();
 
   let idbProvider: IndexeddbPersistence | null = null;
   try {
     idbProvider = new IndexeddbPersistence("sfs2487.collab." + roomId, ydoc);
+    idbProvider.on("synced", () => {
+      syncLogoFromMeta();
+      schedulePreviewRender();
+    });
   } catch (err) {
     console.warn("IndexedDB persistence could not be initialized:", err);
   }
@@ -485,21 +530,11 @@ export async function initCollabEditor(roomId: string, token: string) {
     isSynced = synced;
     if (synced) {
       updateConnectionBadge("connected");
+      syncLogoFromMeta();
       // Initial render once document content is synced
       void preview.render(ytext.toString(), logoForPreview());
     }
   });
-
-  // Observe text changes for debounced preview rendering
-  let renderDebounceTimer: number | undefined;
-  let savingTimer: number | undefined;
-
-  function schedulePreviewRender() {
-    clearTimeout(renderDebounceTimer);
-    renderDebounceTimer = window.setTimeout(() => {
-      void preview.render(ytext.toString(), logoForPreview());
-    }, 300);
-  }
 
   ytext.observe((event) => {
     // If not local origin, trigger preview update
@@ -682,28 +717,45 @@ export async function initCollabEditor(roomId: string, token: string) {
   const savedSplit = localStorage.getItem(STORE_SPLIT) || localStorage.getItem("sfs2487.split");
   if (savedSplit) setSplit(parseFloat(savedSplit));
 
-  // --- Local Logo Upload (Not shared with collaborators) ---
+  // --- Collaborative Logo Upload & Synchronization ---
+  const MAX_LOGO_BYTES = 256 * 1024; // 256 KB limit
+
   logoEl.addEventListener("change", async () => {
     const file = logoEl.files?.[0];
     if (!file) return;
-    const path = logoPathFor(file);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    localLogo = { path, name: file.name, bytes };
-    showLogoControls();
-    void preview.render(ytext.toString(), logoForPreview());
-    toast("Logo lisätty omaan esikatseluusi (ei jaeta muille muokkaajille)");
+
+    if (file.size > MAX_LOGO_BYTES) {
+      toast("Logotiedosto on liian suuri (enintään 256 kt).");
+      logoEl.value = "";
+      return;
+    }
+
+    try {
+      const path = logoPathFor(file);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const b64 = bytesToBase64(bytes);
+      metaMap.set("logo", { name: file.name, path, b64 });
+      toast("Logo lisätty ja jaettu kaikille muokkaajille");
+    } catch (err) {
+      fail("Logon lataaminen epäonnistui: " + String(err));
+    }
   });
 
   logoClearEl.addEventListener("click", () => {
-    localLogo = undefined;
-    logoEl.value = "";
-    showLogoControls();
-    void preview.render(ytext.toString(), logoForPreview());
+    metaMap.delete("logo");
+    toast("Logo poistettu kaikilta muokkaajilta");
   });
 
   // --- PDF Download Button ---
   downloadEl.addEventListener("click", async () => {
     try {
+      if (renderDebounceTimer !== undefined) {
+        clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = undefined;
+        await preview.render(ytext.toString(), logoForPreview());
+      } else if (!preview.hasContent()) {
+        await preview.render(ytext.toString(), logoForPreview());
+      }
       const pdf = await preview.pdf();
       if (!pdf) return;
       const blob = new Blob([pdf as BlobPart], { type: "application/pdf" });
