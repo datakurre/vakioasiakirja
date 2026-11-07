@@ -672,6 +672,69 @@ body.keyboard #vim-mode:not([hidden]) {
   min-height: 1.8rem;
 }
 
+.file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.file-time {
+  font-size: 0.7rem;
+  color: #b0bec5;
+  line-height: 1.2;
+}
+
+.files-save-collab-btn {
+  background: #1976d2;
+  border-color: #1e88e5;
+}
+
+.files-save-collab-btn:hover {
+  background: #1565c0;
+}
+
+/* Collab File Action Modal */
+.collab-file-modal .share-dialog-inner {
+  max-width: 26rem;
+}
+
+.collab-file-modal-body {
+  padding: 1.2rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.collab-file-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.collab-file-open-btn {
+  background: #37474f;
+  color: #fff;
+  border: 1px solid #546e7a;
+}
+
+.collab-file-open-btn:hover {
+  background: #455a64;
+}
+
+body.collab-mode #files-panel {
+  z-index: 1000;
+}
+
+@media (max-width: 600px) {
+  #files-panel {
+    right: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+    bottom: calc(3.5rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* --- Share control in statusbar --- */
 #share[aria-pressed="true"] {
   position: relative;

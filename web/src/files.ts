@@ -370,3 +370,27 @@ export class FileManager {
     );
   }
 }
+
+/**
+ * Formats a file modification timestamp for display in the files panel.
+ * Shows HH:MM if modified today, or D.M. if modified on a previous date.
+ */
+export function formatFileDate(timestamp: number): string {
+  if (!timestamp) return "";
+  try {
+    const d = new Date(timestamp);
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    if (isToday) {
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return `${d.getDate()}.${d.getMonth() + 1}.`;
+  } catch {
+    return "";
+  }
+}
+

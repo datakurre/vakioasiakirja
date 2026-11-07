@@ -157,9 +157,43 @@
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
           <span>Uusi tiedosto</span>
         </button>
+        <button id="files-save-collab" type="button" class="files-new-btn files-save-collab-btn" hidden title="Tallenna huone paikalliseksi tiedostoksi">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
+          <span>Tallenna huone</span>
+        </button>
       </div>
       <ul id="files-list" class="files-list" role="list"></ul>
     </div>
+
+    <!-- Collaborative file action modal / dialog -->
+    <dialog id="collab-file-modal" class="share-dialog collab-file-modal" aria-labelledby="collab-file-modal-title">
+      <div class="share-dialog-inner">
+        <header class="share-dialog-header">
+          <div class="share-dialog-title-group">
+            <svg class="icon share-dialog-title-icon" aria-hidden="true" focusable="false"><use href="#i-folder" /></svg>
+            <h2 id="collab-file-modal-title" class="share-dialog-title">Paikallinen tiedosto</h2>
+          </div>
+          <button id="collab-file-modal-close" type="button" class="iconbtn share-dialog-close" title="Sulje" aria-label="Sulje">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="collab-file-modal-body">
+          <p id="collab-file-modal-desc" class="share-card-desc">
+            Mitä haluat tehdä tiedostolle <strong id="collab-file-modal-filename">tiedosto.md</strong>?
+          </p>
+          <div class="collab-file-modal-actions">
+            <button id="collab-file-action-import" type="button" class="textbtn primary share-action-btn">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
+              <span>Tuo huoneeseen</span>
+            </button>
+            <button id="collab-file-action-open" type="button" class="textbtn share-action-btn collab-file-open-btn">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
+              <span>Avaa henkilökohtaisessa editorissa</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
 
     <!-- Unified Share Dialog: Read-only live preview (P2P WebRTC) & Collaborative editing (Yjs) -->
     <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-dialog-title">

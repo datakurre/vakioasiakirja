@@ -20,7 +20,7 @@ import {
   type SelectionPayload,
 } from "./share.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
-import { FileManager } from "./files.ts";
+import { FileManager, formatFileDate } from "./files.ts";
 import { getCollabUrl } from "./config.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
@@ -777,10 +777,21 @@ export function initEditor() {
         selectBtn.setAttribute("aria-current", "true");
       }
 
+      const infoSpan = document.createElement("span");
+      infoSpan.className = "file-info";
+
       const nameSpan = document.createElement("span");
       nameSpan.className = "file-name";
       nameSpan.textContent = file.name;
-      selectBtn.appendChild(nameSpan);
+      infoSpan.appendChild(nameSpan);
+
+      if (file.updatedAt) {
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "file-time";
+        timeSpan.textContent = formatFileDate(file.updatedAt);
+        infoSpan.appendChild(timeSpan);
+      }
+      selectBtn.appendChild(infoSpan);
 
       if (isActive) {
         const badge = document.createElement("span");
