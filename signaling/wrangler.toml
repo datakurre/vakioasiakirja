@@ -20,8 +20,16 @@ compatibility_date = "2026-06-15"
 name = "ROOMS"
 class_name = "Room"
 
+[[durable_objects.bindings]]
+name = "COLLAB_ROOMS"
+class_name = "CollabRoom"
+
 # SQLite-backed Durable Object class — the form required to use Durable Objects
 # on the Workers free plan. State here is in-memory only; SQLite is unused.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CollabRoom"]

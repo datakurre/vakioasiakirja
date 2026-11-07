@@ -2,11 +2,15 @@
 // ICE configuration (STUN, plus Cloudflare TURN when configured by secrets).
 
 import type { Room } from "./room.ts";
+import type { CollabRoom } from "./collab-room.ts";
 
 export { Room } from "./room.ts";
+export { CollabRoom } from "./collab-room.ts";
 
 export interface Env {
   ROOMS: DurableObjectNamespace<Room>;
+  COLLAB_ROOMS: DurableObjectNamespace<CollabRoom>;
+  COLLAB_ENABLED?: string;
   // Optional Cloudflare Realtime TURN credentials (set via `wrangler secret`).
   TURN_KEY_ID?: string;
   TURN_API_TOKEN?: string;
@@ -58,7 +62,7 @@ export function isAllowedOrigin(origin: string | null, env: Env): boolean {
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Expose-Headers": "X-Turn-Status",
     "Access-Control-Max-Age": "86400",
@@ -106,6 +110,96 @@ export default {
       return turnCredentials(env, origin);
     }
 
+    // Collab room creation: POST /collab/create
+    if (url.pathname === "/collab/create") {
+      if (!isAllowedOrigin(origin, env)) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
+      if (env.COLLAB_ENABLED === "false") {
+        return new Response("Collaboration service disabled", {
+          status: 503,
+          headers: origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : undefined,
+        });
+      }
+      if (request.method !== "POST") {
+        const headers: Record<string, string> = {
+          Allow: "POST, OPTIONS",
+          Vary: "Origin",
+        };
+        if (origin) {
+          headers["Access-Control-Allow-Origin"] = origin;
+        }
+        return new Response("Method not allowed", { status: 405, headers });
+      }
+
+      let payload: unknown;
+      try {
+        payload = await request.json();
+      } catch {
+        return jsonErrorResponse("Invalid JSON body", 400, origin);
+      }
+
+      if (!isRecord(payload)) {
+        return jsonErrorResponse("Body must be an object", 400, origin);
+      }
+
+      const { roomId, token, initialMarkdown } = payload;
+      if (
+        typeof roomId !== "string" ||
+        !/^[A-Za-z0-9]{4,16}$/.test(roomId) ||
+        roomId.toUpperCase() === "CREATE"
+      ) {
+        return jsonErrorResponse(
+          "roomId must be alphanumeric (4-16 characters)",
+          400,
+          origin,
+        );
+      }
+      if (typeof token !== "string" || token.length < 16) {
+        return jsonErrorResponse(
+          "token must be a string with at least 16 characters",
+          400,
+          origin,
+        );
+      }
+      if (initialMarkdown !== undefined && typeof initialMarkdown !== "string") {
+        return jsonErrorResponse("initialMarkdown must be a string", 400, origin);
+      }
+      const initialText = typeof initialMarkdown === "string" ? initialMarkdown : "";
+      if (new TextEncoder().encode(initialText).byteLength > 512 * 1024) {
+        return jsonErrorResponse("initialMarkdown exceeds 512 KB limit", 400, origin);
+      }
+
+      const id = env.COLLAB_ROOMS.idFromName(roomId.toUpperCase());
+      const doRequest = new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: JSON.stringify({
+          roomId,
+          token,
+          initialMarkdown: initialText,
+        }),
+      });
+      const response = await env.COLLAB_ROOMS.get(id).fetch(doRequest);
+      return ensureCors(response, origin);
+    }
+
+    // Collab WebSocket upgrade: GET /collab/:roomId
+    const collabMatch = url.pathname.match(/^\/collab\/([A-Za-z0-9]{4,16})$/);
+    if (collabMatch) {
+      if (!isAllowedOrigin(origin, env)) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
+      if (env.COLLAB_ENABLED === "false") {
+        return new Response("Collaboration service disabled", {
+          status: 503,
+          headers: origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : undefined,
+        });
+      }
+      const id = env.COLLAB_ROOMS.idFromName(collabMatch[1].toUpperCase());
+      return env.COLLAB_ROOMS.get(id).fetch(request);
+    }
+
     const room = url.pathname.match(/^\/room\/([A-Za-z0-9]{4,12})$/);
     if (room) {
       if (!isAllowedOrigin(origin, env)) {
@@ -118,6 +212,39 @@ export default {
     return new Response("Not found", { status: 404 });
   },
 };
+
+function isRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === "object" && val !== null && !Array.isArray(val);
+}
+
+function jsonErrorResponse(
+  error: string,
+  status: number,
+  origin: string | null,
+): Response {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Vary: "Origin",
+  };
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return new Response(JSON.stringify({ error }), { status, headers });
+}
+
+function ensureCors(response: Response, origin: string | null): Response {
+  if (origin && !response.headers.has("Access-Control-Allow-Origin")) {
+    const headers = new Headers(response.headers);
+    headers.set("Access-Control-Allow-Origin", origin);
+    headers.set("Vary", "Origin");
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+  return response;
+}
 
 function isBlockedPort(url: string): boolean {
   // Browsers block port 53 for security reasons (DNS port), which causes WebRTC allocation timeouts.

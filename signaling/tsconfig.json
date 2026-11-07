@@ -10,6 +10,7 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "lib": ["ES2022"],
+    "skipLibCheck": true,
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["src"]
