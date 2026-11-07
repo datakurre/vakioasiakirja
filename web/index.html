@@ -161,13 +161,28 @@
       <ul id="files-list" class="files-list" role="list"></ul>
     </div>
 
-    <!-- Broadcaster's sharing panel: the viewer link, a copy button, the live
-         viewer count and explicit close/stop controls. -->
-    <div id="share-panel" hidden role="region" aria-label="Jaetun esikatselun hallinta">
+    <!-- Sharing popover: choose between read-only live preview or collaborative editing -->
+    <div id="share-panel" hidden role="region" aria-label="Jakamisen valikko">
       <div class="share-header">
-        <p id="share-status" class="share-intro" role="status" aria-live="polite"></p>
+        <p id="share-status" class="share-intro" role="status" aria-live="polite">Valitse jakamistapa:</p>
         <button id="share-close" type="button" class="iconbtn" title="Sulje jakamisen tiedot" aria-label="Sulje jakamisen tiedot">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div id="share-options" class="share-options">
+        <button id="share-action-readonly" type="button" class="share-option-btn">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
+          <div class="share-option-text">
+            <strong>Jaa esikatselu (vain luku)</strong>
+            <span>Katsojat näkevät päivittyvän esikatselun, mutta eivät voi muokata.</span>
+          </div>
+        </button>
+        <button id="share-action-collab" type="button" class="share-option-btn">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
+          <div class="share-option-text">
+            <strong>Jaa muokattavana</strong>
+            <span>Luo reaaliaikainen yhteismuokkaushuone ja jaa muokkauslinkki.</span>
+          </div>
         </button>
       </div>
       <div id="share-row" class="share-row" hidden>
@@ -176,11 +191,29 @@
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
         </button>
       </div>
-      <div class="share-foot">
+      <div class="share-foot" id="share-foot" hidden>
         <span id="share-viewers" hidden>Katsojia: <strong id="share-count">0</strong></span>
         <button id="share-stop" type="button" class="textbtn">Lopeta jako</button>
       </div>
     </div>
+
+    <!-- Dialog for confirming collaborative editing room creation -->
+    <dialog id="collab-confirm-dialog" class="collab-dialog" aria-labelledby="collab-dialog-title">
+      <div class="collab-dialog-inner">
+        <h3 id="collab-dialog-title">Jaa muokattavana</h3>
+        <p class="collab-dialog-desc">
+          Dokumentti jaetaan muokattavalla linkillä ja sen sisältö tallennetaan väliaikaisesti yhteistyöpalvelimelle. Kuka tahansa linkin saava voi lukea ja muokata sitä reaaliajassa.
+        </p>
+        <div class="collab-dialog-note">
+          <strong>Huomio:</strong> Oma henkilökohtainen luonnoksesi säilyy selaimessasi erillisenä ja koskemattomana.
+        </div>
+        <div id="collab-dialog-error" class="collab-dialog-error" hidden role="alert"></div>
+        <div class="collab-dialog-actions">
+          <button id="collab-dialog-cancel" type="button" class="textbtn secondary">Peruuta</button>
+          <button id="collab-dialog-confirm" type="button" class="textbtn primary">Luo yhteismuokkauslinkki</button>
+        </div>
+      </div>
+    </dialog>
 
     <!-- Viewer-mode banner: connection state for a read-only shared preview. -->
     <div id="viewer-banner" hidden role="status"></div>

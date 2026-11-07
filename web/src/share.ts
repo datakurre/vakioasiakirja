@@ -7,7 +7,10 @@
 // Configured by VITE_SIGNALING_URL at build time; when unset the feature is
 // inert (see isSharingEnabled) and the public demo build is unaffected.
 
-const SIGNALING_URL = (import.meta.env?.VITE_SIGNALING_URL ?? "").replace(/\/$/, "");
+import { getCollabUrl } from "./config.ts";
+
+const env = typeof import.meta !== "undefined" ? import.meta.env : undefined;
+const SIGNALING_URL = (env?.VITE_SIGNALING_URL ?? "").replace(/\/$/, "");
 
 // STUN-only default. The Worker's /turn-credentials may add a Cloudflare TURN
 // entry for viewers behind restrictive NATs; without it those may fail to peer.
@@ -17,10 +20,10 @@ const DEFAULT_ICE: RTCIceServer[] = [
 
 // Room IDs avoid the easily confused 0/O and 1/I; 7 chars over a 31-symbol
 // alphabet is ~35 bits, enough to make guessing a live room impractical.
-const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export function isSharingEnabled(): boolean {
-  return SIGNALING_URL !== "";
+  return SIGNALING_URL !== "" || getCollabUrl() !== "";
 }
 
 export function randomRoomId(len = 7): string {
@@ -29,6 +32,23 @@ export function randomRoomId(len = 7): string {
   let id = "";
   for (let i = 0; i < len; i++) id += ROOM_ALPHABET[rnd[i] % ROOM_ALPHABET.length];
   return id;
+}
+
+export function randomCollabRoomId(len = 8): string {
+  let id = "";
+  do {
+    const rnd = new Uint32Array(len);
+    crypto.getRandomValues(rnd);
+    id = "";
+    for (let i = 0; i < len; i++) id += ROOM_ALPHABET[rnd[i] % ROOM_ALPHABET.length];
+  } while (id.toUpperCase() === "CREATE");
+  return id;
+}
+
+export function generateCollabToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function roomWsUrl(roomId: string, role: "broadcaster" | "viewer"): string {

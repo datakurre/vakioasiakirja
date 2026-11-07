@@ -11,9 +11,17 @@ import { vim, getCM, Vim } from "@replit/codemirror-vim";
 
 import { createPreview, type Logo } from "./preview.ts";
 import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
-import { Broadcaster, isSharingEnabled, type Snapshot, type SelectionPayload } from "./share.ts";
+import {
+  Broadcaster,
+  isSharingEnabled,
+  randomCollabRoomId,
+  generateCollabToken,
+  type Snapshot,
+  type SelectionPayload,
+} from "./share.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
 import { FileManager } from "./files.ts";
+import { getCollabUrl } from "./config.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
 import seed from "./seed.md?raw";
@@ -41,12 +49,21 @@ export function initEditor() {
   const sharePanelEl = document.getElementById("share-panel")!;
   const shareCloseEl = document.getElementById("share-close") as HTMLButtonElement;
   const shareStatusEl = document.getElementById("share-status")!;
+  const shareOptionsEl = document.getElementById("share-options") as HTMLElement;
+  const shareActionReadonlyEl = document.getElementById("share-action-readonly") as HTMLButtonElement;
+  const shareActionCollabEl = document.getElementById("share-action-collab") as HTMLButtonElement;
   const shareRowEl = document.getElementById("share-row")!;
+  const shareFootEl = document.getElementById("share-foot") as HTMLElement;
   const shareViewersEl = document.getElementById("share-viewers")!;
   const shareUrlEl = document.getElementById("share-url") as HTMLInputElement;
   const shareCopyEl = document.getElementById("share-copy") as HTMLButtonElement;
   const shareStopEl = document.getElementById("share-stop") as HTMLButtonElement;
   const shareCountEl = document.getElementById("share-count")!;
+
+  const collabConfirmDialogEl = document.getElementById("collab-confirm-dialog") as HTMLDialogElement;
+  const collabConfirmCancelEl = document.getElementById("collab-dialog-cancel") as HTMLButtonElement;
+  const collabConfirmSubmitEl = document.getElementById("collab-dialog-confirm") as HTMLButtonElement;
+  const collabConfirmErrorEl = document.getElementById("collab-dialog-error") as HTMLElement;
 
   const toast = createToaster(toastsEl);
   const setStatus = (text: string, error = false) => {
@@ -162,16 +179,31 @@ export function initEditor() {
       shareEl.setAttribute("aria-controls", "share-panel");
     }
     shareEl.title = shareState === "idle"
-      ? "Jaa esikatselu"
+      ? "Jaa esikatselu tai yhteismuokkaa"
       : open ? "Piilota jakamisen tiedot" : "Näytä jakamisen tiedot";
   }
 
   function openSharePanel() {
-    if (!broadcaster) return;
     if (!filesPanelEl.hidden) closeFilesPanel();
     sharePanelEl.hidden = false;
-    if (shareState === "starting") {
+    if (shareState === "idle") {
+      shareStatusEl.textContent = "Valitse jakamistapa:";
+      shareOptionsEl.hidden = false;
+      shareRowEl.hidden = true;
+      if (shareFootEl) shareFootEl.hidden = true;
+      shareViewersEl.hidden = true;
+    } else if (shareState === "starting") {
       shareStatusEl.textContent = "Muodostetaan yhteyttä jakopalveluun…";
+      shareOptionsEl.hidden = true;
+      shareRowEl.hidden = true;
+      if (shareFootEl) shareFootEl.hidden = false;
+      shareViewersEl.hidden = true;
+    } else {
+      shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
+      shareOptionsEl.hidden = true;
+      shareRowEl.hidden = false;
+      if (shareFootEl) shareFootEl.hidden = false;
+      shareViewersEl.hidden = false;
     }
     syncShareControls();
   }
@@ -185,8 +217,10 @@ export function initEditor() {
 
   function resetSharePanel() {
     sharePanelEl.hidden = true;
-    shareStatusEl.textContent = "";
+    shareStatusEl.textContent = "Valitse jakamistapa:";
+    shareOptionsEl.hidden = false;
     shareRowEl.hidden = true;
+    if (shareFootEl) shareFootEl.hidden = true;
     shareViewersEl.hidden = true;
     shareUrlEl.value = "";
     shareCountEl.textContent = "0";
@@ -223,8 +257,10 @@ export function initEditor() {
       );
       broadcaster = bc;
       shareState = "starting";
+      shareOptionsEl.hidden = true;
       shareRowEl.hidden = true;
       shareViewersEl.hidden = true;
+      if (shareFootEl) shareFootEl.hidden = false;
       shareStopEl.textContent = "Peruuta aloitus";
       openSharePanel();
       await bc.start(snapshot());
@@ -237,8 +273,10 @@ export function initEditor() {
       shareState = "active";
       shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
       shareUrlEl.value = bc.watchUrl();
+      shareOptionsEl.hidden = true;
       shareRowEl.hidden = false;
       shareViewersEl.hidden = false;
+      if (shareFootEl) shareFootEl.hidden = false;
       shareStopEl.textContent = "Lopeta jako";
       bc.push(snapshot());
       if (currentSelection?.active) {
@@ -264,13 +302,93 @@ export function initEditor() {
     if (focusWasInPanel) shareEl.focus();
   }
 
+  // --- Collaborative Room Creation Dialog ---
+  function openCollabConfirmDialog() {
+    if (!collabConfirmDialogEl) return;
+    if (collabConfirmErrorEl) {
+      collabConfirmErrorEl.hidden = true;
+      collabConfirmErrorEl.textContent = "";
+    }
+    if (collabConfirmSubmitEl) {
+      collabConfirmSubmitEl.disabled = false;
+      collabConfirmSubmitEl.textContent = "Luo yhteismuokkauslinkki";
+    }
+    if (typeof collabConfirmDialogEl.showModal === "function") {
+      collabConfirmDialogEl.showModal();
+    } else {
+      collabConfirmDialogEl.setAttribute("open", "");
+    }
+  }
+
+  function closeCollabConfirmDialog() {
+    if (!collabConfirmDialogEl) return;
+    if (typeof collabConfirmDialogEl.close === "function") {
+      collabConfirmDialogEl.close();
+    } else {
+      collabConfirmDialogEl.removeAttribute("open");
+    }
+  }
+
+  collabConfirmCancelEl?.addEventListener("click", () => {
+    closeCollabConfirmDialog();
+  });
+
+  collabConfirmSubmitEl?.addEventListener("click", async () => {
+    if (!collabConfirmSubmitEl || !collabConfirmErrorEl) return;
+    collabConfirmSubmitEl.disabled = true;
+    collabConfirmSubmitEl.textContent = "Luodaan huonetta…";
+    collabConfirmErrorEl.hidden = true;
+
+    try {
+      const roomId = randomCollabRoomId(8);
+      const token = generateCollabToken();
+      const collabUrl = getCollabUrl();
+      const currentMarkdown = editor.state.doc.toString();
+
+      const res = await fetch(`${collabUrl}/collab/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId,
+          token,
+          initialMarkdown: currentMarkdown,
+        }),
+      });
+
+      if (!res.ok) {
+        let errMsg = `Palvelinvirhe (${res.status})`;
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (data.error) errMsg = data.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(errMsg);
+      }
+
+      closeCollabConfirmDialog();
+      window.location.hash = `#/edit/${roomId}/${token}`;
+    } catch (err) {
+      collabConfirmSubmitEl.disabled = false;
+      collabConfirmSubmitEl.textContent = "Luo yhteismuokkauslinkki";
+      collabConfirmErrorEl.hidden = false;
+      collabConfirmErrorEl.textContent = `Yhteismuokkauksen luominen epäonnistui: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+
   if (shareEl) {
     if (isSharingEnabled()) {
       shareEl.hidden = false;
       shareEl.addEventListener("click", () => {
-        if (!broadcaster) void startSharing();
-        else if (sharePanelEl.hidden) openSharePanel();
+        if (sharePanelEl.hidden) openSharePanel();
         else closeSharePanel();
+      });
+      shareActionReadonlyEl?.addEventListener("click", () => {
+        void startSharing();
+      });
+      shareActionCollabEl?.addEventListener("click", () => {
+        closeSharePanel();
+        openCollabConfirmDialog();
       });
       shareCloseEl.addEventListener("click", () => closeSharePanel());
       shareStopEl.addEventListener("click", () => stopSharing());

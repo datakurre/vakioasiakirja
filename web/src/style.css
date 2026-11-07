@@ -881,3 +881,325 @@ body.collab-error-view main {
   grid-template-columns: 1fr;
 }
 
+/* --- Share Popover & Collaborative Dialog Styles --- */
+.share-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.6rem 0;
+}
+
+.share-option-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  background: #f8f9fa;
+  border: 1px solid #cfd8dc;
+  border-radius: 0.4rem;
+  text-align: left;
+  cursor: pointer;
+  color: #263238;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.share-option-btn:hover,
+.share-option-btn:focus-visible {
+  background: #eef2f5;
+  border-color: #1976d2;
+}
+
+.share-option-btn .icon {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  color: #1565c0;
+}
+
+.share-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.share-option-text strong {
+  font-size: 0.92rem;
+  color: #212121;
+}
+
+.share-option-text span {
+  font-size: 0.8rem;
+  color: #546e7a;
+  line-height: 1.35;
+}
+
+/* Collaborative creation modal dialog */
+.collab-dialog {
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  background: #ffffff;
+}
+
+.collab-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.collab-dialog-inner {
+  padding: 1.5rem;
+}
+
+.collab-dialog-inner h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.2rem;
+  color: #1a237e;
+}
+
+.collab-dialog-desc {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  color: #37474f;
+  line-height: 1.45;
+}
+
+.collab-dialog-note {
+  background: #f1f8e9;
+  border-left: 4px solid #558b2f;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-size: 0.85rem;
+  color: #33691e;
+  line-height: 1.4;
+}
+
+.collab-dialog-error {
+  background: #ffebee;
+  border-left: 4px solid #c62828;
+  color: #b71c1c;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 1rem;
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-size: 0.85rem;
+}
+
+.collab-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.collab-dialog-actions .textbtn.primary {
+  background: #1565c0;
+  color: #ffffff;
+}
+
+.collab-dialog-actions .textbtn.primary:hover {
+  background: #0d47a1;
+}
+
+.collab-dialog-actions .textbtn.secondary {
+  background: #eceff1;
+  color: #37474f;
+}
+
+.collab-dialog-actions .textbtn.secondary:hover {
+  background: #cfd8dc;
+}
+
+/* --- Collaborative Banner & Controls --- */
+#viewer-banner.collab-banner {
+  background: #263238;
+  padding: 0.4rem 0.75rem;
+  color: #ffffff;
+}
+
+.collab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.collab-bar-left,
+.collab-bar-center,
+.collab-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.collab-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.collab-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.collab-status-badge.status-connected .collab-status-dot {
+  background: #4caf50;
+  box-shadow: 0 0 6px #4caf50;
+}
+
+.collab-status-badge.status-connecting .collab-status-dot {
+  background: #ffb300;
+  box-shadow: 0 0 6px #ffb300;
+}
+
+.collab-status-badge.status-saving .collab-status-dot {
+  background: #29b6f6;
+  box-shadow: 0 0 6px #29b6f6;
+  animation: pulse-saving 1s infinite alternate;
+}
+
+.collab-status-badge.status-disconnected .collab-status-dot {
+  background: #ef5350;
+  box-shadow: 0 0 6px #ef5350;
+}
+
+@keyframes pulse-saving {
+  0% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+.collab-room-tag {
+  font-size: 0.85rem;
+  color: #cfd8dc;
+}
+
+.collab-room-tag strong {
+  color: #ffffff;
+  font-family: monospace;
+}
+
+.collab-privacy-tag {
+  font-size: 0.75rem;
+  color: #90a4ae;
+}
+
+.collab-users-container {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.collab-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.78rem;
+  color: #eceff1;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collab-user-pill.is-local {
+  font-weight: 600;
+}
+
+.collab-user-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.collab-users-count {
+  font-size: 0.78rem;
+  color: #b0bec5;
+}
+
+.collab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.3rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.collab-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.collab-btn .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.collab-btn.collab-btn-exit:hover {
+  background: #d32f2f;
+  border-color: #d32f2f;
+}
+
+/* Remote cursors & selection styling */
+.cm-ySelection {
+  opacity: 0.7;
+}
+
+.cm-ySelectionCaret {
+  position: relative;
+  border-left: 2px solid;
+  margin-left: -1px;
+  box-sizing: border-box;
+}
+
+.cm-ySelectionInfo {
+  position: absolute;
+  top: -1.25em;
+  left: -2px;
+  font-size: 0.72rem;
+  font-family: inherit;
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  pointer-events: none;
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 700px) {
+  .collab-privacy-tag {
+    display: none;
+  }
+  .collab-btn-label {
+    display: none;
+  }
+  .collab-btn {
+    padding: 0.4rem;
+  }
+}
+
+

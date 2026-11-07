@@ -9,3 +9,18 @@ export function getCollabUrl(): string {
   const url = env?.VITE_COLLAB_URL || env?.VITE_SIGNALING_URL || "";
   return url.replace(/\/+$/, "");
 }
+
+/**
+ * Returns the base WebSocket URL for collaborative editing.
+ * e.g. "ws://localhost:8787/collab" or "wss://collab.example.com/collab"
+ */
+export function getCollabWsUrl(): string {
+  const base =
+    getCollabUrl() ||
+    (typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "http://localhost:8787");
+  const wsBase = base.replace(/^http/, "ws");
+  return `${wsBase}/collab`;
+}
+
