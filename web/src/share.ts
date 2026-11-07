@@ -74,6 +74,10 @@ type Signal =
 
 const DATA_CHANNEL = "state";
 
+type ChannelMessage =
+  | { type: "snapshot"; data: Snapshot }
+  | { type: "chunk"; id: number; index: number; total: number; data: string };
+
 // One broadcaster fans the current snapshot out to every connected viewer. It
 // holds a peer connection and data channel per viewer (the spec's state model).
 export class Broadcaster {
@@ -81,11 +85,13 @@ export class Broadcaster {
   private ws?: WebSocket;
   private readonly pcs = new Map<string, RTCPeerConnection>();
   private readonly dcs = new Map<string, RTCDataChannel>();
+  private readonly pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
   private iceConfig: RTCConfiguration = { iceServers: DEFAULT_ICE };
   private snapshot?: Snapshot;
   private stopped = false;
   private opened = false;
   private rejectConnect?: (error: Error) => void;
+  private nextChunkId = 1;
 
   constructor(
     private readonly onViewers: (count: number) => void,
@@ -99,7 +105,8 @@ export class Broadcaster {
     return `${location.origin}${location.pathname}#/watch/${this.roomId}`;
   }
 
-  async start(): Promise<void> {
+  async start(initialSnapshot?: Snapshot): Promise<void> {
+    if (initialSnapshot) this.snapshot = initialSnapshot;
     this.iceConfig = await getIceConfig();
     if (this.stopped) return;
     await this.connect();
@@ -167,9 +174,33 @@ export class Broadcaster {
   // Replace the snapshot and push it to every open channel.
   push(snapshot: Snapshot): void {
     this.snapshot = snapshot;
-    const payload = JSON.stringify(snapshot);
     for (const dc of this.dcs.values()) {
-      if (dc.readyState === "open") dc.send(payload);
+      this.sendSnapshot(dc, snapshot);
+    }
+  }
+
+  private sendSnapshot(dc: RTCDataChannel, snapshot: Snapshot) {
+    if (dc.readyState !== "open") return;
+    const raw = JSON.stringify(snapshot);
+    const CHUNK_SIZE = 48 * 1024;
+    if (raw.length <= CHUNK_SIZE) {
+      try {
+        dc.send(JSON.stringify({ type: "snapshot", data: snapshot } satisfies ChannelMessage));
+      } catch {
+        /* ignore send error */
+      }
+      return;
+    }
+    const id = this.nextChunkId++;
+    const total = Math.ceil(raw.length / CHUNK_SIZE);
+    for (let index = 0; index < total; index++) {
+      if (dc.readyState !== "open") break;
+      const data = raw.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
+      try {
+        dc.send(JSON.stringify({ type: "chunk", id, index, total, data } satisfies ChannelMessage));
+      } catch {
+        break;
+      }
     }
   }
 
@@ -179,14 +210,35 @@ export class Broadcaster {
         await this.addViewer(msg.viewerId);
         break;
       case "answer":
-        if (msg.viewerId) await this.pcs.get(msg.viewerId)?.setRemoteDescription(msg.answer);
+        if (msg.viewerId) {
+          const pc = this.pcs.get(msg.viewerId);
+          if (pc) {
+            await pc.setRemoteDescription(msg.answer);
+            const queued = this.pendingCandidates.get(msg.viewerId) ?? [];
+            this.pendingCandidates.delete(msg.viewerId);
+            for (const c of queued) {
+              try {
+                await pc.addIceCandidate(c);
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        }
         break;
       case "candidate":
         if (msg.viewerId && msg.candidate) {
-          try {
-            await this.pcs.get(msg.viewerId)?.addIceCandidate(msg.candidate);
-          } catch {
-            /* candidate may arrive after teardown */
+          const pc = this.pcs.get(msg.viewerId);
+          if (!pc || !pc.remoteDescription) {
+            const queued = this.pendingCandidates.get(msg.viewerId) ?? [];
+            queued.push(msg.candidate);
+            this.pendingCandidates.set(msg.viewerId, queued);
+          } else {
+            try {
+              await pc.addIceCandidate(msg.candidate);
+            } catch {
+              /* ignore late candidate */
+            }
           }
         }
         break;
@@ -207,11 +259,21 @@ export class Broadcaster {
     const dc = pc.createDataChannel(DATA_CHANNEL, { ordered: true });
     this.dcs.set(viewerId, dc);
     dc.addEventListener("open", () => {
-      if (this.snapshot) dc.send(JSON.stringify(this.snapshot));
+      if (this.snapshot) this.sendSnapshot(dc, this.snapshot);
     });
 
+    const pendingOutgoing: RTCIceCandidateInit[] = [];
+    let offerSent = false;
+
     pc.addEventListener("icecandidate", (e) => {
-      if (e.candidate) this.send({ type: "candidate", viewerId, candidate: e.candidate.toJSON() });
+      if (e.candidate) {
+        const candidate = e.candidate.toJSON();
+        if (!offerSent) {
+          pendingOutgoing.push(candidate);
+        } else {
+          this.send({ type: "candidate", viewerId, candidate });
+        }
+      }
     });
     pc.addEventListener("connectionstatechange", () => {
       if (pc.connectionState === "failed") this.dropViewer(viewerId);
@@ -219,10 +281,16 @@ export class Broadcaster {
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    if (this.pcs.get(viewerId) !== pc) return;
     this.send({ type: "offer", viewerId, offer });
+    offerSent = true;
+    for (const candidate of pendingOutgoing) {
+      this.send({ type: "candidate", viewerId, candidate });
+    }
   }
 
   private dropViewer(viewerId: string) {
+    this.pendingCandidates.delete(viewerId);
     this.dcs.get(viewerId)?.close();
     this.dcs.delete(viewerId);
     const pc = this.pcs.get(viewerId);
@@ -250,6 +318,7 @@ export class Broadcaster {
     this.rejectConnect = undefined;
     this.send({ type: "close" });
     for (const id of [...this.pcs.keys()]) this.dropViewer(id);
+    this.pendingCandidates.clear();
     this.ws?.close();
     this.ws = undefined;
   }
@@ -263,6 +332,7 @@ export class Viewer {
   private pc?: RTCPeerConnection;
   private iceConfig: RTCConfiguration = { iceServers: DEFAULT_ICE };
   private pendingCandidates: RTCIceCandidateInit[] = [];
+  private readonly incomingChunks = new Map<number, { total: number; received: number; chunks: string[] }>();
   private stopped = false;
   private backoff = 0;
 
@@ -317,7 +387,7 @@ export class Viewer {
     // A fresh offer supersedes any existing session (e.g. after the broadcaster
     // reconnected); tear the old peer down first.
     this.pc?.close();
-    this.pendingCandidates = [];
+    this.incomingChunks.clear();
     const pc = new RTCPeerConnection(this.iceConfig);
     this.pc = pc;
 
@@ -325,8 +395,19 @@ export class Viewer {
       const dc = e.channel;
       dc.addEventListener("message", (ev) => {
         try {
-          this.onSnapshot(JSON.parse(ev.data) as Snapshot);
-          this.onStatus("live");
+          const msg = JSON.parse(ev.data) as ChannelMessage | Snapshot;
+          if ("type" in msg) {
+            if (msg.type === "snapshot") {
+              const snap = typeof msg.data === "string" ? (JSON.parse(msg.data) as Snapshot) : msg.data;
+              this.onSnapshot(snap);
+              this.onStatus("live");
+            } else if (msg.type === "chunk") {
+              this.handleChunk(msg);
+            }
+          } else if ("markdown" in msg) {
+            this.onSnapshot(msg as unknown as Snapshot);
+            this.onStatus("live");
+          }
         } catch {
           /* ignore malformed frame */
         }
@@ -335,26 +416,71 @@ export class Viewer {
         if (!this.stopped) this.onStatus("reconnecting");
       });
     });
+
+    const pendingOutgoing: RTCIceCandidateInit[] = [];
+    let answerSent = false;
+
     pc.addEventListener("icecandidate", (e) => {
-      if (e.candidate) this.send({ type: "candidate", candidate: e.candidate.toJSON() });
+      if (e.candidate) {
+        const candidate = e.candidate.toJSON();
+        if (!answerSent) {
+          pendingOutgoing.push(candidate);
+        } else {
+          this.send({ type: "candidate", candidate });
+        }
+      }
     });
 
     await pc.setRemoteDescription(offer);
-    for (const c of this.pendingCandidates) {
+    const queued = this.pendingCandidates;
+    this.pendingCandidates = [];
+    for (const c of queued) {
       try {
         await pc.addIceCandidate(c);
       } catch {
         /* ignore */
       }
     }
-    this.pendingCandidates = [];
+
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+    if (this.pc !== pc) return;
     this.send({ type: "answer", answer });
+    answerSent = true;
+    for (const candidate of pendingOutgoing) {
+      this.send({ type: "candidate", candidate });
+    }
+  }
+
+  private handleChunk(msg: { id: number; index: number; total: number; data: string }) {
+    let entry = this.incomingChunks.get(msg.id);
+    if (!entry) {
+      entry = { total: msg.total, received: 0, chunks: new Array<string>(msg.total) };
+      this.incomingChunks.set(msg.id, entry);
+      if (this.incomingChunks.size > 10) {
+        const oldestKey = this.incomingChunks.keys().next().value;
+        if (oldestKey !== undefined) this.incomingChunks.delete(oldestKey);
+      }
+    }
+    if (!entry.chunks[msg.index]) {
+      entry.chunks[msg.index] = msg.data;
+      entry.received++;
+    }
+    if (entry.received === entry.total) {
+      this.incomingChunks.delete(msg.id);
+      const full = entry.chunks.join("");
+      try {
+        const snapshot = JSON.parse(full) as Snapshot;
+        this.onSnapshot(snapshot);
+        this.onStatus("live");
+      } catch {
+        /* ignore invalid json */
+      }
+    }
   }
 
   private async addCandidate(candidate: RTCIceCandidateInit) {
-    if (!this.pc?.remoteDescription) {
+    if (!this.pc || !this.pc.remoteDescription) {
       this.pendingCandidates.push(candidate);
       return;
     }
@@ -371,6 +497,8 @@ export class Viewer {
 
   private teardown() {
     this.stopped = true;
+    this.pendingCandidates = [];
+    this.incomingChunks.clear();
     this.pc?.close();
     this.pc = undefined;
     this.ws?.close();

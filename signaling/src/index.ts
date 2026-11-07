@@ -65,8 +65,26 @@ export default {
   },
 };
 
+function isBlockedPort(url: string): boolean {
+  // Browsers block port 53 for security reasons (DNS port), which causes WebRTC allocation timeouts.
+  return /:53(?:\?|$)/.test(url);
+}
+
+function filterBlockedPorts(server: IceServer): IceServer | null {
+  if (Array.isArray(server.urls)) {
+    const urls = server.urls.filter((u) => !isBlockedPort(u));
+    if (urls.length === 0) return null;
+    return { ...server, urls };
+  } else if (typeof server.urls === "string") {
+    if (isBlockedPort(server.urls)) return null;
+    return server;
+  }
+  return server;
+}
+
 async function turnCredentials(env: Env): Promise<Response> {
   const iceServers: IceServer[] = [STUN];
+  let turnSuccess = false;
 
   if (env.TURN_KEY_ID && env.TURN_API_TOKEN) {
     try {
@@ -84,7 +102,15 @@ async function turnCredentials(env: Env): Promise<Response> {
       if (res.ok) {
         const data = (await res.json()) as { iceServers?: IceServer[] };
         if (Array.isArray(data.iceServers)) {
-          iceServers.push(...data.iceServers);
+          const filtered: IceServer[] = [];
+          for (const s of data.iceServers) {
+            const cleaned = filterBlockedPorts(s);
+            if (cleaned) filtered.push(cleaned);
+          }
+          if (filtered.length > 0) {
+            iceServers.push(...filtered);
+            turnSuccess = true;
+          }
         } else {
           console.warn("Cloudflare TURN response did not contain an iceServers array");
         }
@@ -99,7 +125,7 @@ async function turnCredentials(env: Env): Promise<Response> {
   return new Response(JSON.stringify({ iceServers }), {
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": turnSuccess ? "public, max-age=3600" : "no-store",
       ...CORS_HEADERS,
     },
   });

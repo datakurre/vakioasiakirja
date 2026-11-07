@@ -206,7 +206,7 @@ export function initEditor() {
       shareViewersEl.hidden = true;
       shareStopEl.textContent = "Peruuta aloitus";
       openSharePanel();
-      await bc.start();
+      await bc.start(snapshot());
       // The user may have explicitly stopped the share while startup awaited
       // signaling setup. Do not revive a stopped session or overwrite a new one.
       if (broadcaster !== bc) {

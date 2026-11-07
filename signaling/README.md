@@ -97,8 +97,10 @@ curl --request POST \
   --data '{"name":"broadcast-signaling"}'
 ```
 
-From the response, use `result.uid` as `TURN_KEY_ID` and `result.secret` as
-`TURN_API_TOKEN`. Keep both values server-side; treat `secret` as a sensitive
+From the response, use `result.uid` as `TURN_KEY_ID` and `result.key` as
+`TURN_API_TOKEN`. (Note: Cloudflare's API response returns the token in `key`;
+if you previously set `TURN_API_TOKEN` to `result.secret`, re-set it with
+`result.key`). Keep both values server-side; treat `key` as a sensitive
 credential.
 
 ```bash
