@@ -46,19 +46,20 @@ export function initEditor() {
   const filesNewEl = document.getElementById("files-new") as HTMLButtonElement;
   const filesListEl = document.getElementById("files-list")!;
   const shareEl = document.getElementById("share") as HTMLButtonElement;
-  const shareDialogEl = document.getElementById("share-dialog") as HTMLDialogElement;
-  const shareDialogCloseEl = document.getElementById("share-dialog-close") as HTMLButtonElement;
-  const shareReadonlyInactiveEl = document.getElementById("share-readonly-inactive")!;
-  const shareReadonlyActiveEl = document.getElementById("share-readonly-active")!;
-  const shareReadonlyStartEl = document.getElementById("share-readonly-start") as HTMLButtonElement;
-  const shareCountEl = document.getElementById("share-count")!;
-  const shareCountUnitEl = document.getElementById("share-count-unit")!;
+  const sharePanelEl = document.getElementById("share-panel")!;
+  const shareCloseEl = document.getElementById("share-close") as HTMLButtonElement;
+  const shareStatusEl = document.getElementById("share-status")!;
+  const shareOptionsEl = document.getElementById("share-options") as HTMLElement;
+  const shareActionReadonlyEl = document.getElementById("share-action-readonly") as HTMLButtonElement;
+  const shareActionCollabEl = document.getElementById("share-action-collab") as HTMLButtonElement;
+  const collabCreateErrorEl = document.getElementById("collab-create-error");
+  const shareRowEl = document.getElementById("share-row")!;
+  const shareFootEl = document.getElementById("share-foot") as HTMLElement;
+  const shareViewersEl = document.getElementById("share-viewers");
   const shareUrlEl = document.getElementById("share-url") as HTMLInputElement;
   const shareCopyEl = document.getElementById("share-copy") as HTMLButtonElement;
   const shareStopEl = document.getElementById("share-stop") as HTMLButtonElement;
-  const collabCreateBtnEl = document.getElementById("collab-create-btn") as HTMLButtonElement;
-  const collabCreateBtnTextEl = document.getElementById("collab-create-btn-text")!;
-  const collabCreateErrorEl = document.getElementById("collab-create-error")!;
+  const shareCountEl = document.getElementById("share-count")!;
 
   const toast = createToaster(toastsEl);
   const setStatus = (text: string, error = false) => {
@@ -162,17 +163,16 @@ export function initEditor() {
   let broadcaster: Broadcaster | undefined;
   let shareState: "idle" | "starting" | "active" = "idle";
 
-  function isShareDialogOpen(): boolean {
-    if (!shareDialogEl) return false;
-    return typeof shareDialogEl.open === "boolean" ? shareDialogEl.open : shareDialogEl.hasAttribute("open");
+  function isSharePanelOpen(): boolean {
+    return Boolean(sharePanelEl && !sharePanelEl.hidden);
   }
 
   function syncShareControls() {
     const active = shareState === "active";
-    const open = isShareDialogOpen();
+    const open = isSharePanelOpen();
     shareEl.setAttribute("aria-pressed", String(active));
     shareEl.setAttribute("aria-expanded", String(open));
-    shareEl.setAttribute("aria-controls", "share-dialog");
+    shareEl.setAttribute("aria-controls", "share-panel");
     shareEl.title = active
       ? (open ? "Sulje jakamisen tiedot" : "Jako käynnissä (näytä jakamisvalikko)")
       : (open ? "Sulje jakamisvalikko" : "Jaa asiakirja");
@@ -180,67 +180,59 @@ export function initEditor() {
 
   function updateViewerCount(count: number) {
     if (shareCountEl) shareCountEl.textContent = String(count);
-    if (shareCountUnitEl) {
-      shareCountUnitEl.textContent = count === 1 ? "katsoja" : "katsojaa";
-    }
   }
 
-  function renderReadonlyShareState() {
+  function renderSharePanelState() {
+    if (collabCreateErrorEl) {
+      collabCreateErrorEl.hidden = true;
+      collabCreateErrorEl.textContent = "";
+    }
+    if (shareActionCollabEl) {
+      shareActionCollabEl.disabled = false;
+      const strongEl = shareActionCollabEl.querySelector("strong");
+      if (strongEl) strongEl.textContent = "Jaa muokattavana";
+    }
+
     if (shareState === "idle") {
-      shareReadonlyInactiveEl.hidden = false;
-      shareReadonlyActiveEl.hidden = true;
-      shareReadonlyStartEl.disabled = false;
-      const span = shareReadonlyStartEl.querySelector("span");
-      if (span) span.textContent = "Aloita esikatselujako";
+      shareStatusEl.textContent = "Valitse jakamistapa:";
+      shareOptionsEl.hidden = false;
+      shareRowEl.hidden = true;
+      if (shareFootEl) shareFootEl.hidden = true;
+      if (shareViewersEl) shareViewersEl.hidden = true;
       shareUrlEl.value = "";
       updateViewerCount(0);
     } else if (shareState === "starting") {
-      shareReadonlyInactiveEl.hidden = false;
-      shareReadonlyActiveEl.hidden = true;
-      shareReadonlyStartEl.disabled = true;
-      const span = shareReadonlyStartEl.querySelector("span");
-      if (span) span.textContent = "Muodostetaan yhteyttä…";
+      shareStatusEl.textContent = "Muodostetaan yhteyttä jakopalveluun…";
+      shareOptionsEl.hidden = true;
+      shareRowEl.hidden = true;
+      if (shareFootEl) shareFootEl.hidden = false;
+      if (shareViewersEl) shareViewersEl.hidden = true;
     } else {
-      shareReadonlyInactiveEl.hidden = true;
-      shareReadonlyActiveEl.hidden = false;
+      shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
+      shareOptionsEl.hidden = true;
+      shareRowEl.hidden = false;
+      if (shareFootEl) shareFootEl.hidden = false;
+      if (shareViewersEl) shareViewersEl.hidden = false;
       if (broadcaster) {
         shareUrlEl.value = broadcaster.watchUrl();
       }
     }
   }
 
-  function openShareDialog() {
+  function openSharePanel() {
     if (!filesPanelEl.hidden) closeFilesPanel();
-    if (collabCreateErrorEl) {
-      collabCreateErrorEl.hidden = true;
-      collabCreateErrorEl.textContent = "";
-    }
-    if (collabCreateBtnEl) {
-      collabCreateBtnEl.disabled = false;
-    }
-    if (collabCreateBtnTextEl) {
-      collabCreateBtnTextEl.textContent = "Luo yhteismuokkaushuone";
-    }
-
-    renderReadonlyShareState();
-
-    if (typeof shareDialogEl.showModal === "function") {
-      shareDialogEl.showModal();
-    } else {
-      shareDialogEl.setAttribute("open", "");
-    }
+    renderSharePanelState();
+    sharePanelEl.hidden = false;
     syncShareControls();
   }
 
-  function closeShareDialog() {
-    if (!shareDialogEl) return;
-    if (typeof shareDialogEl.close === "function") {
-      shareDialogEl.close();
-    } else {
-      shareDialogEl.removeAttribute("open");
-    }
+  function closeSharePanel(restoreFocus = true) {
+    if (sharePanelEl.hidden) return;
+    sharePanelEl.hidden = true;
     syncShareControls();
-    shareEl.focus();
+    if (restoreFocus) {
+      shareEl.focus();
+    }
   }
 
   // The snapshot pushed to viewers: the document plus the uploaded logo bytes,
@@ -274,7 +266,7 @@ export function initEditor() {
       );
       broadcaster = bc;
       shareState = "starting";
-      renderReadonlyShareState();
+      renderSharePanelState();
       syncShareControls();
 
       await bc.start(snapshot());
@@ -285,7 +277,7 @@ export function initEditor() {
         return;
       }
       shareState = "active";
-      renderReadonlyShareState();
+      renderSharePanelState();
       bc.push(snapshot());
       if (currentSelection?.active) {
         bc.pushSelection(currentSelection);
@@ -305,16 +297,20 @@ export function initEditor() {
     broadcaster = undefined;
     shareState = "idle";
     bc?.stop();
-    renderReadonlyShareState();
+    renderSharePanelState();
     syncShareControls();
   }
 
   // --- Collaborative Room Creation ---
-  collabCreateBtnEl?.addEventListener("click", async () => {
-    if (!collabCreateBtnEl || !collabCreateErrorEl) return;
-    collabCreateBtnEl.disabled = true;
-    if (collabCreateBtnTextEl) collabCreateBtnTextEl.textContent = "Luodaan huonetta…";
-    collabCreateErrorEl.hidden = true;
+  shareActionCollabEl?.addEventListener("click", async () => {
+    shareActionCollabEl.disabled = true;
+    const strongEl = shareActionCollabEl.querySelector("strong");
+    const originalText = strongEl?.textContent || "Jaa muokattavana";
+    if (strongEl) strongEl.textContent = "Luodaan huonetta…";
+    if (collabCreateErrorEl) {
+      collabCreateErrorEl.hidden = true;
+      collabCreateErrorEl.textContent = "";
+    }
 
     try {
       const roomId = randomCollabRoomId(8);
@@ -351,13 +347,17 @@ export function initEditor() {
         stopSharing();
       }
 
-      closeShareDialog();
+      closeSharePanel();
       window.location.hash = `#/edit/${roomId}/${token}`;
     } catch (err) {
-      collabCreateBtnEl.disabled = false;
-      if (collabCreateBtnTextEl) collabCreateBtnTextEl.textContent = "Luo yhteismuokkaushuone";
-      collabCreateErrorEl.hidden = false;
-      collabCreateErrorEl.textContent = `Yhteismuokkauksen luominen epäonnistui: ${err instanceof Error ? err.message : String(err)}`;
+      shareActionCollabEl.disabled = false;
+      if (strongEl) strongEl.textContent = originalText;
+      const msg = `Yhteismuokkauksen luominen epäonnistui: ${err instanceof Error ? err.message : String(err)}`;
+      if (collabCreateErrorEl) {
+        collabCreateErrorEl.hidden = false;
+        collabCreateErrorEl.textContent = msg;
+      }
+      toast(msg);
     }
   });
 
@@ -365,11 +365,11 @@ export function initEditor() {
     if (isSharingEnabled()) {
       shareEl.hidden = false;
       shareEl.addEventListener("click", () => {
-        if (isShareDialogOpen()) closeShareDialog();
-        else openShareDialog();
+        if (isSharePanelOpen()) closeSharePanel();
+        else openSharePanel();
       });
 
-      shareReadonlyStartEl?.addEventListener("click", () => {
+      shareActionReadonlyEl?.addEventListener("click", () => {
         void startSharing();
       });
 
@@ -377,23 +377,22 @@ export function initEditor() {
         stopSharing();
       });
 
-      shareDialogCloseEl?.addEventListener("click", () => {
-        closeShareDialog();
+      shareCloseEl?.addEventListener("click", () => {
+        closeSharePanel(true);
       });
 
-      shareDialogEl?.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        closeShareDialog();
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !sharePanelEl.hidden) {
+          event.preventDefault();
+          closeSharePanel(true);
+        }
       });
 
-      shareDialogEl?.addEventListener("close", () => {
-        syncShareControls();
-      });
-
-      // Outside click on backdrop
-      shareDialogEl?.addEventListener("click", (event) => {
-        if (event.target === shareDialogEl) {
-          closeShareDialog();
+      document.addEventListener("pointerdown", (event) => {
+        if (sharePanelEl.hidden) return;
+        const target = event.target as Node | null;
+        if (target && !sharePanelEl.contains(target) && !shareEl.contains(target)) {
+          closeSharePanel(false);
         }
       });
 
@@ -712,7 +711,7 @@ export function initEditor() {
   }
 
   function openFilesPanel() {
-    if (isShareDialogOpen()) closeShareDialog();
+    if (isSharePanelOpen()) closeSharePanel(false);
     renderFilesList();
     filesPanelEl.hidden = false;
     syncFilesControls();

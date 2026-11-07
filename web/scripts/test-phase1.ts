@@ -157,42 +157,148 @@ test("preview: ticket sequencing discard logic", async () => {
   assert.deepEqual(appliedSequences, [2]);
 });
 
-test("share dialog: unified matching share dialog DOM verification", async () => {
+test("share panel: minimalist popover DOM verification and structure", async () => {
   const fs = await import("node:fs");
   const path = await import("node:path");
   const htmlPath = path.resolve(import.meta.dirname, "../index.html");
   const html = fs.readFileSync(htmlPath, "utf-8");
 
-  // Replaced obsolete popover & separate confirm dialog
-  assert.equal(html.includes('id="share-panel"'), false, "Obsolete #share-panel should be removed");
+  // Verify full-screen modal dialogs are removed
+  assert.equal(html.includes('id="share-dialog"'), false, "Obsolete #share-dialog should be removed");
   assert.equal(html.includes('id="collab-confirm-dialog"'), false, "Obsolete #collab-confirm-dialog should be removed");
 
-  // New unified dialog
-  assert.ok(html.includes('<dialog id="share-dialog" class="share-dialog" aria-labelledby="share-dialog-title">'));
-  assert.ok(html.includes('id="share-dialog-title"') && html.includes("Jaa asiakirja"));
-  assert.ok(html.includes('id="share-dialog-close"'));
+  // Minimalist popover panel
+  assert.ok(html.includes('<div id="share-panel" hidden role="region" aria-label="Jakamisen valikko">'));
+  assert.ok(html.includes('id="share-status"'));
+  assert.ok(html.includes("Valitse jakamistapa:"));
+  assert.ok(html.includes('id="share-close"'));
 
-  // Esikatselujako card
-  assert.ok(html.includes('id="share-card-readonly"'));
-  assert.ok(html.includes("Esikatselujako"));
-  assert.ok(html.includes("Vain luku"));
-  assert.ok(html.includes("WebRTC"));
-  assert.ok(html.includes('id="share-readonly-inactive"'));
-  assert.ok(html.includes('id="share-readonly-start"'));
-  assert.ok(html.includes("Aloita esikatselujako"));
-  assert.ok(html.includes('id="share-readonly-active"'));
-  assert.ok(html.includes('id="share-status-text"') && html.includes("Jako käynnissä"));
-  assert.ok(html.includes('id="share-count"'));
+  // Option 1: Read-only live preview
+  assert.ok(html.includes('id="share-options"'));
+  assert.ok(html.includes('id="share-action-readonly"'));
+  assert.ok(html.includes("Jaa esikatselu (vain luku)"));
+  assert.ok(html.includes("Katsojat näkevät päivittyvän esikatselun suorana WebRTC-yhteydellä ilman muokkausoikeutta."));
+
+  // Option 2: Collaborative editing
+  assert.ok(html.includes('id="share-action-collab"'));
+  assert.ok(html.includes("Jaa muokattavana"));
+  assert.ok(html.includes("Luo reaaliaikainen yhteismuokkaushuone. Oma luonnos säilyy selaimessasi erillisenä."));
+
+  // Active state controls
+  assert.ok(html.includes('id="share-row"'));
   assert.ok(html.includes('id="share-url"'));
   assert.ok(html.includes('id="share-copy"'));
-  assert.ok(html.includes('id="share-stop"') && html.includes("Lopeta jako"));
+  assert.ok(html.includes('id="share-foot"'));
+  assert.ok(html.includes('id="share-viewers"'));
+  assert.ok(html.includes('id="share-count"'));
+  assert.ok(html.includes('id="share-stop"'));
+  assert.ok(html.includes("Lopeta jako"));
 
-  // Yhteismuokkaus card
-  assert.ok(html.includes('id="share-card-collab"'));
-  assert.ok(html.includes("Yhteismuokkaus"));
-  assert.ok(html.includes("Reaaliaikainen"));
-  assert.ok(html.includes("Oma henkilökohtainen luonnoksesi säilyy selaimessasi erillisenä ja koskemattomana"));
+  // Error notice container
   assert.ok(html.includes('id="collab-create-error"'));
-  assert.ok(html.includes('id="collab-create-btn"'));
-  assert.ok(html.includes("Luo yhteismuokkaushuone"));
+});
+
+test("share panel: interaction state transitions and mutual exclusivity", () => {
+  // Simulated elements matching the share-panel structure and editor logic
+  let sharePanelHidden = true;
+  let filesPanelHidden = false;
+  let shareOptionsHidden = false;
+  let shareRowHidden = true;
+  let shareFootHidden = true;
+  let shareStatus = "Valitse jakamistapa:";
+  let shareState: "idle" | "starting" | "active" = "idle";
+  let activeControls: { pressed: string; expanded: string; title: string } = {
+    pressed: "false",
+    expanded: "false",
+    title: "",
+  };
+
+  const renderSharePanelState = () => {
+    if (shareState === "idle") {
+      shareStatus = "Valitse jakamistapa:";
+      shareOptionsHidden = false;
+      shareRowHidden = true;
+      shareFootHidden = true;
+    } else if (shareState === "starting") {
+      shareStatus = "Muodostetaan yhteyttä jakopalveluun…";
+      shareOptionsHidden = true;
+      shareRowHidden = true;
+      shareFootHidden = false;
+    } else {
+      shareStatus = "Jaat esikatselua. Lähetä linkki katsojille:";
+      shareOptionsHidden = true;
+      shareRowHidden = false;
+      shareFootHidden = false;
+    }
+  };
+
+  const syncShareControls = () => {
+    const active = shareState === "active";
+    const open = !sharePanelHidden;
+    activeControls = {
+      pressed: String(active),
+      expanded: String(open),
+      title: active
+        ? (open ? "Sulje jakamisen tiedot" : "Jako käynnissä (näytä jakamisvalikko)")
+        : (open ? "Sulje jakamisvalikko" : "Jaa asiakirja"),
+    };
+  };
+
+  const openSharePanel = () => {
+    if (!filesPanelHidden) filesPanelHidden = true; // mutual exclusivity
+    renderSharePanelState();
+    sharePanelHidden = false;
+    syncShareControls();
+  };
+
+  const closeSharePanel = () => {
+    sharePanelHidden = true;
+    syncShareControls();
+  };
+
+  const openFilesPanel = () => {
+    if (!sharePanelHidden) closeSharePanel(); // mutual exclusivity
+    filesPanelHidden = false;
+  };
+
+  // 1. Initial idle state: opening share panel closes files panel
+  openSharePanel();
+  assert.equal(sharePanelHidden, false);
+  assert.equal(filesPanelHidden, true, "Opening share panel should close files panel");
+  assert.equal(shareOptionsHidden, false, "Options shown in idle state");
+  assert.equal(shareRowHidden, true, "Share row hidden in idle state");
+  assert.equal(shareFootHidden, true, "Share foot hidden in idle state");
+  assert.equal(shareStatus, "Valitse jakamistapa:");
+  assert.equal(activeControls.pressed, "false");
+  assert.equal(activeControls.expanded, "true");
+
+  // 2. Starting transition
+  shareState = "starting";
+  renderSharePanelState();
+  assert.equal(shareOptionsHidden, true, "Options hidden when starting");
+  assert.equal(shareRowHidden, true, "Share row hidden when starting");
+  assert.equal(shareFootHidden, false, "Foot shown when starting");
+  assert.equal(shareStatus, "Muodostetaan yhteyttä jakopalveluun…");
+
+  // 3. Active transition
+  shareState = "active";
+  renderSharePanelState();
+  syncShareControls();
+  assert.equal(shareOptionsHidden, true, "Options hidden when active");
+  assert.equal(shareRowHidden, false, "Share row shown when active");
+  assert.equal(shareFootHidden, false, "Foot shown when active");
+  assert.equal(shareStatus, "Jaat esikatselua. Lähetä linkki katsojille:");
+  assert.equal(activeControls.pressed, "true");
+
+  // 4. Closing share panel
+  closeSharePanel();
+  assert.equal(sharePanelHidden, true);
+  assert.equal(activeControls.expanded, "false");
+
+  // 5. Mutual exclusivity when opening files panel
+  openSharePanel();
+  assert.equal(sharePanelHidden, false);
+  openFilesPanel();
+  assert.equal(sharePanelHidden, true, "Opening files panel must close share panel");
+  assert.equal(filesPanelHidden, false);
 });

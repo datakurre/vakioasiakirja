@@ -195,100 +195,43 @@
       </div>
     </dialog>
 
-    <!-- Unified Share Dialog: Read-only live preview (P2P WebRTC) & Collaborative editing (Yjs) -->
-    <dialog id="share-dialog" class="share-dialog" aria-labelledby="share-dialog-title">
-      <div class="share-dialog-inner">
-        <header class="share-dialog-header">
-          <div class="share-dialog-title-group">
-            <svg class="icon share-dialog-title-icon" aria-hidden="true" focusable="false"><use href="#i-share" /></svg>
-            <h2 id="share-dialog-title" class="share-dialog-title">Jaa asiakirja</h2>
-          </div>
-          <button id="share-dialog-close" type="button" class="iconbtn share-dialog-close" title="Sulje" aria-label="Sulje">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
-          </button>
-        </header>
-
-        <div class="share-cards">
-          <!-- Card 1: Esikatselujako (vain luku) -->
-          <section class="share-card" id="share-card-readonly" aria-labelledby="share-card-readonly-title">
-            <div class="share-card-header">
-              <div class="share-card-title-wrap">
-                <svg class="icon share-card-icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
-                <h3 id="share-card-readonly-title" class="share-card-title">Esikatselujako</h3>
-              </div>
-              <span class="share-badge readonly">Vain luku</span>
-            </div>
-
-            <p class="share-card-desc">
-              Jaa dokumentin päivittyvä esikatselu suoraan vastaanottajille vertaisverkon kautta (WebRTC P2P). Dokumenttia ei tallenneta palvelimelle, ja vastaanottajat voivat vain katsoa sitä reaaliajassa.
-            </p>
-
-            <!-- Inactive state -->
-            <div id="share-readonly-inactive" class="share-card-state">
-              <button id="share-readonly-start" type="button" class="textbtn primary share-action-btn">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
-                <span>Aloita esikatselujako</span>
-              </button>
-            </div>
-
-            <!-- Active state -->
-            <div id="share-readonly-active" class="share-card-state" hidden>
-              <div class="share-status-bar">
-                <div class="share-active-indicator">
-                  <span class="share-pulse-dot" aria-hidden="true"></span>
-                  <strong id="share-status-text" class="share-status-label">Jako käynnissä</strong>
-                </div>
-                <div class="share-viewers-count">
-                  <span id="share-count">0</span> <span id="share-count-unit">katsojaa</span>
-                </div>
-              </div>
-
-              <div class="share-url-row">
-                <label for="share-url" class="sr-only">Esikatselun jakolinkki</label>
-                <input id="share-url" type="text" readonly aria-label="Esikatselun jakolinkki" />
-                <button id="share-copy" type="button" class="iconbtn share-copy-btn" title="Kopioi linkki" aria-label="Kopioi linkki">
-                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
-                </button>
-              </div>
-
-              <div class="share-card-foot">
-                <button id="share-stop" type="button" class="textbtn danger share-action-btn">
-                  Lopeta jako
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Card 2: Yhteismuokkaus (reaaliaikainen muokkaus) -->
-          <section class="share-card" id="share-card-collab" aria-labelledby="share-card-collab-title">
-            <div class="share-card-header">
-              <div class="share-card-title-wrap">
-                <svg class="icon share-card-icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
-                <h3 id="share-card-collab-title" class="share-card-title">Yhteismuokkaus</h3>
-              </div>
-              <span class="share-badge collab">Reaaliaikainen</span>
-            </div>
-
-            <p class="share-card-desc">
-              Muokkaa dokumenttia samanaikaisesti muiden kanssa. Kaikki muutokset synkronoidaan yhteistyöpalvelimen kautta reaaliajassa linkin saaneille.
-            </p>
-
-            <div class="share-card-note">
-              <strong>Huomio:</strong> Oma henkilökohtainen luonnoksesi säilyy selaimessasi erillisenä ja koskemattomana.
-            </div>
-
-            <div id="collab-create-error" class="share-error-box" hidden role="alert"></div>
-
-            <div class="share-card-foot">
-              <button id="collab-create-btn" type="button" class="textbtn primary share-action-btn">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
-                <span id="collab-create-btn-text">Luo yhteismuokkaushuone</span>
-              </button>
-            </div>
-          </section>
-        </div>
+    <!-- Sharing popover: choose between read-only live preview or collaborative editing -->
+    <div id="share-panel" hidden role="region" aria-label="Jakamisen valikko">
+      <div class="share-header">
+        <p id="share-status" class="share-intro" role="status" aria-live="polite">Valitse jakamistapa:</p>
+        <button id="share-close" type="button" class="iconbtn" title="Sulje jakamisen tiedot" aria-label="Sulje jakamisen tiedot">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+        </button>
       </div>
-    </dialog>
+      <div id="share-options" class="share-options">
+        <button id="share-action-readonly" type="button" class="share-option-btn">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
+          <div class="share-option-text">
+            <strong>Jaa esikatselu (vain luku)</strong>
+            <span>Katsojat näkevät päivittyvän esikatselun suorana WebRTC-yhteydellä ilman muokkausoikeutta.</span>
+          </div>
+        </button>
+        <button id="share-action-collab" type="button" class="share-option-btn">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>
+          <div class="share-option-text">
+            <strong>Jaa muokattavana</strong>
+            <span>Luo reaaliaikainen yhteismuokkaushuone. Oma luonnos säilyy selaimessasi erillisenä.</span>
+          </div>
+        </button>
+      </div>
+      <div id="collab-create-error" class="share-error-box" hidden role="alert"></div>
+      <div id="share-row" class="share-row" hidden>
+        <label for="share-url" class="sr-only">Jakolinkki</label>
+        <input id="share-url" type="text" readonly aria-label="Jakolinkki" />
+        <button id="share-copy" type="button" class="iconbtn" title="Kopioi linkki" aria-label="Kopioi linkki">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
+        </button>
+      </div>
+      <div id="share-foot" class="share-foot" hidden>
+        <span id="share-viewers">Katsojia: <strong id="share-count">0</strong></span>
+        <button id="share-stop" type="button" class="textbtn">Lopeta jako</button>
+      </div>
+    </div>
 
     <!-- Viewer-mode banner: connection state for a read-only shared preview. -->
     <div id="viewer-banner" hidden role="status"></div>
