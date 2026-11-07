@@ -8,8 +8,11 @@ import { initEditor } from "./editor.ts";
 import { initViewer } from "./viewer.ts";
 import { initCollabEditor, renderCollabError } from "./collab-editor.ts";
 import { parseRoute, isSameRoute, type Route } from "./router.ts";
+import { applyBranding } from "./branding.ts";
 
 export { parseRoute, isSameRoute, type Route };
+
+applyBranding();
 
 let currentRoute: Route | null = null;
 

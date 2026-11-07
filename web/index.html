@@ -70,7 +70,7 @@
     </svg>
 
     <header>
-      <span class="brand"><strong>SFS 2487:2024</strong><span class="brand-sub"> – Markdown → PDF</span></span>
+      <span class="brand"><strong id="brand-title">SFS 2487:2024</strong><span class="brand-sub" id="brand-subtitle"> – Markdown → PDF</span></span>
     </header>
     <main>
       <div id="editor" role="region" aria-label="Markdown-muokkain"></div>
@@ -232,6 +232,22 @@
         <button id="share-stop" type="button" class="textbtn">Lopeta jako</button>
       </div>
     </div>
+
+    <!-- Document template selection dialog -->
+    <dialog id="template-dialog" class="template-dialog" aria-labelledby="template-dialog-title">
+      <div class="template-dialog-inner">
+        <div class="template-dialog-header">
+          <h2 id="template-dialog-title" class="template-dialog-title">Valitse asiakirjapohja</h2>
+          <button id="template-dialog-close" type="button" class="iconbtn" title="Sulje valikko" aria-label="Sulje valikko">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <div id="template-dialog-grid" class="template-grid" role="list"></div>
+        <div class="template-dialog-actions">
+          <button id="template-dialog-cancel" type="button" class="textbtn secondary">Peruuta</button>
+        </div>
+      </div>
+    </dialog>
 
     <!-- Viewer-mode banner: connection state for a read-only shared preview. -->
     <div id="viewer-banner" hidden role="status"></div>

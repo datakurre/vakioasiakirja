@@ -2,6 +2,19 @@
   box-sizing: border-box;
 }
 
+:root {
+  --brand-header-bg: #37474f;
+  --brand-header-text: #ffffff;
+  --brand-statusbar-bg: #263238;
+  --brand-statusbar-border: #455a64;
+  --brand-control-border: #607d8b;
+  --brand-control-active-bg: #546e7a;
+  --brand-accent: #1976d2;
+  --brand-focus-outline: #90caf9;
+  --brand-preview-bg: #e0e0e0;
+  --brand-panel-bg: #37474f;
+}
+
 /* The HTML `hidden` attribute must win over the display rules below (e.g.
    .iconbtn { display: inline-flex } would otherwise keep #logo-clear visible). */
 [hidden] {
@@ -76,7 +89,7 @@ body {
 }
 
 .iconbtn:focus-visible {
-  outline: 2px solid #90caf9;
+  outline: 2px solid var(--brand-focus-outline, #90caf9);
   outline-offset: 1px;
 }
 
@@ -99,8 +112,8 @@ header {
   gap: 1rem;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: #37474f;
-  color: #fff;
+  background: var(--brand-header-bg, #37474f);
+  color: var(--brand-header-text, #fff);
   flex: 0 0 auto;
 }
 
@@ -112,7 +125,7 @@ header {
    both panes show side by side; the primary navigation on a phone. */
 .view-toggle {
   display: none;
-  border: 1px solid #607d8b;
+  border: 1px solid var(--brand-control-border, #607d8b);
   border-radius: 0.35rem;
   overflow: hidden;
 }
@@ -133,16 +146,15 @@ header {
 }
 
 .view-toggle button + button {
-  border-left: 1px solid #607d8b;
+  border-left: 1px solid var(--brand-control-border, #607d8b);
 }
 
 .view-toggle button[aria-pressed="true"] {
-  /* #546e7a clears WCAG AA (≈5:1) for the white label text. */
-  background: #546e7a;
+  background: var(--brand-control-active-bg, #546e7a);
 }
 
 .view-toggle button:focus-visible {
-  outline: 2px solid #90caf9;
+  outline: 2px solid var(--brand-focus-outline, #90caf9);
   outline-offset: -2px;
 }
 
@@ -223,7 +235,7 @@ main {
   position: relative;
   flex: 1 1 auto;
   overflow: auto;
-  background: #e0e0e0;
+  background: var(--brand-preview-bg, #e0e0e0);
   padding: 1rem;
 }
 
@@ -335,11 +347,11 @@ main {
   padding: 0.3rem 1rem;
   /* Keep clear of a notched phone's home indicator in standalone mode. */
   padding-bottom: max(0.3rem, env(safe-area-inset-bottom));
-  background: #263238;
+  background: var(--brand-statusbar-bg, #263238);
   color: #fff;
   flex: 0 0 auto;
   font-size: 0.85rem;
-  border-top: 1px solid #455a64;
+  border-top: 1px solid var(--brand-statusbar-border, #455a64);
 }
 
 #statusbar .bar-left,
@@ -527,7 +539,7 @@ body.keyboard #vim-mode:not([hidden]) {
   max-height: min(28rem, calc(100vh - 5rem));
   display: flex;
   flex-direction: column;
-  background: #37474f;
+  background: var(--brand-panel-bg, #37474f);
   color: #fff;
   padding: 0.8rem;
   border-radius: 0.4rem;
@@ -541,7 +553,7 @@ body.keyboard #vim-mode:not([hidden]) {
   justify-content: space-between;
   margin-bottom: 0.6rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #455a64;
+  border-bottom: 1px solid var(--brand-statusbar-border, #455a64);
 }
 
 .files-title {
@@ -743,7 +755,7 @@ body.collab-mode #files-panel {
   width: min(24rem, 90vw);
   max-height: calc(100vh - 4.5rem - env(safe-area-inset-bottom));
   overflow-y: auto;
-  background: #37474f;
+  background: var(--brand-panel-bg, #37474f);
   color: #fff;
   padding: 0.8rem;
   border-radius: 0.4rem;
@@ -1424,6 +1436,114 @@ body.collab-error-view main {
   .collab-btn {
     padding: 0.4rem;
   }
+}
+
+/* --- Document Template Selector Dialog --- */
+.template-dialog {
+  border: none;
+  border-radius: 0.6rem;
+  padding: 0;
+  max-width: min(44rem, 95vw);
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+  color: #212121;
+}
+
+.template-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.template-dialog-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: min(85vh, 650px);
+}
+
+.template-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.template-dialog-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.75rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.45rem;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.template-card:hover {
+  border-color: var(--brand-accent, #1976d2);
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.template-card:focus-visible {
+  outline: 2px solid var(--brand-focus-outline, #90caf9);
+  outline-offset: 1px;
+}
+
+.template-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #e2e8f0;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+
+.template-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+}
+
+.template-card-desc {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.template-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
 }
 
 

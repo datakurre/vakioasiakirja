@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --experimental-strip-types scripts/test-phase2.ts",
+    "test": "node --test --experimental-strip-types scripts/test-cors.ts && node --experimental-strip-types scripts/test-phase2.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

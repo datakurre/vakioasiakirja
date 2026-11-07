@@ -22,6 +22,8 @@ import {
 import { SelectionHighlighter } from "./selection-highlighter.ts";
 import { FileManager, formatFileDate } from "./files.ts";
 import { getCollabUrl } from "./config.ts";
+import { getActiveBranding } from "./branding.ts";
+import { TemplateManager } from "./template-manager.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
 import seed from "./seed.md?raw";
@@ -103,10 +105,17 @@ export function initEditor() {
   const STORE = {
     doc: "sfs2487.doc",
     logo: "sfs2487.logo",
+    logoCleared: "sfs2487.logoCleared",
     vim: "sfs2487.vim",
     split: "sfs2487.split",
   };
   interface StoredLogo { path: string; name: string; b64: string }
+
+  const branding = getActiveBranding();
+  let defaultLogoBytes: Uint8Array | undefined;
+  if (branding.defaultLogo?.svgText) {
+    defaultLogoBytes = new TextEncoder().encode(branding.defaultLogo.svgText);
+  }
 
   function lsGet(key: string): string | null {
     try { return localStorage.getItem(key); } catch { return null; }
@@ -118,16 +127,40 @@ export function initEditor() {
     try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
 
-  // An uploaded logo image, mapped into the typst.ts shadow filesystem by the
+  // An uploaded or bundled logo image, mapped into the typst.ts shadow filesystem by the
   // preview. The frontmatter `logo:` key is a filesystem path the browser cannot
-  // read, so the logo is driven by the upload control instead (see withoutLogo).
+  // read, so the logo is driven by the upload control or association default (see withoutLogo).
   let logo: { path: string; name: string; bytes: Uint8Array } | undefined;
-  const logoForPreview = (): Logo | undefined =>
-    logo ? { path: logo.path, bytes: logo.bytes } : undefined;
+
+  function getEffectiveLogo(): { path: string; name: string; bytes: Uint8Array } | undefined {
+    // 1. Explicitly cleared by user
+    if (lsGet(STORE.logoCleared) === "1") {
+      return undefined;
+    }
+    // 2. User-uploaded logo
+    if (logo) {
+      return logo;
+    }
+    // 3. Fallback to association/template default logo
+    if (branding.defaultLogo && defaultLogoBytes) {
+      return {
+        path: branding.defaultLogo.path,
+        name: branding.defaultLogo.name,
+        bytes: defaultLogoBytes,
+      };
+    }
+    return undefined;
+  }
+
+  const logoForPreview = (): Logo | undefined => {
+    const eff = getEffectiveLogo();
+    return eff ? { path: eff.path, bytes: eff.bytes } : undefined;
+  };
 
   function showLogo() {
-    logoClearEl.hidden = logo === undefined;
-    logoClearEl.title = logo ? logo.name : "";
+    const eff = getEffectiveLogo();
+    logoClearEl.hidden = eff === undefined;
+    logoClearEl.title = eff ? eff.name : "";
   }
 
   // The seeded example references an external logo file the browser cannot read;
@@ -445,6 +478,7 @@ export function initEditor() {
     const path = logoPathFor(file);
     const bytes = new Uint8Array(await file.arrayBuffer());
     logo = { path, name: file.name, bytes };
+    lsRemove(STORE.logoCleared);
     lsSet(STORE.logo, JSON.stringify({ path, name: file.name, b64: bytesToBase64(bytes) }));
     showLogo();
     update(editor.state.doc.toString());
@@ -454,6 +488,7 @@ export function initEditor() {
     logo = undefined;
     logoEl.value = "";
     lsRemove(STORE.logo);
+    lsSet(STORE.logoCleared, "1");
     showLogo();
   }
 
@@ -697,6 +732,8 @@ export function initEditor() {
     const fresh = withoutLogo(seed);
     fileManager.resetActiveFile(fresh);
     clearLogo();
+    lsRemove(STORE.logoCleared);
+    showLogo();
     applyFileContentToEditor(fresh);
     renderFilesList();
   });
@@ -729,15 +766,49 @@ export function initEditor() {
     else closeFilesPanel();
   }
 
+  const templateDialogEl = document.getElementById("template-dialog") as HTMLDialogElement | null;
+  const templateDialogCloseEl = document.getElementById("template-dialog-close") as HTMLButtonElement | null;
+  const templateDialogCancelEl = document.getElementById("template-dialog-cancel") as HTMLButtonElement | null;
+  const templateDialogGridEl = document.getElementById("template-dialog-grid") as HTMLElement | null;
+
+  let templateManager: TemplateManager | undefined;
+  if (templateDialogEl && templateDialogCloseEl && templateDialogCancelEl && templateDialogGridEl) {
+    templateManager = new TemplateManager({
+      dialogEl: templateDialogEl,
+      closeEl: templateDialogCloseEl,
+      cancelEl: templateDialogCancelEl,
+      gridEl: templateDialogGridEl,
+      onSelectTemplate: (template) => {
+        fileManager.saveActiveContent(editor.state.doc.toString());
+        const newFile = fileManager.createFile(template.defaultFileName, template.content);
+        if (template.logoSvg) {
+          const bytes = new TextEncoder().encode(template.logoSvg);
+          logo = { path: "/logo.svg", name: `${template.title} (logo.svg)`, bytes };
+          lsRemove(STORE.logoCleared);
+          lsSet(STORE.logo, JSON.stringify({ path: "/logo.svg", name: `${template.title} (logo.svg)`, b64: bytesToBase64(bytes) }));
+          showLogo();
+        }
+        applyFileContentToEditor(newFile.content);
+        renderFilesList();
+        closeFilesPanel();
+        toast(`Asiakirja pohjasta "${template.title}" luotu.`);
+      },
+    });
+  }
+
   if (filesToggleEl) {
     filesToggleEl.addEventListener("click", () => toggleFilesPanel());
     filesCloseEl?.addEventListener("click", () => closeFilesPanel());
     filesNewEl?.addEventListener("click", () => {
-      fileManager.saveActiveContent(editor.state.doc.toString());
-      const freshSeed = withoutLogo(seed);
-      const newFile = fileManager.createFile(undefined, freshSeed);
-      applyFileContentToEditor(newFile.content);
-      renderFilesList();
+      if (templateManager) {
+        templateManager.open();
+      } else {
+        fileManager.saveActiveContent(editor.state.doc.toString());
+        const freshSeed = withoutLogo(seed);
+        const newFile = fileManager.createFile(undefined, freshSeed);
+        applyFileContentToEditor(newFile.content);
+        renderFilesList();
+      }
     });
 
     document.addEventListener("keydown", (event) => {

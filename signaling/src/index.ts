@@ -3,9 +3,16 @@
 
 import type { Room } from "./room.ts";
 import type { CollabRoom } from "./collab-room.ts";
+import {
+  DEFAULT_ALLOWED_ORIGINS,
+  getAllowedOrigins as getOrigins,
+  isAllowedOrigin as checkOrigin,
+  corsHeaders,
+} from "./cors.ts";
 
 export { Room } from "./room.ts";
 export { CollabRoom } from "./collab-room.ts";
+export { DEFAULT_ALLOWED_ORIGINS, corsHeaders };
 
 export interface Env {
   ROOMS: DurableObjectNamespace<Room>;
@@ -31,47 +38,12 @@ const DEFAULT_STUN_SERVERS: IceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
 ];
 
-export const DEFAULT_ALLOWED_ORIGINS: readonly string[] = [
-  "https://datakurre.github.io",
-  "http://localhost:5173",
-  "http://localhost:4173",
-  "http://127.0.0.1:5173",
-  "http://localhost:8787",
-];
-
 export function getAllowedOrigins(env: Env): Set<string> {
-  const allowed = new Set<string>(DEFAULT_ALLOWED_ORIGINS);
-  if (env.ALLOWED_ORIGINS) {
-    for (const item of env.ALLOWED_ORIGINS.split(/[\s,]+/)) {
-      const trimmed = item.trim().replace(/\/+$/, "");
-      if (trimmed) {
-        allowed.add(trimmed);
-      }
-    }
-  }
-  return allowed;
+  return getOrigins(env.ALLOWED_ORIGINS);
 }
 
 export function isAllowedOrigin(origin: string | null, env: Env): boolean {
-  if (origin === null) {
-    return true;
-  }
-  const allowed = getAllowedOrigins(env);
-  return allowed.has(origin) || allowed.has(origin.replace(/\/+$/, ""));
-}
-
-function corsHeaders(origin: string | null): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Expose-Headers": "X-Turn-Status",
-    "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
-  };
-  if (origin) {
-    headers["Access-Control-Allow-Origin"] = origin;
-  }
-  return headers;
+  return checkOrigin(origin, env.ALLOWED_ORIGINS);
 }
 
 export default {
