@@ -239,3 +239,9 @@ stands in its place top-left, as in the LaTeX class.
 This is a third rendering path alongside the LaTeX class and the pandoc front
 end. Under the project's parity rule it is, for now, **best-effort** — the
 LaTeX class remains the reference implementation.
+
+## Organization and Association Distribution
+
+The web editor can be packaged and deployed standalone for an organization or association with custom branding, themes, document templates, and an independent Cloudflare signaling worker.
+
+See [`docs/distribution.md`](../docs/distribution.md) and [`association.config.example.ts`](../association.config.example.ts) for instructions on configuring branding, document templates with SVG logos, strict CORS, and Cloudflare Pages & Workers deployments.

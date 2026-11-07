@@ -28,4 +28,5 @@ nav:
   - Examples: examples.md
   - Development: development.md
   - Web editor (research): web-editor.md
+  - Deploying for an organization: distribution.md
   - Open the editor: https://datakurre.github.io/vakioasiakirja/web/
