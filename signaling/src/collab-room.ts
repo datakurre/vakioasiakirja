@@ -9,8 +9,8 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { isAllowedOrigin, type Env } from "./index.ts";
 
-// Maximum WebSocket binary frame size (256 KB).
-const MAX_WS_MESSAGE_SIZE = 256 * 1024;
+// Maximum WebSocket binary frame size (512 KB, accommodating base64 assets like logos).
+const MAX_WS_MESSAGE_SIZE = 512 * 1024;
 
 // Maximum concurrent collaborators per room.
 const MAX_CONCURRENT_SOCKETS = 20;

@@ -3,7 +3,7 @@
 // CodeMirror 6 binding with Y.UndoManager isolation, and live Typst.ts preview.
 
 import { EditorView, keymap, lineNumbers, drawSelection, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension } from "@codemirror/state";
+import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension, type EditorState } from "@codemirror/state";
 import { defaultKeymap, undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { vim, getCM, Vim } from "@replit/codemirror-vim";
@@ -12,9 +12,12 @@ import { WebsocketProvider } from "y-websocket";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next";
 
-import type { Logo } from "./preview.ts";
-import { createToaster } from "./ui.ts";
+import type { Logo, RenderOptions } from "./preview.ts";
+import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
 import { getCollabUrl, getCollabWsUrl } from "./config.ts";
+import { SelectionHighlighter } from "./selection-highlighter.ts";
+import type { SelectionPayload } from "./share.ts";
+import { FileManager, type FileMeta, formatFileDate } from "./files.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
 export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
@@ -113,6 +116,164 @@ export function createRemoteHighlightPlugin(timeoutMs = 1500) {
 
 export function remoteHighlightExtension(timeoutMs = 1500): Extension {
   return [remoteHighlightField, createRemoteHighlightPlugin(timeoutMs)];
+}
+
+export function computeSelectionPayload(
+  state: EditorState,
+  visualModeActive: boolean,
+  visualSubMode: "visual" | "linewise" | "blockwise" = "visual",
+): SelectionPayload | null {
+  if (!visualModeActive) return null;
+  const main = state.selection.main;
+  if (main.empty) return null;
+
+  const from = main.from;
+  const to = main.to;
+  const text = state.sliceDoc(from, to);
+  if (!text || !text.trim()) return null;
+
+  const lineFrom = state.doc.lineAt(from);
+  const lineTo = state.doc.lineAt(to);
+  const prefix = state.sliceDoc(Math.max(0, from - 100), from);
+  const suffix = state.sliceDoc(to, Math.min(state.doc.length, to + 100));
+  const relPos = state.doc.length > 0 ? from / state.doc.length : 0;
+
+  return {
+    active: true,
+    mode: visualSubMode,
+    text,
+    prefix,
+    suffix,
+    fromLine: lineFrom.number,
+    toLine: lineTo.number,
+    relPos,
+  };
+}
+
+export class CollabRenderCoordinator {
+  private hasInitialRendered = false;
+  private preview: { render(md: string, logo?: Logo, options?: RenderOptions): Promise<void> };
+  private getMarkdown: () => string;
+  private getLogo: () => Logo | undefined;
+  private onRenderComplete?: () => void;
+  private renderDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private debounceMs: number;
+
+  constructor(options: {
+    preview: { render(md: string, logo?: Logo, options?: RenderOptions): Promise<void> };
+    getMarkdown: () => string;
+    getLogo?: () => Logo | undefined;
+    onRenderComplete?: () => void;
+    debounceMs?: number;
+  }) {
+    this.preview = options.preview;
+    this.getMarkdown = options.getMarkdown;
+    this.getLogo = options.getLogo ?? (() => undefined);
+    this.onRenderComplete = options.onRenderComplete;
+    this.debounceMs = options.debounceMs ?? 300;
+  }
+
+  isInitialRendered(): boolean {
+    return this.hasInitialRendered;
+  }
+
+  async initialRender(): Promise<void> {
+    this.hasInitialRendered = true;
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+      this.renderDebounceTimer = null;
+    }
+    await this.preview.render(this.getMarkdown(), this.getLogo(), { liveEdit: false });
+    this.onRenderComplete?.();
+  }
+
+  scheduleRender(liveEdit = true): void {
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+    }
+    this.renderDebounceTimer = setTimeout(async () => {
+      this.renderDebounceTimer = null;
+      const isLive = this.hasInitialRendered ? liveEdit : false;
+      this.hasInitialRendered = true;
+      await this.preview.render(this.getMarkdown(), this.getLogo(), { liveEdit: isLive });
+      this.onRenderComplete?.();
+    }, this.debounceMs);
+  }
+
+  cancelScheduledRender(): void {
+    if (this.renderDebounceTimer !== null) {
+      clearTimeout(this.renderDebounceTimer);
+      this.renderDebounceTimer = null;
+    }
+  }
+
+  destroy(): void {
+    this.cancelScheduledRender();
+  }
+}
+
+export class CollabSelectionManager {
+  private selectionHighlighter: SelectionHighlighter;
+  private pagesEl: Element;
+  private awareness: {
+    clientID: number;
+    getStates: () => Map<number, Record<string, any>>;
+    setLocalStateField: (field: string, val: any) => void;
+  };
+  private localSelection: SelectionPayload | null = null;
+
+  constructor(options: {
+    selectionHighlighter: SelectionHighlighter;
+    pagesEl: Element;
+    awareness: {
+      clientID: number;
+      getStates: () => Map<number, Record<string, any>>;
+      setLocalStateField: (field: string, val: any) => void;
+    };
+  }) {
+    this.selectionHighlighter = options.selectionHighlighter;
+    this.pagesEl = options.pagesEl;
+    this.awareness = options.awareness;
+  }
+
+  getLocalSelection(): SelectionPayload | null {
+    return this.localSelection;
+  }
+
+  setLocalSelection(payload: SelectionPayload | null): void {
+    this.localSelection = payload;
+    this.awareness.setLocalStateField("selection", payload);
+    this.render();
+  }
+
+  clearLocalSelection(): void {
+    this.setLocalSelection(null);
+  }
+
+  getActiveSelections(): SelectionPayload[] {
+    const active: SelectionPayload[] = [];
+    if (this.localSelection && this.localSelection.active && this.localSelection.text?.trim()) {
+      active.push(this.localSelection);
+    }
+    const states = this.awareness.getStates();
+    states.forEach((state, clientId) => {
+      if (clientId === this.awareness.clientID) return;
+      const sel = (state as { selection?: SelectionPayload | null })?.selection;
+      if (sel && sel.active && sel.text && sel.text.trim()) {
+        active.push(sel);
+      }
+    });
+    return active;
+  }
+
+  render(): void {
+    const active = this.getActiveSelections();
+    if (active.length === 0) {
+      this.selectionHighlighter.clear(this.pagesEl);
+    } else {
+      this.selectionHighlighter.update(this.pagesEl, active);
+    }
+  }
 }
 
 const yUndoCommand = yUndoManagerKeymap.find((k) => k.key === "Mod-z")?.run;
@@ -225,6 +386,69 @@ function logoPathFor(file: File): string {
 }
 
 /**
+ * Saves the current collaborative document content to local storage via FileManager.
+ * If asNewFile is true, creates a new file with the specified or suggested name.
+ * Otherwise, updates the currently active file in FileManager.
+ */
+export function saveCollabToLocal(
+  fileManager: FileManager,
+  ytext: Y.Text,
+  roomId: string,
+  options?: { asNewFile?: boolean; customName?: string; toast?: (msg: string) => void },
+): FileMeta {
+  const currentText = ytext.toString();
+  const toast = options?.toast ?? (() => {});
+  if (options?.asNewFile) {
+    const defaultName = fileManager.suggestFileName(`yhteistyo-${roomId}.md`);
+    const name = options?.customName?.trim() || defaultName;
+    const created = fileManager.createFile(name, currentText);
+    toast(`Huone tallennettu uuteen tiedostoon "${created.name}"!`);
+    return created;
+  } else {
+    fileManager.saveActiveContent(currentText);
+    const activeFile = fileManager.getActiveFile();
+    toast(`Asiakirja kopioitu henkilökohtaiseen luonnokseesi ("${activeFile.name}")!`);
+    return activeFile;
+  }
+}
+
+/**
+ * Replaces the collaborative room's document (ytext) with the content of the selected local file,
+ * broadcasting the change to all connected collaborators.
+ */
+export function importLocalFileToCollab(
+  file: FileMeta,
+  fileManager: FileManager,
+  ydoc: Y.Doc,
+  ytext: Y.Text,
+  toast?: (msg: string) => void,
+  closePanel?: () => void,
+): void {
+  const content = fileManager.getFileContent(file.id);
+  ydoc.transact(() => {
+    ytext.delete(0, ytext.length);
+    ytext.insert(0, content);
+  });
+  if (toast) {
+    toast(`Tiedoston "${file.name}" sisältö tuotu huoneeseen.`);
+  }
+  if (closePanel) {
+    closePanel();
+  }
+}
+
+/**
+ * Sets the specified file as active in FileManager and redirects to the personal editor (#/).
+ */
+export function openLocalFileInPersonal(
+  file: FileMeta,
+  fileManager: FileManager,
+): void {
+  fileManager.setActiveFile(file.id);
+  window.location.hash = "#/";
+}
+
+/**
  * Initializes the full collaborative editor experience.
  */
 export async function initCollabEditor(roomId: string, token: string) {
@@ -261,14 +485,26 @@ export async function initCollabEditor(roomId: string, token: string) {
   const showEditorEl = document.getElementById("show-editor") as HTMLButtonElement;
   const showPreviewEl = document.getElementById("show-preview") as HTMLButtonElement;
   const bannerEl = document.getElementById("viewer-banner")!;
+  const filesToggleEl = document.getElementById("files-toggle") as HTMLButtonElement;
+  const filesPanelEl = document.getElementById("files-panel")!;
+  const filesCloseEl = document.getElementById("files-close") as HTMLButtonElement;
+  const filesNewEl = document.getElementById("files-new") as HTMLButtonElement;
+  const filesSaveCollabEl = document.getElementById("files-save-collab") as HTMLButtonElement;
+  const filesListEl = document.getElementById("files-list")!;
+  const collabFileModalEl = document.getElementById("collab-file-modal") as HTMLDialogElement;
+  const collabFileModalCloseEl = document.getElementById("collab-file-modal-close") as HTMLButtonElement;
+  const collabFileModalFilenameEl = document.getElementById("collab-file-modal-filename");
+  const collabFileActionImportEl = document.getElementById("collab-file-action-import") as HTMLButtonElement;
+  const collabFileActionOpenEl = document.getElementById("collab-file-action-open") as HTMLButtonElement;
+
+  const fileManager = new FileManager();
 
   // In collaborative mode, hide the single-user reset & share buttons
   if (resetEl) resetEl.hidden = true;
   if (shareEl) shareEl.hidden = true;
 
-  // Clarify in the UI that uploaded logos are purely local
   if (logoLabelEl) {
-    logoLabelEl.title = "Lisää logo (vain omaan esikatseluun – ei jaeta)";
+    logoLabelEl.title = "Lisää logo (jaetaan kaikille muokkaajille)";
   }
 
   const toast = createToaster(toastsEl);
@@ -349,22 +585,36 @@ export async function initCollabEditor(roomId: string, token: string) {
     }
   }
 
-  // --- Initialize Typst Preview ---
-  let localLogo: { path: string; name: string; bytes: Uint8Array } | undefined;
-  const logoForPreview = (): Logo | undefined =>
-    localLogo ? { path: localLogo.path, bytes: localLogo.bytes } : undefined;
+  // --- Initialize Yjs CRDT & Shared Document State ---
+  const ydoc = new Y.Doc();
+  const ytext = ydoc.getText("content");
+  const metaMap = ydoc.getMap<SharedLogoData | null>("meta");
 
-  function showLogoControls() {
-    logoClearEl.hidden = localLogo === undefined;
-    logoClearEl.title = localLogo ? localLogo.name : "";
+  interface SharedLogoData {
+    name: string;
+    path: string;
+    b64: string;
   }
-  showLogoControls();
+
+  let sharedLogo: { path: string; name: string; bytes: Uint8Array } | undefined;
+  const logoForPreview = (): Logo | undefined =>
+    sharedLogo ? { path: sharedLogo.path, bytes: sharedLogo.bytes } : undefined;
+
+  function updateLogoControls() {
+    logoClearEl.hidden = sharedLogo === undefined;
+    logoClearEl.title = sharedLogo ? sharedLogo.name : "";
+  }
+  updateLogoControls();
+
+  const pagesEl = document.getElementById("pages")!;
+  const selectionHighlighter = new SelectionHighlighter();
+  let collabSelectionManager: CollabSelectionManager | undefined;
 
   const { createPreview } = await import("./preview.ts");
   const preview = createPreview(
     {
       previewEl: document.getElementById("preview")!,
-      pagesEl: document.getElementById("pages")!,
+      pagesEl,
       controlsEl: document.getElementById("preview-controls")!,
       zoomInEl: document.getElementById("zoom-in") as HTMLButtonElement,
       zoomOutEl: document.getElementById("zoom-out") as HTMLButtonElement,
@@ -379,17 +629,58 @@ export async function initCollabEditor(roomId: string, token: string) {
       viewStorageKey: "sfs2487.collab.view",
       onRendered: () => {
         downloadEl.disabled = false;
+        collabSelectionManager?.render();
       },
     },
   );
 
-  // --- Initialize Yjs CRDT & Providers ---
-  const ydoc = new Y.Doc();
-  const ytext = ydoc.getText("content");
+  let savingTimer: number | undefined;
+
+  const renderCoordinator = new CollabRenderCoordinator({
+    preview,
+    getMarkdown: () => ytext.toString(),
+    getLogo: logoForPreview,
+    onRenderComplete: () => {
+      collabSelectionManager?.render();
+    },
+    debounceMs: 300,
+  });
+
+  function syncLogoFromMeta() {
+    const rawLogo = metaMap.get("logo") as SharedLogoData | null | undefined;
+    if (rawLogo && rawLogo.b64 && rawLogo.path && rawLogo.name) {
+      try {
+        const bytes = base64ToBytes(rawLogo.b64);
+        sharedLogo = { path: rawLogo.path, name: rawLogo.name, bytes };
+      } catch (err) {
+        console.warn("Failed to decode shared logo base64:", err);
+        sharedLogo = undefined;
+      }
+    } else {
+      sharedLogo = undefined;
+      logoEl.value = "";
+    }
+    updateLogoControls();
+  }
+
+  metaMap.observe((event) => {
+    if (event.keysChanged.has("logo")) {
+      syncLogoFromMeta();
+      renderCoordinator.scheduleRender(true);
+    }
+  });
+
+  syncLogoFromMeta();
 
   let idbProvider: IndexeddbPersistence | null = null;
   try {
     idbProvider = new IndexeddbPersistence("sfs2487.collab." + roomId, ydoc);
+    idbProvider.on("synced", () => {
+      syncLogoFromMeta();
+      if (!renderCoordinator.isInitialRendered() && ytext.length > 0) {
+        void renderCoordinator.initialRender();
+      }
+    });
   } catch (err) {
     console.warn("IndexedDB persistence could not be initialized:", err);
   }
@@ -397,6 +688,12 @@ export async function initCollabEditor(roomId: string, token: string) {
   const wsUrl = getCollabWsUrl();
   const provider = new WebsocketProvider(wsUrl, roomId, ydoc, {
     params: { token },
+  });
+
+  collabSelectionManager = new CollabSelectionManager({
+    selectionHighlighter,
+    pagesEl,
+    awareness: provider.awareness,
   });
 
   // Local user identity in Awareness
@@ -433,7 +730,10 @@ export async function initCollabEditor(roomId: string, token: string) {
     });
   }
 
-  provider.awareness.on("change", renderCollaborators);
+  provider.awareness.on("change", () => {
+    renderCollaborators();
+    collabSelectionManager?.render();
+  });
   renderCollaborators();
 
   let isSynced = false;
@@ -485,31 +785,43 @@ export async function initCollabEditor(roomId: string, token: string) {
     isSynced = synced;
     if (synced) {
       updateConnectionBadge("connected");
+      syncLogoFromMeta();
       // Initial render once document content is synced
-      void preview.render(ytext.toString(), logoForPreview());
+      if (!renderCoordinator.isInitialRendered()) {
+        void renderCoordinator.initialRender();
+      } else {
+        renderCoordinator.scheduleRender(true);
+      }
     }
   });
 
-  // Observe text changes for debounced preview rendering
-  let renderDebounceTimer: number | undefined;
-  let savingTimer: number | undefined;
-
-  function schedulePreviewRender() {
-    clearTimeout(renderDebounceTimer);
-    renderDebounceTimer = window.setTimeout(() => {
-      void preview.render(ytext.toString(), logoForPreview());
-    }, 300);
-  }
-
   ytext.observe((event) => {
-    // If not local origin, trigger preview update
+    // If not local origin, trigger preview update with liveEdit: true
     if (event.transaction.origin !== ytext) {
-      schedulePreviewRender();
+      renderCoordinator.scheduleRender(true);
     }
   });
 
   // --- Initialize CodeMirror 6 ---
   editorEl.innerHTML = ""; // Clear stub
+
+  let visualModeActive = false;
+  let visualSubMode: "visual" | "linewise" | "blockwise" = "visual";
+
+  function getSelectionPayload(state: EditorState): SelectionPayload | null {
+    return computeSelectionPayload(state, visualModeActive, visualSubMode);
+  }
+
+  function syncSelection(state: EditorState) {
+    if (!visualModeActive) {
+      if (collabSelectionManager?.getLocalSelection() !== null) {
+        collabSelectionManager?.clearLocalSelection();
+      }
+      return;
+    }
+    const payload = getSelectionPayload(state);
+    collabSelectionManager?.setLocalSelection(payload);
+  }
 
   // Vim preference support and collaborative undo/redo mapping
   setupVimForCollab();
@@ -546,14 +858,18 @@ export async function initCollabEditor(roomId: string, token: string) {
       // Collaborative undo/redo keymap: isolates local changes without reverting remote edits
       keymap.of([...defaultKeymap, ...yUndoManagerKeymap]),
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged) return;
-        // Indicate saving state temporarily
-        updateConnectionBadge("saving");
-        clearTimeout(savingTimer);
-        savingTimer = window.setTimeout(() => {
-          updateConnectionBadge(isSynced ? "connected" : "connecting");
-        }, 600);
-        schedulePreviewRender();
+        if (u.docChanged) {
+          // Indicate saving state temporarily
+          updateConnectionBadge("saving");
+          clearTimeout(savingTimer);
+          savingTimer = window.setTimeout(() => {
+            updateConnectionBadge(isSynced ? "connected" : "connecting");
+          }, 600);
+          renderCoordinator.scheduleRender(true);
+        }
+        if (visualModeActive && (u.selectionSet || u.docChanged)) {
+          syncSelection(u.state);
+        }
       }),
     ],
   });
@@ -575,20 +891,47 @@ export async function initCollabEditor(roomId: string, token: string) {
   function syncVimMode() {
     if (!vimEl.checked || !keyboardPresent) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     const cm = getCM(editor);
     if (!cm) {
       vimModeEl.hidden = true;
+      if (visualModeActive) {
+        visualModeActive = false;
+        syncSelection(editor.state);
+      }
       return;
     }
     showVimMode("normal");
-    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) =>
-      showVimMode(e.mode, e.subMode),
-    );
+    cm.on("vim-mode-change", (e: { mode: string; subMode?: string }) => {
+      showVimMode(e.mode, e.subMode);
+      if (e.mode === "visual") {
+        visualModeActive = true;
+        visualSubMode =
+          e.subMode === "linewise"
+            ? "linewise"
+            : e.subMode === "blockwise"
+            ? "blockwise"
+            : "visual";
+        syncSelection(editor.state);
+      } else {
+        if (visualModeActive) {
+          visualModeActive = false;
+          syncSelection(editor.state);
+        }
+      }
+    });
   }
   function applyVim() {
     const on = vimEl.checked && keyboardPresent;
+    if (!on && visualModeActive) {
+      visualModeActive = false;
+      syncSelection(editor.state);
+    }
     editor.dispatch({ effects: vimCompartment.reconfigure(on ? vim() : []) });
     syncVimMode();
   }
@@ -682,28 +1025,44 @@ export async function initCollabEditor(roomId: string, token: string) {
   const savedSplit = localStorage.getItem(STORE_SPLIT) || localStorage.getItem("sfs2487.split");
   if (savedSplit) setSplit(parseFloat(savedSplit));
 
-  // --- Local Logo Upload (Not shared with collaborators) ---
+  // --- Collaborative Logo Upload & Synchronization ---
+  const MAX_LOGO_BYTES = 256 * 1024; // 256 KB limit
+
   logoEl.addEventListener("change", async () => {
     const file = logoEl.files?.[0];
     if (!file) return;
-    const path = logoPathFor(file);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    localLogo = { path, name: file.name, bytes };
-    showLogoControls();
-    void preview.render(ytext.toString(), logoForPreview());
-    toast("Logo lisätty omaan esikatseluusi (ei jaeta muille muokkaajille)");
+
+    if (file.size > MAX_LOGO_BYTES) {
+      toast("Logotiedosto on liian suuri (enintään 256 kt).");
+      logoEl.value = "";
+      return;
+    }
+
+    try {
+      const path = logoPathFor(file);
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const b64 = bytesToBase64(bytes);
+      metaMap.set("logo", { name: file.name, path, b64 });
+      toast("Logo lisätty ja jaettu kaikille muokkaajille");
+    } catch (err) {
+      fail("Logon lataaminen epäonnistui: " + String(err));
+    }
   });
 
   logoClearEl.addEventListener("click", () => {
-    localLogo = undefined;
-    logoEl.value = "";
-    showLogoControls();
-    void preview.render(ytext.toString(), logoForPreview());
+    metaMap.delete("logo");
+    toast("Logo poistettu kaikilta muokkaajilta");
   });
 
   // --- PDF Download Button ---
   downloadEl.addEventListener("click", async () => {
     try {
+      renderCoordinator.cancelScheduledRender();
+      if (!preview.hasContent()) {
+        await renderCoordinator.initialRender();
+      } else {
+        await preview.render(ytext.toString(), logoForPreview(), { liveEdit: true });
+      }
       const pdf = await preview.pdf();
       if (!pdf) return;
       const blob = new Blob([pdf as BlobPart], { type: "application/pdf" });
@@ -736,13 +1095,306 @@ export async function initCollabEditor(roomId: string, token: string) {
     }
   });
 
+  // --- File Manager Drawer & Local Storage Integration (Collab Mode) ---
+  function syncFilesControls() {
+    if (!filesToggleEl || !filesPanelEl) return;
+    const open = !filesPanelEl.hidden;
+    filesToggleEl.setAttribute("aria-expanded", String(open));
+    filesToggleEl.setAttribute("aria-pressed", String(open));
+    filesToggleEl.title = open ? "Piilota tiedostot" : "Tiedostot";
+    filesToggleEl.setAttribute("aria-label", filesToggleEl.title);
+  }
+
+  function openFilesPanel() {
+    if (!filesPanelEl) return;
+    renderFilesList();
+    filesPanelEl.hidden = false;
+    syncFilesControls();
+  }
+
+  function closeFilesPanel() {
+    if (!filesPanelEl) return;
+    const focusWasInPanel = filesPanelEl.contains(document.activeElement);
+    filesPanelEl.hidden = true;
+    syncFilesControls();
+    if (focusWasInPanel && filesToggleEl) filesToggleEl.focus();
+  }
+
+  function toggleFilesPanel() {
+    if (!filesPanelEl) return;
+    if (filesPanelEl.hidden) openFilesPanel();
+    else closeFilesPanel();
+  }
+
+  let selectedCollabFile: FileMeta | null = null;
+
+  function closeCollabFileModal() {
+    selectedCollabFile = null;
+    if (!collabFileModalEl) return;
+    if (typeof collabFileModalEl.close === "function") {
+      collabFileModalEl.close();
+    } else {
+      collabFileModalEl.removeAttribute("open");
+    }
+  }
+
+  function promptCollabFileAction(file: FileMeta) {
+    selectedCollabFile = file;
+    if (collabFileModalFilenameEl) {
+      collabFileModalFilenameEl.textContent = file.name;
+    }
+    if (collabFileModalEl) {
+      if (typeof collabFileModalEl.showModal === "function") {
+        collabFileModalEl.showModal();
+      } else {
+        collabFileModalEl.setAttribute("open", "");
+      }
+    } else {
+      // Fallback
+      const choice = typeof window.confirm === "function"
+        ? window.confirm(
+            `Valitse toiminto tiedostolle "${file.name}":\n\n` +
+            `OK = Tuo huoneeseen (korvaa nykyisen sisällön)\n` +
+            `Peruuta = Avaa henkilökohtaisessa editorissa`,
+          )
+        : false;
+      if (choice) {
+        importLocalFileToCollab(file, fileManager, ydoc, ytext, toast, closeFilesPanel);
+      } else {
+        openLocalFileInPersonal(file, fileManager);
+      }
+    }
+  }
+
+  collabFileActionImportEl?.addEventListener("click", () => {
+    if (selectedCollabFile) {
+      importLocalFileToCollab(selectedCollabFile, fileManager, ydoc, ytext, toast, closeFilesPanel);
+    }
+    closeCollabFileModal();
+  });
+
+  collabFileActionOpenEl?.addEventListener("click", () => {
+    if (selectedCollabFile) {
+      openLocalFileInPersonal(selectedCollabFile, fileManager);
+    }
+    closeCollabFileModal();
+  });
+
+  collabFileModalCloseEl?.addEventListener("click", () => {
+    closeCollabFileModal();
+  });
+
+  collabFileModalEl?.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeCollabFileModal();
+  });
+
+  collabFileModalEl?.addEventListener("click", (e) => {
+    if (e.target === collabFileModalEl) {
+      closeCollabFileModal();
+    }
+  });
+
+  function renderFilesList() {
+    if (!filesListEl) return;
+    const files = fileManager.listFiles();
+    const activeId = fileManager.getActiveFileId();
+    filesListEl.innerHTML = "";
+
+    for (const file of files) {
+      const li = document.createElement("li");
+      const isActive = file.id === activeId;
+      li.className = "file-item" + (isActive ? " active" : "");
+      li.dataset.id = file.id;
+
+      const selectBtn = document.createElement("button");
+      selectBtn.type = "button";
+      selectBtn.className = "file-select-btn";
+      selectBtn.setAttribute("title", `Valitse ${file.name}`);
+      if (isActive) {
+        selectBtn.setAttribute("aria-current", "true");
+      }
+
+      const infoSpan = document.createElement("span");
+      infoSpan.className = "file-info";
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "file-name";
+      nameSpan.textContent = file.name;
+      infoSpan.appendChild(nameSpan);
+
+      if (file.updatedAt) {
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "file-time";
+        timeSpan.textContent = formatFileDate(file.updatedAt);
+        infoSpan.appendChild(timeSpan);
+      }
+      selectBtn.appendChild(infoSpan);
+
+      if (isActive) {
+        const badge = document.createElement("span");
+        badge.className = "file-badge";
+        badge.textContent = "Aktiivinen";
+        selectBtn.appendChild(badge);
+      }
+
+      selectBtn.addEventListener("click", () => {
+        promptCollabFileAction(file);
+      });
+      li.appendChild(selectBtn);
+
+      const actions = document.createElement("div");
+      actions.className = "file-actions";
+
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "iconbtn file-rename-btn";
+      renameBtn.setAttribute("title", `Nimeä uudelleen: ${file.name}`);
+      renameBtn.setAttribute("aria-label", `Nimeä uudelleen: ${file.name}`);
+      renameBtn.innerHTML =
+        '<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-edit" /></svg>';
+      renameBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const newName = window.prompt("Anna uusi tiedostonimi:", file.name);
+        if (newName && newName.trim() && newName.trim() !== file.name) {
+          try {
+            fileManager.renameFile(file.id, newName.trim());
+            renderFilesList();
+          } catch (err) {
+            fail(err instanceof Error ? err.message : String(err));
+          }
+        }
+      });
+      actions.appendChild(renameBtn);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "iconbtn file-delete-btn";
+      deleteBtn.setAttribute("title", `Poista tiedosto: ${file.name}`);
+      deleteBtn.setAttribute("aria-label", `Poista tiedosto: ${file.name}`);
+      deleteBtn.innerHTML =
+        '<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-trash" /></svg>';
+      if (files.length <= 1) {
+        deleteBtn.disabled = true;
+        deleteBtn.setAttribute("title", "Viimeistä tiedostoa ei voi poistaa");
+      }
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (files.length <= 1) {
+          toast("Viimeistä tiedostoa ei voi poistaa.");
+          return;
+        }
+        if (!window.confirm(`Haluatko varmasti poistaa tiedoston "${file.name}"?`)) {
+          return;
+        }
+        try {
+          fileManager.deleteFile(file.id);
+          renderFilesList();
+        } catch (err) {
+          fail(err instanceof Error ? err.message : String(err));
+        }
+      });
+      actions.appendChild(deleteBtn);
+
+      li.appendChild(actions);
+      filesListEl.appendChild(li);
+    }
+  }
+
+  if (filesToggleEl) {
+    filesToggleEl.addEventListener("click", () => toggleFilesPanel());
+    filesCloseEl?.addEventListener("click", () => closeFilesPanel());
+
+    if (filesSaveCollabEl) {
+      filesSaveCollabEl.hidden = false;
+      filesSaveCollabEl.addEventListener("click", () => {
+        const defaultName = fileManager.suggestFileName(`yhteistyo-${roomId}.md`);
+        const chosenName = typeof window.prompt === "function"
+          ? window.prompt("Tallenna huone paikalliseksi tiedostoksi nimellä:", defaultName)
+          : defaultName;
+        if (chosenName && chosenName.trim()) {
+          try {
+            saveCollabToLocal(fileManager, ytext, roomId, {
+              asNewFile: true,
+              customName: chosenName.trim(),
+              toast: (msg) => toast(msg),
+            });
+            renderFilesList();
+          } catch (err) {
+            fail(err instanceof Error ? err.message : String(err));
+          }
+        }
+      });
+    }
+
+    filesNewEl?.addEventListener("click", () => {
+      try {
+        const created = fileManager.createFile();
+        toast(`Uusi tiedosto "${created.name}" luotu.`);
+        renderFilesList();
+      } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && filesPanelEl && !filesPanelEl.hidden) {
+        event.preventDefault();
+        closeFilesPanel();
+      }
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!filesPanelEl || filesPanelEl.hidden) return;
+      const target = event.target as Node | null;
+      if (
+        target &&
+        !filesPanelEl.contains(target) &&
+        !filesToggleEl.contains(target) &&
+        (!collabFileModalEl || !collabFileModalEl.contains(target))
+      ) {
+        closeFilesPanel();
+      }
+    });
+  }
+
+  // Top banner button: Kopioi omaan luonnokseen
   saveLocalBtn.addEventListener("click", () => {
-    const currentText = ytext.toString();
-    try {
-      localStorage.setItem("sfs2487.doc", currentText);
-      toast("Asiakirja kopioitu henkilökohtaiseen luonnokseesi!");
-    } catch (err) {
-      toast("Kopiointi epäonnistui: " + String(err));
+    const activeFile = fileManager.getActiveFile();
+    const shouldUpdateActive = typeof window.confirm === "function"
+      ? window.confirm(
+          `Päivitetäänkö aktiivinen luonnos "${activeFile.name}" huoneen sisällöllä?\n\n` +
+          `Valitse OK päivittääksesi "${activeFile.name}" tai Peruuta tallentaaksesi uutena tiedostona.`,
+        )
+      : true;
+
+    if (shouldUpdateActive) {
+      try {
+        saveCollabToLocal(fileManager, ytext, roomId, {
+          asNewFile: false,
+          toast,
+        });
+        renderFilesList();
+      } catch (err) {
+        toast("Kopiointi epäonnistui: " + String(err));
+      }
+    } else {
+      const defaultName = fileManager.suggestFileName(`yhteistyo-${roomId}.md`);
+      const chosenName = typeof window.prompt === "function"
+        ? window.prompt("Tallenna uutena tiedostona nimellä:", defaultName)
+        : defaultName;
+      if (chosenName && chosenName.trim()) {
+        try {
+          saveCollabToLocal(fileManager, ytext, roomId, {
+            asNewFile: true,
+            customName: chosenName.trim(),
+            toast,
+          });
+          renderFilesList();
+        } catch (err) {
+          toast("Tallennus epäonnistui: " + String(err));
+        }
+      }
     }
   });
 
@@ -755,6 +1407,8 @@ export async function initCollabEditor(roomId: string, token: string) {
     "beforeunload",
     () => {
       try {
+        collabSelectionManager?.clearLocalSelection();
+        renderCoordinator.destroy();
         idbProvider?.destroy();
         provider.destroy();
         ydoc.destroy();

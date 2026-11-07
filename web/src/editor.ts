@@ -20,7 +20,7 @@ import {
   type SelectionPayload,
 } from "./share.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
-import { FileManager } from "./files.ts";
+import { FileManager, formatFileDate } from "./files.ts";
 import { getCollabUrl } from "./config.ts";
 // A vendored copy of examples/markdown/esimerkki-poytakirja.md (spec Liite A),
 // kept so the bundle is self-contained for both `npm run dev` and the nix build.
@@ -46,24 +46,19 @@ export function initEditor() {
   const filesNewEl = document.getElementById("files-new") as HTMLButtonElement;
   const filesListEl = document.getElementById("files-list")!;
   const shareEl = document.getElementById("share") as HTMLButtonElement;
-  const sharePanelEl = document.getElementById("share-panel")!;
-  const shareCloseEl = document.getElementById("share-close") as HTMLButtonElement;
-  const shareStatusEl = document.getElementById("share-status")!;
-  const shareOptionsEl = document.getElementById("share-options") as HTMLElement;
-  const shareActionReadonlyEl = document.getElementById("share-action-readonly") as HTMLButtonElement;
-  const shareActionCollabEl = document.getElementById("share-action-collab") as HTMLButtonElement;
-  const shareRowEl = document.getElementById("share-row")!;
-  const shareFootEl = document.getElementById("share-foot") as HTMLElement;
-  const shareViewersEl = document.getElementById("share-viewers")!;
+  const shareDialogEl = document.getElementById("share-dialog") as HTMLDialogElement;
+  const shareDialogCloseEl = document.getElementById("share-dialog-close") as HTMLButtonElement;
+  const shareReadonlyInactiveEl = document.getElementById("share-readonly-inactive")!;
+  const shareReadonlyActiveEl = document.getElementById("share-readonly-active")!;
+  const shareReadonlyStartEl = document.getElementById("share-readonly-start") as HTMLButtonElement;
+  const shareCountEl = document.getElementById("share-count")!;
+  const shareCountUnitEl = document.getElementById("share-count-unit")!;
   const shareUrlEl = document.getElementById("share-url") as HTMLInputElement;
   const shareCopyEl = document.getElementById("share-copy") as HTMLButtonElement;
   const shareStopEl = document.getElementById("share-stop") as HTMLButtonElement;
-  const shareCountEl = document.getElementById("share-count")!;
-
-  const collabConfirmDialogEl = document.getElementById("collab-confirm-dialog") as HTMLDialogElement;
-  const collabConfirmCancelEl = document.getElementById("collab-dialog-cancel") as HTMLButtonElement;
-  const collabConfirmSubmitEl = document.getElementById("collab-dialog-confirm") as HTMLButtonElement;
-  const collabConfirmErrorEl = document.getElementById("collab-dialog-error") as HTMLElement;
+  const collabCreateBtnEl = document.getElementById("collab-create-btn") as HTMLButtonElement;
+  const collabCreateBtnTextEl = document.getElementById("collab-create-btn-text")!;
+  const collabCreateErrorEl = document.getElementById("collab-create-error")!;
 
   const toast = createToaster(toastsEl);
   const setStatus = (text: string, error = false) => {
@@ -167,65 +162,85 @@ export function initEditor() {
   let broadcaster: Broadcaster | undefined;
   let shareState: "idle" | "starting" | "active" = "idle";
 
+  function isShareDialogOpen(): boolean {
+    if (!shareDialogEl) return false;
+    return typeof shareDialogEl.open === "boolean" ? shareDialogEl.open : shareDialogEl.hasAttribute("open");
+  }
+
   function syncShareControls() {
     const active = shareState === "active";
-    const open = !sharePanelEl.hidden;
+    const open = isShareDialogOpen();
     shareEl.setAttribute("aria-pressed", String(active));
-    if (shareState === "idle") {
-      shareEl.removeAttribute("aria-expanded");
-      shareEl.removeAttribute("aria-controls");
-    } else {
-      shareEl.setAttribute("aria-expanded", String(open));
-      shareEl.setAttribute("aria-controls", "share-panel");
-    }
-    shareEl.title = shareState === "idle"
-      ? "Jaa esikatselu tai yhteismuokkaa"
-      : open ? "Piilota jakamisen tiedot" : "Näytä jakamisen tiedot";
+    shareEl.setAttribute("aria-expanded", String(open));
+    shareEl.setAttribute("aria-controls", "share-dialog");
+    shareEl.title = active
+      ? (open ? "Sulje jakamisen tiedot" : "Jako käynnissä (näytä jakamisvalikko)")
+      : (open ? "Sulje jakamisvalikko" : "Jaa asiakirja");
   }
 
-  function openSharePanel() {
-    if (!filesPanelEl.hidden) closeFilesPanel();
-    sharePanelEl.hidden = false;
+  function updateViewerCount(count: number) {
+    if (shareCountEl) shareCountEl.textContent = String(count);
+    if (shareCountUnitEl) {
+      shareCountUnitEl.textContent = count === 1 ? "katsoja" : "katsojaa";
+    }
+  }
+
+  function renderReadonlyShareState() {
     if (shareState === "idle") {
-      shareStatusEl.textContent = "Valitse jakamistapa:";
-      shareOptionsEl.hidden = false;
-      shareRowEl.hidden = true;
-      if (shareFootEl) shareFootEl.hidden = true;
-      shareViewersEl.hidden = true;
+      shareReadonlyInactiveEl.hidden = false;
+      shareReadonlyActiveEl.hidden = true;
+      shareReadonlyStartEl.disabled = false;
+      const span = shareReadonlyStartEl.querySelector("span");
+      if (span) span.textContent = "Aloita esikatselujako";
+      shareUrlEl.value = "";
+      updateViewerCount(0);
     } else if (shareState === "starting") {
-      shareStatusEl.textContent = "Muodostetaan yhteyttä jakopalveluun…";
-      shareOptionsEl.hidden = true;
-      shareRowEl.hidden = true;
-      if (shareFootEl) shareFootEl.hidden = false;
-      shareViewersEl.hidden = true;
+      shareReadonlyInactiveEl.hidden = false;
+      shareReadonlyActiveEl.hidden = true;
+      shareReadonlyStartEl.disabled = true;
+      const span = shareReadonlyStartEl.querySelector("span");
+      if (span) span.textContent = "Muodostetaan yhteyttä…";
     } else {
-      shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
-      shareOptionsEl.hidden = true;
-      shareRowEl.hidden = false;
-      if (shareFootEl) shareFootEl.hidden = false;
-      shareViewersEl.hidden = false;
+      shareReadonlyInactiveEl.hidden = true;
+      shareReadonlyActiveEl.hidden = false;
+      if (broadcaster) {
+        shareUrlEl.value = broadcaster.watchUrl();
+      }
+    }
+  }
+
+  function openShareDialog() {
+    if (!filesPanelEl.hidden) closeFilesPanel();
+    if (collabCreateErrorEl) {
+      collabCreateErrorEl.hidden = true;
+      collabCreateErrorEl.textContent = "";
+    }
+    if (collabCreateBtnEl) {
+      collabCreateBtnEl.disabled = false;
+    }
+    if (collabCreateBtnTextEl) {
+      collabCreateBtnTextEl.textContent = "Luo yhteismuokkaushuone";
+    }
+
+    renderReadonlyShareState();
+
+    if (typeof shareDialogEl.showModal === "function") {
+      shareDialogEl.showModal();
+    } else {
+      shareDialogEl.setAttribute("open", "");
     }
     syncShareControls();
   }
 
-  function closeSharePanel() {
-    const focusWasInPanel = sharePanelEl.contains(document.activeElement);
-    sharePanelEl.hidden = true;
+  function closeShareDialog() {
+    if (!shareDialogEl) return;
+    if (typeof shareDialogEl.close === "function") {
+      shareDialogEl.close();
+    } else {
+      shareDialogEl.removeAttribute("open");
+    }
     syncShareControls();
-    if (focusWasInPanel) shareEl.focus();
-  }
-
-  function resetSharePanel() {
-    sharePanelEl.hidden = true;
-    shareStatusEl.textContent = "Valitse jakamistapa:";
-    shareOptionsEl.hidden = false;
-    shareRowEl.hidden = true;
-    if (shareFootEl) shareFootEl.hidden = true;
-    shareViewersEl.hidden = true;
-    shareUrlEl.value = "";
-    shareCountEl.textContent = "0";
-    shareStopEl.textContent = "Lopeta jako";
-    syncShareControls();
+    shareEl.focus();
   }
 
   // The snapshot pushed to viewers: the document plus the uploaded logo bytes,
@@ -244,7 +259,9 @@ export function initEditor() {
     let bc: Broadcaster | undefined;
     try {
       bc = new Broadcaster(
-        (count) => { shareCountEl.textContent = String(count); },
+        (count) => {
+          updateViewerCount(count);
+        },
         (message) => {
           if (broadcaster === bc) {
             stopSharing();
@@ -257,12 +274,9 @@ export function initEditor() {
       );
       broadcaster = bc;
       shareState = "starting";
-      shareOptionsEl.hidden = true;
-      shareRowEl.hidden = true;
-      shareViewersEl.hidden = true;
-      if (shareFootEl) shareFootEl.hidden = false;
-      shareStopEl.textContent = "Peruuta aloitus";
-      openSharePanel();
+      renderReadonlyShareState();
+      syncShareControls();
+
       await bc.start(snapshot());
       // The user may have explicitly stopped the share while startup awaited
       // signaling setup. Do not revive a stopped session or overwrite a new one.
@@ -271,13 +285,7 @@ export function initEditor() {
         return;
       }
       shareState = "active";
-      shareStatusEl.textContent = "Jaat esikatselua. Lähetä linkki katsojille:";
-      shareUrlEl.value = bc.watchUrl();
-      shareOptionsEl.hidden = true;
-      shareRowEl.hidden = false;
-      shareViewersEl.hidden = false;
-      if (shareFootEl) shareFootEl.hidden = false;
-      shareStopEl.textContent = "Lopeta jako";
+      renderReadonlyShareState();
       bc.push(snapshot());
       if (currentSelection?.active) {
         bc.pushSelection(currentSelection);
@@ -293,51 +301,20 @@ export function initEditor() {
   }
 
   function stopSharing() {
-    const focusWasInPanel = sharePanelEl.contains(document.activeElement);
     const bc = broadcaster;
     broadcaster = undefined;
     shareState = "idle";
     bc?.stop();
-    resetSharePanel();
-    if (focusWasInPanel) shareEl.focus();
+    renderReadonlyShareState();
+    syncShareControls();
   }
 
-  // --- Collaborative Room Creation Dialog ---
-  function openCollabConfirmDialog() {
-    if (!collabConfirmDialogEl) return;
-    if (collabConfirmErrorEl) {
-      collabConfirmErrorEl.hidden = true;
-      collabConfirmErrorEl.textContent = "";
-    }
-    if (collabConfirmSubmitEl) {
-      collabConfirmSubmitEl.disabled = false;
-      collabConfirmSubmitEl.textContent = "Luo yhteismuokkauslinkki";
-    }
-    if (typeof collabConfirmDialogEl.showModal === "function") {
-      collabConfirmDialogEl.showModal();
-    } else {
-      collabConfirmDialogEl.setAttribute("open", "");
-    }
-  }
-
-  function closeCollabConfirmDialog() {
-    if (!collabConfirmDialogEl) return;
-    if (typeof collabConfirmDialogEl.close === "function") {
-      collabConfirmDialogEl.close();
-    } else {
-      collabConfirmDialogEl.removeAttribute("open");
-    }
-  }
-
-  collabConfirmCancelEl?.addEventListener("click", () => {
-    closeCollabConfirmDialog();
-  });
-
-  collabConfirmSubmitEl?.addEventListener("click", async () => {
-    if (!collabConfirmSubmitEl || !collabConfirmErrorEl) return;
-    collabConfirmSubmitEl.disabled = true;
-    collabConfirmSubmitEl.textContent = "Luodaan huonetta…";
-    collabConfirmErrorEl.hidden = true;
+  // --- Collaborative Room Creation ---
+  collabCreateBtnEl?.addEventListener("click", async () => {
+    if (!collabCreateBtnEl || !collabCreateErrorEl) return;
+    collabCreateBtnEl.disabled = true;
+    if (collabCreateBtnTextEl) collabCreateBtnTextEl.textContent = "Luodaan huonetta…";
+    collabCreateErrorEl.hidden = true;
 
     try {
       const roomId = randomCollabRoomId(8);
@@ -370,13 +347,17 @@ export function initEditor() {
         throw new Error(errMsg);
       }
 
-      closeCollabConfirmDialog();
+      if (broadcaster) {
+        stopSharing();
+      }
+
+      closeShareDialog();
       window.location.hash = `#/edit/${roomId}/${token}`;
     } catch (err) {
-      collabConfirmSubmitEl.disabled = false;
-      collabConfirmSubmitEl.textContent = "Luo yhteismuokkauslinkki";
-      collabConfirmErrorEl.hidden = false;
-      collabConfirmErrorEl.textContent = `Yhteismuokkauksen luominen epäonnistui: ${err instanceof Error ? err.message : String(err)}`;
+      collabCreateBtnEl.disabled = false;
+      if (collabCreateBtnTextEl) collabCreateBtnTextEl.textContent = "Luo yhteismuokkaushuone";
+      collabCreateErrorEl.hidden = false;
+      collabCreateErrorEl.textContent = `Yhteismuokkauksen luominen epäonnistui: ${err instanceof Error ? err.message : String(err)}`;
     }
   });
 
@@ -384,34 +365,39 @@ export function initEditor() {
     if (isSharingEnabled()) {
       shareEl.hidden = false;
       shareEl.addEventListener("click", () => {
-        if (sharePanelEl.hidden) openSharePanel();
-        else closeSharePanel();
+        if (isShareDialogOpen()) closeShareDialog();
+        else openShareDialog();
       });
-      shareActionReadonlyEl?.addEventListener("click", () => {
+
+      shareReadonlyStartEl?.addEventListener("click", () => {
         void startSharing();
       });
-      shareActionCollabEl?.addEventListener("click", () => {
-        closeSharePanel();
-        openCollabConfirmDialog();
+
+      shareStopEl?.addEventListener("click", () => {
+        stopSharing();
       });
-      shareCloseEl.addEventListener("click", () => closeSharePanel());
-      shareStopEl.addEventListener("click", () => stopSharing());
-      document.addEventListener("keydown", (event) => {
-        const focusInPanel = sharePanelEl.contains(document.activeElement);
-        const focusOnToggle = document.activeElement === shareEl;
-        if (event.key === "Escape" && !sharePanelEl.hidden && (focusInPanel || focusOnToggle)) {
-          event.preventDefault();
-          closeSharePanel();
+
+      shareDialogCloseEl?.addEventListener("click", () => {
+        closeShareDialog();
+      });
+
+      shareDialogEl?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeShareDialog();
+      });
+
+      shareDialogEl?.addEventListener("close", () => {
+        syncShareControls();
+      });
+
+      // Outside click on backdrop
+      shareDialogEl?.addEventListener("click", (event) => {
+        if (event.target === shareDialogEl) {
+          closeShareDialog();
         }
       });
-      document.addEventListener("pointerdown", (event) => {
-        if (sharePanelEl.hidden) return;
-        const target = event.target as Node | null;
-        if (target && !sharePanelEl.contains(target) && !shareEl.contains(target)) {
-          closeSharePanel();
-        }
-      });
-      shareCopyEl.addEventListener("click", async () => {
+
+      shareCopyEl?.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(shareUrlEl.value);
           shareCopyEl.setAttribute("aria-label", "Kopioitu");
@@ -726,7 +712,7 @@ export function initEditor() {
   }
 
   function openFilesPanel() {
-    if (!sharePanelEl.hidden) closeSharePanel();
+    if (isShareDialogOpen()) closeShareDialog();
     renderFilesList();
     filesPanelEl.hidden = false;
     syncFilesControls();
@@ -791,10 +777,21 @@ export function initEditor() {
         selectBtn.setAttribute("aria-current", "true");
       }
 
+      const infoSpan = document.createElement("span");
+      infoSpan.className = "file-info";
+
       const nameSpan = document.createElement("span");
       nameSpan.className = "file-name";
       nameSpan.textContent = file.name;
-      selectBtn.appendChild(nameSpan);
+      infoSpan.appendChild(nameSpan);
+
+      if (file.updatedAt) {
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "file-time";
+        timeSpan.textContent = formatFileDate(file.updatedAt);
+        infoSpan.appendChild(timeSpan);
+      }
+      selectBtn.appendChild(infoSpan);
 
       if (isActive) {
         const badge = document.createElement("span");

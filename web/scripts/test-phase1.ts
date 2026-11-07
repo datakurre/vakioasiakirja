@@ -156,3 +156,43 @@ test("preview: ticket sequencing discard logic", async () => {
   // Only the newest render (seq 2) should be applied; seq 1 must be discarded
   assert.deepEqual(appliedSequences, [2]);
 });
+
+test("share dialog: unified matching share dialog DOM verification", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const htmlPath = path.resolve(import.meta.dirname, "../index.html");
+  const html = fs.readFileSync(htmlPath, "utf-8");
+
+  // Replaced obsolete popover & separate confirm dialog
+  assert.equal(html.includes('id="share-panel"'), false, "Obsolete #share-panel should be removed");
+  assert.equal(html.includes('id="collab-confirm-dialog"'), false, "Obsolete #collab-confirm-dialog should be removed");
+
+  // New unified dialog
+  assert.ok(html.includes('<dialog id="share-dialog" class="share-dialog" aria-labelledby="share-dialog-title">'));
+  assert.ok(html.includes('id="share-dialog-title"') && html.includes("Jaa asiakirja"));
+  assert.ok(html.includes('id="share-dialog-close"'));
+
+  // Esikatselujako card
+  assert.ok(html.includes('id="share-card-readonly"'));
+  assert.ok(html.includes("Esikatselujako"));
+  assert.ok(html.includes("Vain luku"));
+  assert.ok(html.includes("WebRTC"));
+  assert.ok(html.includes('id="share-readonly-inactive"'));
+  assert.ok(html.includes('id="share-readonly-start"'));
+  assert.ok(html.includes("Aloita esikatselujako"));
+  assert.ok(html.includes('id="share-readonly-active"'));
+  assert.ok(html.includes('id="share-status-text"') && html.includes("Jako käynnissä"));
+  assert.ok(html.includes('id="share-count"'));
+  assert.ok(html.includes('id="share-url"'));
+  assert.ok(html.includes('id="share-copy"'));
+  assert.ok(html.includes('id="share-stop"') && html.includes("Lopeta jako"));
+
+  // Yhteismuokkaus card
+  assert.ok(html.includes('id="share-card-collab"'));
+  assert.ok(html.includes("Yhteismuokkaus"));
+  assert.ok(html.includes("Reaaliaikainen"));
+  assert.ok(html.includes("Oma henkilökohtainen luonnoksesi säilyy selaimessasi erillisenä ja koskemattomana"));
+  assert.ok(html.includes('id="collab-create-error"'));
+  assert.ok(html.includes('id="collab-create-btn"'));
+  assert.ok(html.includes("Luo yhteismuokkaushuone"));
+});
