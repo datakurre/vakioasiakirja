@@ -9,7 +9,7 @@
 // are tagged "viewer", and each viewer's id rides in its socket attachment.
 
 import { DurableObject } from "cloudflare:workers";
-import type { Env } from "./index.ts";
+import { isAllowedOrigin, type Env } from "./index.ts";
 
 interface Attachment {
   role: "broadcaster" | "viewer";
@@ -36,6 +36,11 @@ export class Room extends DurableObject<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    const origin = request.headers.get("Origin");
+    if (!isAllowedOrigin(origin, this.env)) {
+      return new Response("Forbidden origin", { status: 403 });
+    }
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
     }

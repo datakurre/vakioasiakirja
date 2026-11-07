@@ -39,21 +39,58 @@ The Worker does not store any document or room data:
   - **Message validation**: Enforces a 64 KB message size limit, verifies valid
     JSON object payloads, and strictly validates `offer`, `answer`, `candidate`,
     and `viewerId` parameters before relaying.
+  - **Origin verification & CSWSH protection**: WebSocket upgrade requests verify
+    the `Origin` header against the allowlist. If an unauthorized origin is provided,
+    the handshake is rejected with `HTTP 403 Forbidden` ("Forbidden origin") to
+    prevent Cross-Site WebSocket Hijacking.
 - `GET https://<worker-host>/turn-credentials` — JSON with an `iceServers` array.
   - Responses include `Cache-Control: public, max-age=3600` on success, or
     `Cache-Control: no-store` when TURN credentials cannot be generated.
   - Includes diagnostic header `X-Turn-Status` (`success`, `missing-secrets`,
     `missing-key-id`, `missing-api-token`, `cf-error-<status>`, `cf-fetch-error`).
+  - Includes CORS response headers (`Access-Control-Allow-Origin: <origin>`,
+    `Vary: Origin`) reflecting the requesting origin if it is in the allowlist.
+    Requests from unauthorized browser origins return `HTTP 403 Forbidden` ("Forbidden origin").
   - Non-`GET` and non-`OPTIONS` methods return `HTTP 405 Method Not Allowed`
     with `Allow: GET, OPTIONS`.
   - Cloudflare and Google STUN are always included; Cloudflare Realtime TURN
     servers are added when `TURN_KEY_ID` and `TURN_API_TOKEN` secrets are configured.
-- `OPTIONS *` — Preflight requests return `HTTP 204 No Content` with standard
-  CORS headers (`Access-Control-Allow-Origin: *`,
-  `Access-Control-Allow-Methods: GET, OPTIONS`,
-  `Access-Control-Allow-Headers: Content-Type`,
-  `Access-Control-Expose-Headers: X-Turn-Status`,
-  `Access-Control-Max-Age: 86400`).
+- `OPTIONS *` — Preflight requests verify the `Origin` header against the allowlist.
+  - Unauthorized origins return `HTTP 403 Forbidden` ("Forbidden origin").
+  - Allowed origins return `HTTP 204 No Content` with headers
+    (`Access-Control-Allow-Origin: <origin>`, `Vary: Origin`,
+    `Access-Control-Allow-Methods: GET, OPTIONS`,
+    `Access-Control-Allow-Headers: Content-Type`,
+    `Access-Control-Expose-Headers: X-Turn-Status`,
+    `Access-Control-Max-Age: 86400`).
+
+## Origin allowlist and CORS
+
+Browser requests (carrying an `Origin` header) are validated against an allowlist to prevent Cross-Site WebSocket Hijacking (CSWSH) and protect CORS endpoints. Non-browser clients without an `Origin` header (such as CLI `curl`) are allowed to proceed without CORS headers.
+
+### Default allowed origins
+
+The Worker permits these origins out of the box:
+- `https://datakurre.github.io` (production GitHub Pages site)
+- `http://localhost:5173` (local Vite dev server)
+- `http://localhost:4173` (local Vite preview server)
+- `http://127.0.0.1:5173` (local Vite dev server on loopback IP)
+- `http://localhost:8787` (local Wrangler dev server)
+
+### Configuring additional origins (`ALLOWED_ORIGINS`)
+
+To support custom domains, staging previews, or alternate ports, configure the optional `ALLOWED_ORIGINS` environment variable as a comma- or whitespace-separated string of origins.
+
+**In `wrangler.toml`**:
+```toml
+[vars]
+ALLOWED_ORIGINS = "https://example.com, https://preview.example.com"
+```
+
+**Or as a secret via `wrangler secret`**:
+```bash
+npx wrangler secret put ALLOWED_ORIGINS
+```
 
 ## Deploy
 

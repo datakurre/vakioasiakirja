@@ -285,3 +285,23 @@ Sharing is **off in the public build**: it appears only when the editor is
 built with `VITE_SIGNALING_URL` pointing at a deployed Worker. See
 [`signaling/README.md`](https://github.com/datakurre/vakioasiakirja/tree/main/signaling)
 for deploying the Worker and wiring the editor to it.
+
+### Origin allowlist and CORS security
+
+To guard against Cross-Site WebSocket Hijacking (CSWSH) and unauthorized access,
+the signaling Worker validates incoming `Origin` headers against an allowlist:
+
+- **Default allowed origins:**
+  - `https://datakurre.github.io`
+  - `http://localhost:5173`
+  - `http://localhost:4173`
+  - `http://127.0.0.1:5173`
+  - `http://localhost:8787`
+- **Configurable extra origins:** Additional origins can be configured using the
+  `ALLOWED_ORIGINS` environment variable (comma- or whitespace-separated) in
+  `wrangler.toml` under `[vars]` or with `npx wrangler secret put ALLOWED_ORIGINS`.
+
+Requests with an unauthorized `Origin` header are rejected with `HTTP 403 Forbidden`
+("Forbidden origin"). Non-browser requests without an `Origin` header (such as CLI `curl`)
+are permitted without CORS headers. Preflight `OPTIONS` requests from allowed origins
+receive `HTTP 204` with CORS headers (`Access-Control-Allow-Origin: <origin>`, `Vary: Origin`).

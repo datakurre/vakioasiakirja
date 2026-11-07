@@ -10,6 +10,8 @@ export interface Env {
   // Optional Cloudflare Realtime TURN credentials (set via `wrangler secret`).
   TURN_KEY_ID?: string;
   TURN_API_TOKEN?: string;
+  // Optional comma- or whitespace-separated list of additional allowed origins.
+  ALLOWED_ORIGINS?: string;
 }
 
 // Minimal ICE-server shape (the DOM RTCIceServer type is unavailable in the
@@ -25,42 +27,90 @@ const DEFAULT_STUN_SERVERS: IceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
 ];
 
-// Allow the GitHub Pages SPA (any origin) to read the JSON; no credentials are
-// involved, so a wildcard is fine.
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-  "Access-Control-Expose-Headers": "X-Turn-Status",
-  "Access-Control-Max-Age": "86400",
-};
+export const DEFAULT_ALLOWED_ORIGINS: readonly string[] = [
+  "https://datakurre.github.io",
+  "http://localhost:5173",
+  "http://localhost:4173",
+  "http://127.0.0.1:5173",
+  "http://localhost:8787",
+];
+
+export function getAllowedOrigins(env: Env): Set<string> {
+  const allowed = new Set<string>(DEFAULT_ALLOWED_ORIGINS);
+  if (env.ALLOWED_ORIGINS) {
+    for (const item of env.ALLOWED_ORIGINS.split(/[\s,]+/)) {
+      const trimmed = item.trim().replace(/\/+$/, "");
+      if (trimmed) {
+        allowed.add(trimmed);
+      }
+    }
+  }
+  return allowed;
+}
+
+export function isAllowedOrigin(origin: string | null, env: Env): boolean {
+  if (origin === null) {
+    return true;
+  }
+  const allowed = getAllowedOrigins(env);
+  return allowed.has(origin) || allowed.has(origin.replace(/\/+$/, ""));
+}
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Expose-Headers": "X-Turn-Status",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const origin = request.headers.get("Origin");
+
     if (request.method === "OPTIONS") {
+      if (!isAllowedOrigin(origin, env)) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
       return new Response(null, {
         status: 204,
-        headers: CORS_HEADERS,
+        headers: corsHeaders(origin),
       });
     }
 
     const url = new URL(request.url);
 
     if (url.pathname === "/turn-credentials") {
+      if (!isAllowedOrigin(origin, env)) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
       if (request.method !== "GET") {
+        const headers: Record<string, string> = {
+          Allow: "GET, OPTIONS",
+          Vary: "Origin",
+        };
+        if (origin) {
+          headers["Access-Control-Allow-Origin"] = origin;
+        }
         return new Response("Method not allowed", {
           status: 405,
-          headers: {
-            Allow: "GET, OPTIONS",
-            ...CORS_HEADERS,
-          },
+          headers,
         });
       }
-      return turnCredentials(env);
+      return turnCredentials(env, origin);
     }
 
     const room = url.pathname.match(/^\/room\/([A-Za-z0-9]{4,12})$/);
     if (room) {
+      if (!isAllowedOrigin(origin, env)) {
+        return new Response("Forbidden origin", { status: 403 });
+      }
       const id = env.ROOMS.idFromName(room[1].toUpperCase());
       return env.ROOMS.get(id).fetch(request);
     }
@@ -86,7 +136,10 @@ function filterBlockedPorts(server: IceServer): IceServer | null {
   return server;
 }
 
-async function turnCredentials(env: Env): Promise<Response> {
+async function turnCredentials(
+  env: Env,
+  origin: string | null,
+): Promise<Response> {
   const iceServers: IceServer[] = [...DEFAULT_STUN_SERVERS];
   let turnSuccess = false;
   let turnStatus = "missing-secrets";
@@ -144,12 +197,17 @@ async function turnCredentials(env: Env): Promise<Response> {
     }
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Cache-Control": turnSuccess ? "public, max-age=3600" : "no-store",
+    "X-Turn-Status": turnStatus,
+    Vary: "Origin",
+  };
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
   return new Response(JSON.stringify({ iceServers }), {
-    headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": turnSuccess ? "public, max-age=3600" : "no-store",
-      "X-Turn-Status": turnStatus,
-      ...CORS_HEADERS,
-    },
+    headers,
   });
 }

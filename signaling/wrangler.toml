@@ -7,6 +7,10 @@
 # TURN (optional, for restrictive NATs):
 #   npx wrangler secret put TURN_KEY_ID
 #   npx wrangler secret put TURN_API_TOKEN
+# Allowed origins (optional, comma- or whitespace-separated):
+#   [vars]
+#   ALLOWED_ORIGINS = "https://example.com"
+#   or: npx wrangler secret put ALLOWED_ORIGINS
 
 name = "broadcast-signaling"
 main = "src/index.ts"
