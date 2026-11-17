@@ -208,5 +208,22 @@ Matti Meikäläinen, titteli
 :::
 ```
 
+### Page breaks
+
+Force a page break with a fenced div or the standard Pandoc/LaTeX break commands on their own line:
+
+```markdown
+::: pagebreak
+:::
+```
+
+or:
+
+```markdown
+\newpage
+```
+
+Both fenced divs (`::: pagebreak`, `::: newpage`, `::: {.pagebreak}`) and TeX commands (`\newpage`, `\pagebreak`, `\clearpage`) work across the web editor and Pandoc.
+
 See the [Examples](examples.md) for complete documents — every LaTeX
 example in the repository has a Markdown twin producing the same layout.

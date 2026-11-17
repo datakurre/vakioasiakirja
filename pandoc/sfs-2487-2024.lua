@@ -6,6 +6,7 @@
 --                                  list cannot hold (e.g. nested lists)
 --   ::: esignatures             -> esignatures environment + \esignee
 --   ::: handsignature           -> \handsignature{line} per line
+--   ::: pagebreak / ::: newpage -> \clearpage
 -- and validates frontmatter (doctype/title required, logo image paths
 -- wrapped in \includegraphics, the features list expanded into per-feature
 -- booleans, at most three heading levels). SVG images (logo or body) are
@@ -253,6 +254,11 @@ function Div(div)
   if div.classes:includes('esignatures') then return esignatures(div) end
   if div.classes:includes('handsignature') then return handsignature(div) end
   if div.classes:includes('marginlabel') then return marginlabel(div) end
+  if div.classes:includes('pagebreak') or div.classes:includes('newpage') then
+    local blocks = pandoc.List({pandoc.RawBlock('latex', '\\clearpage')})
+    blocks:extend(div.content)
+    return blocks
+  end
 end
 
 -- Body images may be SVG too; pdflatex needs them converted. Extensionless

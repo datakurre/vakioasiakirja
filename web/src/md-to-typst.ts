@@ -147,9 +147,21 @@ function inlines(tokens: Token[]): string {
   let out = "";
   for (const t of tokens) {
     switch (t.type) {
-      case "text":
-        out += esc(t.content);
+      case "text": {
+        const parts = t.content.split(/(?:^|(?<=[\s.,;!?]))\\(newpage|pagebreak|clearpage)(?:\{\})?(?=(?:[\s.,;!?]|$))/i);
+        if (parts.length === 1) {
+          out += esc(t.content);
+        } else {
+          for (let k = 0; k < parts.length; k++) {
+            if (k % 2 === 1) {
+              out += "\n#pagebreak()\n";
+            } else if (parts[k].length > 0) {
+              out += esc(parts[k]);
+            }
+          }
+        }
         break;
+      }
       case "softbreak":
         out += " ";
         break;
@@ -240,7 +252,14 @@ function blocks(tokens: Token[], cur: Cursor, stop?: string): string {
         continue;
       }
       case "paragraph_open": {
-        const children = tokens[cur.i + 1].children ?? [];
+        const inline = tokens[cur.i + 1];
+        const trimmed = (inline.content ?? "").trim();
+        if (/^\\(newpage|pagebreak|clearpage)(\{\})?$/i.test(trimmed)) {
+          out += "#pagebreak()\n\n";
+          cur.i += 3;
+          continue;
+        }
+        const children = inline.children ?? [];
         // A paragraph holding only an image becomes a captioned figure
         // (pandoc implicit_figures, 6.5.2), the alt text its caption.
         const imgs = children.filter((c) => c.type !== "softbreak");
@@ -428,16 +447,32 @@ function segmentDivs(body: string): Segment[] {
     buf = [];
   };
   while (i < lines.length) {
+    const single = lines[i].match(/^:::+\s*(.*?)\s*:::+$/);
+    if (single) {
+      flush();
+      const header = single[1].trim();
+      const attr = header.match(/^\{\.([\w-]+)(?:\s+label="([^"]*)")?\s*\}$/);
+      const name = attr ? attr[1] : header.split(/\s+/)[0].replace(/^\./, "");
+      segs.push({ kind: "div", name, label: attr?.[2], text: "" });
+      i++;
+      continue;
+    }
     const open = lines[i].match(/^:::+\s*(.*)$/);
     if (open) {
       flush();
       const header = open[1].trim();
+      const attr = header.match(/^\{\.([\w-]+)(?:\s+label="([^"]*)")?\s*\}$/);
+      const name = attr ? attr[1] : header.split(/\s+/)[0].replace(/^\./, "");
+      const isBreak = name.toLowerCase() === "pagebreak" || name.toLowerCase() === "newpage";
+      if (isBreak && (i + 1 >= lines.length || /^:::+\s*$/.test(lines[i + 1]))) {
+        i += (i + 1 < lines.length && /^:::+\s*$/.test(lines[i + 1])) ? 2 : 1;
+        segs.push({ kind: "div", name, label: attr?.[2], text: "" });
+        continue;
+      }
       const inner: string[] = [];
       i++;
       while (i < lines.length && !/^:::+\s*$/.test(lines[i])) inner.push(lines[i++]);
       i++; // closing fence
-      const attr = header.match(/^\{\.([\w-]+)(?:\s+label="([^"]*)")?\s*\}$/);
-      const name = attr ? attr[1] : header.split(/\s+/)[0].replace(/^\./, "");
       segs.push({ kind: "div", name, label: attr?.[2], text: inner.join("\n") });
     } else {
       buf.push(lines[i++]);
@@ -529,6 +564,10 @@ export function markdownToTypst(source: string, opts: ConvertOptions = {}): stri
     else if (seg.name === "esignatures") out += esignaturesDiv(seg.text);
     else if (seg.name === "handsignature") out += handsignatureDiv(seg.text);
     else if (seg.name === "marginlabel") out += marginlabelDiv(seg);
+    else if (seg.name && (seg.name.toLowerCase() === "pagebreak" || seg.name.toLowerCase() === "newpage")) {
+      out += "#pagebreak()\n\n";
+      if (seg.text.trim()) out += body(seg.text);
+    }
     else out += body(seg.text); // unknown div: pass content through
   }
   return `#import "/sfs-2487-2024.typ": *\n#show: sfs-document.with(\n  ${args},\n)\n\n${out}`;

@@ -251,3 +251,129 @@ Tiedotamme tulevasta remontista.
   assert.equal(dist1.x, 121.89, "Distribution line 1 must be at 43 mm body column");
   assert.equal(dist2.x, 121.89, "Distribution line 2 must be at 43 mm body column");
 });
+
+test("md-to-typst: forced page break via TeX commands (\\newpage, \\pagebreak, \\clearpage)", () => {
+  const md = `---
+doctype: Muistio
+title: Testiasiakirja
+date: 2026-11-17
+---
+
+Ensimmäinen kappale.
+
+\\newpage
+
+Toinen kappale.
+
+\\pagebreak
+
+Kolmas kappale.
+
+\\clearpage
+
+Neljäs kappale.
+
+\\newpage{}
+
+Viides kappale.
+\\newpage
+Kuudes kappale.
+
+Koodiesimerkissä komento säilyy koodina: \`\\newpage\`.
+`;
+
+  const typst = markdownToTypst(md);
+
+  // Assert all variants generate #pagebreak()
+  const pagebreakCount = (typst.match(/#pagebreak\(\)/g) || []).length;
+  assert.equal(pagebreakCount, 5, "Expected 5 pagebreak occurrences");
+
+  // Inline code must not be converted to #pagebreak()
+  assert.ok(typst.includes("`\\newpage`"), "Inline code \\newpage must remain verbatim");
+  assert.ok(typst.includes("Ensimmäinen kappale"));
+  assert.ok(typst.includes("Kuudes kappale"));
+});
+
+test("md-to-typst: forced page break via fenced divs (::: pagebreak and ::: newpage)", () => {
+  const md = `---
+doctype: Muistio
+title: Testiasiakirja
+date: 2026-11-17
+---
+
+Ensimmäinen kappale.
+
+::: pagebreak
+:::
+
+Toinen kappale.
+
+::: newpage
+:::
+
+Kolmas kappale.
+
+::: {.pagebreak}
+:::
+
+Neljäs kappale.
+
+::: {.newpage}
+:::
+
+Viides kappale.
+
+::: pagebreak :::
+
+Kuudes kappale.
+
+::: pagebreak
+Seitsemäs kappale.
+`;
+
+  const typst = markdownToTypst(md);
+
+  // Assert all fenced div variants generate #pagebreak()
+  const pagebreakCount = (typst.match(/#pagebreak\(\)/g) || []).length;
+  assert.equal(pagebreakCount, 6, "Expected 6 pagebreak occurrences from fenced divs");
+  assert.ok(typst.includes("Ensimmäinen kappale"));
+  assert.ok(typst.includes("Seitsemäs kappale"));
+});
+
+test("Real Typst SVG integration: forced page break splits content across multiple pages", async () => {
+  await $typst.mapShadow("/sfs-2487-2024.typ", new TextEncoder().encode(sfsTypst));
+
+  const md = `---
+doctype: Muistio
+title: Testiasiakirja
+date: 2026-11-17
+---
+
+Ensimmäisen sivun sisältö.
+
+\\newpage
+
+Toisen sivun sisältö.
+
+::: pagebreak
+:::
+
+Kolmannen sivun sisältö.
+`;
+
+  const typst = markdownToTypst(md);
+  const svg = await $typst.svg({ mainContent: typst });
+  const dom = new JSDOM(svg);
+
+  const pages = dom.window.document.querySelectorAll(".typst-page");
+  assert.equal(pages.length, 3, "Document with 2 page breaks should render exactly 3 pages");
+
+  assert.ok(pages[0].textContent?.includes("Ensimmäisen sivun sisältö"), "Page 1 contains first section");
+  assert.ok(pages[0].textContent?.includes("1 (3)"), "Page 1 header shows '1 (3)'");
+
+  assert.ok(pages[1].textContent?.includes("Toisen sivun sisältö"), "Page 2 contains second section");
+  assert.ok(pages[1].textContent?.includes("2 (3)"), "Page 2 header shows '2 (3)'");
+
+  assert.ok(pages[2].textContent?.includes("Kolmannen sivun sisältö"), "Page 3 contains third section");
+  assert.ok(pages[2].textContent?.includes("3 (3)"), "Page 3 header shows '3 (3)'");
+});
