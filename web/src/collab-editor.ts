@@ -1055,8 +1055,34 @@ export async function initCollabEditor(roomId: string, token: string) {
     toast("Logo poistettu kaikilta muokkaajilta");
   });
 
+  const updateDownloadTooltip = (mod: boolean) => {
+    downloadEl.title = mod
+      ? "Lataa Word (.docx)"
+      : "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
+  };
+
+  const updateFilesNewTooltip = (mod: boolean) => {
+    if (filesNewEl) {
+      filesNewEl.title = mod
+        ? "Korvaa avoin asiakirja Word- (.docx) tai Markdown-tiedostolla"
+        : "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
+    }
+  };
+
   downloadEl.title = "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
   downloadEl.setAttribute("aria-label", "Lataa PDF (Alt-klikkaus: lataa Word / .docx)");
+
+  window.addEventListener("keydown", (e) => {
+    if (e.altKey || e.shiftKey) {
+      updateDownloadTooltip(true);
+      updateFilesNewTooltip(true);
+    }
+  });
+
+  window.addEventListener("keyup", () => {
+    updateDownloadTooltip(false);
+    updateFilesNewTooltip(false);
+  });
 
   // --- PDF / Word Download Button ---
   downloadEl.addEventListener("click", async (e: MouseEvent) => {

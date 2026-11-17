@@ -214,3 +214,48 @@ title: Tyhjä
   const imported = importFromDocx(docx);
   assert.ok(imported.includes("doctype: Muistio"));
 });
+
+test("exportToDocx & importFromDocx: preserves multiline definition lists, handsignature, and marginlabel", () => {
+  const source = `---
+doctype: Muistio
+title: Monirivinen testi
+date: 17.11.2026
+author: Etunimi Sukunimi
+features: [no-endmatter-newpage]
+---
+
+Aika ja paikka
+:   17.11.2026 klo 18.00\\
+    Kokoushuone A
+
+Osallistujat
+:   Etunimi Sukunimi\\
+    Toinen Sukunimi\\
+    Kolmas Sukunimi
+
+::: marginlabel
+Tärkeä huomio marginaalissa
+:::
+
+# Käsiteltävä asia
+
+Sisältöä tähän.
+
+::: handsignature
+Etunimi Sukunimi, puheenjohtaja
+Toinen Sukunimi, sihteeri
+:::`;
+
+  const docx = exportToDocx(source);
+  const imported = importFromDocx(docx);
+
+  assert.ok(imported.includes("Aika ja paikka"), "Must include term 'Aika ja paikka'");
+  assert.ok(imported.includes("Kokoushuone A"), "Must include second line of definition");
+  assert.ok(imported.includes("Osallistujat"), "Must include term 'Osallistujat'");
+  assert.ok(imported.includes("Toinen Sukunimi"), "Must include second participant");
+  assert.ok(imported.includes("::: marginlabel"), "Must preserve marginlabel block");
+  assert.ok(imported.includes("Tärkeä huomio marginaalissa"), "Must include marginlabel text");
+  assert.ok(imported.includes("::: handsignature"), "Must preserve handsignature block");
+  assert.ok(imported.includes("Etunimi Sukunimi, puheenjohtaja"), "Must include first signature");
+  assert.ok(imported.includes("Toinen Sukunimi, sihteeri"), "Must include second signature");
+});

@@ -56,7 +56,11 @@ function renderRunsToXml(runs: InlineRun[]): string {
         prParts.push('<w:shd w:val="clear" w:color="auto" w:fill="F4F4F4"/>');
       }
       const rPr = prParts.length > 0 ? `<w:rPr>${prParts.join("")}</w:rPr>` : "";
-      return `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(r.text)}</w:t></w:r>`;
+      const parts = r.text.split("\n");
+      const textXml = parts
+        .map((p, idx) => (idx > 0 ? "<w:br/>" : "") + (p ? `<w:t xml:space="preserve">${escapeXml(p)}</w:t>` : ""))
+        .join("");
+      return `<w:r>${rPr}${textXml}</w:r>`;
     })
     .join("");
 }
@@ -418,7 +422,7 @@ export function exportToDocx(markdownSource: string, options?: DocxExportOptions
           .filter(Boolean);
         for (const sigLine of sigLines) {
           bodyXmlElements.push(
-            `<w:p><w:pPr><w:spacing w:before="240" w:after="80"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escapeXml(sigLine)}</w:t></w:r></w:p>`,
+            `<w:p><w:pPr><w:pStyle w:val="Handsignature"/><w:spacing w:before="240" w:after="80"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escapeXml(sigLine)}</w:t></w:r></w:p>`,
           );
         }
         continue;
@@ -431,7 +435,7 @@ export function exportToDocx(markdownSource: string, options?: DocxExportOptions
           .replace(/\s*:::+$/, "")
           .trim();
         bodyXmlElements.push(
-          `<w:p><w:pPr><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapeXml(mlText)}</w:t></w:r></w:p>`,
+          `<w:p><w:pPr><w:pStyle w:val="Marginlabel"/><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapeXml(mlText)}</w:t></w:r></w:p>`,
         );
         continue;
       }
@@ -613,6 +617,26 @@ export function exportToDocx(markdownSource: string, options?: DocxExportOptions
     `      <w:spacing w:after="60"/>\n` +
     `    </w:pPr>\n` +
     `  </w:style>\n` +
+    `  <w:style w:type="paragraph" w:styleId="Handsignature">\n` +
+    `    <w:name w:val="Handsignature"/>\n` +
+    `    <w:basedOn w:val="Normal"/>\n` +
+    `    <w:pPr>\n` +
+    `      <w:spacing w:before="240" w:after="80"/>\n` +
+    `    </w:pPr>\n` +
+    `    <w:rPr>\n` +
+    `      <w:i/>\n` +
+    `    </w:rPr>\n` +
+    `  </w:style>\n` +
+    `  <w:style w:type="paragraph" w:styleId="Marginlabel">\n` +
+    `    <w:name w:val="Marginlabel"/>\n` +
+    `    <w:basedOn w:val="Normal"/>\n` +
+    `    <w:pPr>\n` +
+    `      <w:spacing w:before="120" w:after="80"/>\n` +
+    `    </w:pPr>\n` +
+    `    <w:rPr>\n` +
+    `      <w:b/>\n` +
+    `    </w:rPr>\n` +
+    `  </w:style>\n` +
     `</w:styles>`;
 
   const coreXml =
@@ -648,16 +672,67 @@ export function exportToDocx(markdownSource: string, options?: DocxExportOptions
   return zip;
 }
 
+interface ParsedParagraph {
+  text: string;
+  isPageBreak: boolean;
+  isHeading: number;
+  isList: "bullet" | "ordered" | null;
+  isHandsignature: boolean;
+  isMarginlabel: boolean;
+}
+
+function parseNumberingXml(numberingXml: string): Map<string, "bullet" | "ordered"> {
+  const map = new Map<string, "bullet" | "ordered">();
+  try {
+    const doc = parseXml(numberingXml);
+    const abstractNums = doc.getElementsByTagNameNS("*", "abstractNum");
+    const abstractNumTypes = new Map<string, "bullet" | "ordered">();
+    for (let i = 0; i < abstractNums.length; i++) {
+      const a = abstractNums[i];
+      const aId = a.getAttribute("w:abstractNumId") || a.getAttribute("abstractNumId") || "";
+      const numFmt = a.getElementsByTagNameNS("*", "numFmt")[0];
+      const val = (numFmt?.getAttribute("w:val") || numFmt?.getAttribute("val") || "").toLowerCase();
+      if (val === "bullet") {
+        abstractNumTypes.set(aId, "bullet");
+      } else {
+        abstractNumTypes.set(aId, "ordered");
+      }
+    }
+    const nums = doc.getElementsByTagNameNS("*", "num");
+    for (let i = 0; i < nums.length; i++) {
+      const n = nums[i];
+      const numId = n.getAttribute("w:numId") || n.getAttribute("numId") || "";
+      const aRef = n.getElementsByTagNameNS("*", "abstractNumId")[0];
+      const aId = aRef?.getAttribute("w:val") || aRef?.getAttribute("val") || "";
+      const type = abstractNumTypes.get(aId) || "bullet";
+      map.set(numId, type);
+    }
+  } catch {
+    // Ignore XML parsing errors
+  }
+  return map;
+}
+
 /**
  * Parses a paragraph DOM element into markdown text.
  */
-function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean; isHeading: number; isList: "bullet" | "ordered" | null } {
+function parseParagraphElement(
+  p: Element,
+  numberingMap?: Map<string, "bullet" | "ordered">,
+): ParsedParagraph {
   // Check for page break
   const brElements = p.getElementsByTagNameNS("*", "br");
   for (let b = 0; b < brElements.length; b++) {
     const brType = brElements[b].getAttribute("w:type") || brElements[b].getAttribute("type");
     if (brType === "page") {
-      return { text: "\\newpage", isPageBreak: true, isHeading: 0, isList: null };
+      return {
+        text: "\\newpage",
+        isPageBreak: true,
+        isHeading: 0,
+        isList: null,
+        isHandsignature: false,
+        isMarginlabel: false,
+      };
     }
   }
 
@@ -667,6 +742,9 @@ function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean
 
   const pStyleEl = p.getElementsByTagNameNS("*", "pStyle")[0];
   const styleVal = (pStyleEl?.getAttribute("w:val") || pStyleEl?.getAttribute("val") || "").toLowerCase();
+
+  const isHandsignature = styleVal === "handsignature";
+  const isMarginlabel = styleVal === "marginlabel";
 
   if (styleVal.includes("heading 1") || styleVal === "heading1" || styleVal === "otsikko 1" || styleVal === "otsikko1") {
     isHeading = 1;
@@ -681,8 +759,10 @@ function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean
   const numPrEl = p.getElementsByTagNameNS("*", "numPr")[0];
   if (numPrEl) {
     const numIdEl = numPrEl.getElementsByTagNameNS("*", "numId")[0];
-    const numIdVal = numIdEl?.getAttribute("w:val") || numIdEl?.getAttribute("val");
-    if (numIdVal === "2") {
+    const numIdVal = numIdEl?.getAttribute("w:val") || numIdEl?.getAttribute("val") || "";
+    if (numberingMap?.has(numIdVal)) {
+      isList = numberingMap.get(numIdVal)!;
+    } else if (numIdVal === "2") {
       isList = "ordered";
     } else {
       isList = "bullet";
@@ -711,22 +791,25 @@ function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean
       const fontName = (rFonts?.getAttribute("w:ascii") || rFonts?.getAttribute("ascii") || "").toLowerCase();
       const isCode = fontName.includes("consolas") || fontName.includes("courier") || fontName.includes("mono");
 
-      let textContent = "";
-      const tEls = el.getElementsByTagNameNS("*", "t");
-      for (let t = 0; t < tEls.length; t++) {
-        textContent += tEls[t].textContent || "";
+      let runText = "";
+      const rChildren = Array.from(el.childNodes);
+      for (const rChild of rChildren) {
+        if (rChild.nodeType !== 1) continue;
+        const rEl = rChild as Element;
+        const rName = rEl.localName || rEl.nodeName.split(":").pop();
+        if (rName === "t") {
+          runText += rEl.textContent || "";
+        } else if (rName === "br") {
+          const brType = rEl.getAttribute("w:type") || rEl.getAttribute("type");
+          if (brType !== "page") {
+            runText += "\\\n";
+          }
+        }
       }
 
-      // Handle soft line breaks inside run
-      const runBrs = el.getElementsByTagNameNS("*", "br");
-      if (runBrs.length > 0 && !textContent) {
-        runsMd += "\n";
-        continue;
-      }
+      if (!runText) continue;
 
-      if (!textContent) continue;
-
-      let formatted = textContent;
+      let formatted = runText;
 
       if (isCode) {
         formatted = `\`${formatted}\``;
@@ -735,7 +818,7 @@ function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean
           formatted = formatInline(formatted, "***");
         } else if (isBold) {
           formatted = formatInline(formatted, "**");
-        } else if (isItalic) {
+        } else if (isItalic && !isHandsignature) {
           formatted = formatInline(formatted, "*");
         }
         if (isStrike) {
@@ -758,7 +841,14 @@ function parseParagraphElement(p: Element): { text: string; isPageBreak: boolean
     }
   }
 
-  return { text: runsMd.trim(), isPageBreak: false, isHeading, isList };
+  return {
+    text: runsMd.trim(),
+    isPageBreak: false,
+    isHeading,
+    isList,
+    isHandsignature,
+    isMarginlabel,
+  };
 }
 
 function formatInline(str: string, wrapper: string): string {
@@ -869,6 +959,11 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
     }
   }
 
+  const numberingXmlBytes = unzipped["word/numbering.xml"];
+  const numberingMap = numberingXmlBytes
+    ? parseNumberingXml(strFromU8(numberingXmlBytes))
+    : new Map<string, "bullet" | "ordered">();
+
   const bodyEl = doc.getElementsByTagNameNS("*", "body")[0];
   if (!bodyEl) {
     throw new Error("Ei kelvollinen Word (.docx) -tiedosto: body-elementti puuttuu.");
@@ -878,6 +973,14 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
   const children = Array.from(bodyEl.childNodes);
 
   let orderedCounter = 1;
+  let handsignatureBuffer: string[] = [];
+
+  const flushHandsignatures = () => {
+    if (handsignatureBuffer.length > 0) {
+      bodyLines.push(`::: handsignature\n${handsignatureBuffer.join("\n")}\n:::\n`);
+      handsignatureBuffer = [];
+    }
+  };
 
   for (const node of children) {
     if (node.nodeType !== 1) continue;
@@ -885,7 +988,19 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
     const localName = el.localName || el.nodeName.split(":").pop();
 
     if (localName === "p") {
-      const parsed = parseParagraphElement(el);
+      const parsed = parseParagraphElement(el, numberingMap);
+
+      if (parsed.isHandsignature) {
+        handsignatureBuffer.push(parsed.text);
+        continue;
+      } else {
+        flushHandsignatures();
+      }
+
+      if (parsed.isMarginlabel) {
+        bodyLines.push(`::: marginlabel\n${parsed.text}\n:::\n`);
+        continue;
+      }
 
       if (parsed.isPageBreak) {
         bodyLines.push("\\newpage\n");
@@ -919,9 +1034,16 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
       }
 
       // Check if paragraph is formatted as definition list (starts with bold term and colon)
-      const defMatch = parsed.text.match(/^\*\*([^*:]+):\*\*\s+([\s\S]+)$/);
+      const defMatch = parsed.text.match(/^\*\*([^*:]+):\*\*\s*([\s\S]*)$/);
       if (defMatch) {
-        bodyLines.push(`${defMatch[1].trim()}\n:   ${defMatch[2].trim()}\n`);
+        const term = defMatch[1].trim();
+        const rawDef = defMatch[2].trim();
+        const defLines = rawDef
+          .split(/\\?\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        const formattedDef = defLines.join("\\\n    ");
+        bodyLines.push(`${term}\n:   ${formattedDef}\n`);
         orderedCounter = 1;
         continue;
       }
@@ -929,6 +1051,7 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
       bodyLines.push(`${parsed.text}\n`);
       orderedCounter = 1;
     } else if (localName === "tbl") {
+      flushHandsignatures();
       const tblMd = parseTableElement(el);
       if (tblMd) {
         bodyLines.push(`${tblMd}\n`);
@@ -936,6 +1059,8 @@ export function importFromDocx(docxBytes: Uint8Array | ArrayBuffer): string {
       orderedCounter = 1;
     }
   }
+
+  flushHandsignatures();
 
   const bodyContent = bodyLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
