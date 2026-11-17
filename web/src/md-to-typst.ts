@@ -30,7 +30,18 @@ export class ConversionError extends Error {}
 
 // Escape a run of literal text so Typst markup characters render verbatim.
 function esc(text: string): string {
-  return text.replace(/[\\#$*_`<>@~\[\]]/g, (c) => "\\" + c);
+  return text
+    .replace(/[\\#$*_`<>@~\[\]/=+.]/g, (c) => "\\" + c)
+    .replace(/(^|\s)-(?=\s|$)/g, "$1\\-");
+}
+
+function toLines(v: unknown): string[] {
+  const raw = Array.isArray(v) ? v : [v];
+  const lines = raw.flatMap((item) => String(item).split(/\r?\n/));
+  while (lines.length > 0 && lines[lines.length - 1].trim() === "") {
+    lines.pop();
+  }
+  return lines;
 }
 
 // A Typst string literal (for function arguments).
@@ -73,13 +84,13 @@ function frontmatterToArgs(meta: Record<string, unknown>, opts: ConvertOptions):
   for (const k of LIST_FIELDS) {
     const v = meta[k];
     if (v == null) continue;
-    const lines = Array.isArray(v) ? v.map(String) : [String(v)];
+    const lines = toLines(v);
     args.push(`${k}: ${content(lines.map(esc).join(" \\ "))}`);
   }
   // contact: { name, lines: [...] }
   if (meta.contact != null) {
     const c = meta.contact as Record<string, unknown>;
-    const lines = Array.isArray(c.lines) ? c.lines.map(String) : c.lines ? [String(c.lines)] : [];
+    const lines = c.lines != null ? toLines(c.lines) : [];
     args.push(`contact: (name: ${str(String(c.name ?? ""))}, lines: ${content(lines.map(esc).join(" \\ "))})`);
   }
   if (meta.keywords != null) {
