@@ -13,11 +13,12 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import { yCollab, yUndoManagerKeymap, ySyncAnnotation } from "y-codemirror.next";
 
 import type { Logo, RenderOptions } from "./preview.ts";
-import { createToaster, bytesToBase64, base64ToBytes } from "./ui.ts";
+import { createToaster, bytesToBase64, base64ToBytes, type ToastType } from "./ui.ts";
 import { getCollabUrl, getCollabWsUrl } from "./config.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
 import type { SelectionPayload } from "./share.ts";
 import { FileManager, type FileMeta, formatFileDate } from "./files.ts";
+import { exportToDocx, importFromDocx, downloadDocxFile } from "./docx.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
 export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
@@ -394,7 +395,7 @@ export function saveCollabToLocal(
   fileManager: FileManager,
   ytext: Y.Text,
   roomId: string,
-  options?: { asNewFile?: boolean; customName?: string; toast?: (msg: string) => void },
+  options?: { asNewFile?: boolean; customName?: string; toast?: (msg: string, type?: ToastType) => void },
 ): FileMeta {
   const currentText = ytext.toString();
   const toast = options?.toast ?? (() => {});
@@ -421,7 +422,7 @@ export function importLocalFileToCollab(
   fileManager: FileManager,
   ydoc: Y.Doc,
   ytext: Y.Text,
-  toast?: (msg: string) => void,
+  toast?: (msg: string, type?: ToastType) => void,
   closePanel?: () => void,
 ): void {
   const content = fileManager.getFileContent(file.id);
@@ -1054,8 +1055,22 @@ export async function initCollabEditor(roomId: string, token: string) {
     toast("Logo poistettu kaikilta muokkaajilta");
   });
 
-  // --- PDF Download Button ---
-  downloadEl.addEventListener("click", async () => {
+  downloadEl.title = "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
+  downloadEl.setAttribute("aria-label", "Lataa PDF (Alt-klikkaus: lataa Word / .docx)");
+
+  // --- PDF / Word Download Button ---
+  downloadEl.addEventListener("click", async (e: MouseEvent) => {
+    if (e.altKey || e.shiftKey) {
+      try {
+        const docxBytes = exportToDocx(ytext.toString());
+        downloadDocxFile(docxBytes, `asiakirja-${roomId}.docx`);
+        toast(`Asiakirja ladattu Word-muodossa (asiakirja-${roomId}.docx).`, "success");
+        return;
+      } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
     try {
       renderCoordinator.cancelScheduledRender();
       if (!preview.hasContent()) {
@@ -1327,7 +1342,41 @@ export async function initCollabEditor(roomId: string, token: string) {
       });
     }
 
-    filesNewEl?.addEventListener("click", () => {
+    if (filesNewEl) {
+      filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+    }
+
+    filesNewEl?.addEventListener("click", (e: MouseEvent) => {
+      if (e.altKey || e.shiftKey) {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".docx,.md,.txt";
+        input.style.display = "none";
+        input.addEventListener("change", async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          try {
+            let content = "";
+            if (file.name.endsWith(".docx")) {
+              const buf = await file.arrayBuffer();
+              content = importFromDocx(buf);
+            } else {
+              content = await file.text();
+            }
+            const baseName = file.name.replace(/\.[^.]+$/, "");
+            const newFileName = fileManager.suggestFileName(`${baseName}.md`);
+            const created = fileManager.createFile(newFileName, content);
+            toast(`Tiedosto "${created.name}" tuotu paikallisiin tiedostoihin.`, "success");
+            renderFilesList();
+          } catch (err) {
+            fail(err instanceof Error ? err.message : String(err));
+          }
+        });
+        document.body.appendChild(input);
+        input.click();
+        input.remove();
+        return;
+      }
       try {
         const created = fileManager.createFile();
         toast(`Uusi tiedosto "${created.name}" luotu.`, "success");

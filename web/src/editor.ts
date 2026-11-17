@@ -25,6 +25,7 @@ import { getCollabUrl } from "./config.ts";
 import { getActiveBranding } from "./branding.ts";
 import { TemplateManager } from "./template-manager.ts";
 import { getDocumentTemplates } from "./templates.ts";
+import { exportToDocx, importFromDocx, downloadDocxFile } from "./docx.ts";
 // The default seed document (generic Muistio template), kept so the bundle is self-contained.
 import seed from "./seed.md?raw";
 
@@ -131,6 +132,7 @@ export function initEditor() {
   // preview. The frontmatter `logo:` key is a filesystem path the browser cannot
   // read, so the logo is driven by the upload control or association default (see withoutLogo).
   let logo: { path: string; name: string; bytes: Uint8Array } | undefined;
+  let templateLogo: { path: string; name: string; bytes: Uint8Array } | undefined;
 
   function getEffectiveLogo(): { path: string; name: string; bytes: Uint8Array } | undefined {
     // 1. Explicitly cleared by user
@@ -141,7 +143,11 @@ export function initEditor() {
     if (logo) {
       return logo;
     }
-    // 3. Fallback to association/template default logo
+    // 3. The active document template's bundled SVG logo
+    if (templateLogo) {
+      return templateLogo;
+    }
+    // 4. Fallback to association default logo
     if (branding.defaultLogo && defaultLogoBytes) {
       return {
         path: branding.defaultLogo.path,
@@ -182,6 +188,10 @@ export function initEditor() {
     defaultSeed: getInitialDefaultSeed(),
   });
 
+  function templateLogoStorageKey(fileId = fileManager.getActiveFile().id): string {
+    return `sfs2487.templateLogo.${fileId}`;
+  }
+
   function logoPathFor(file: File): string {
     if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name)) return "/logo.svg";
     if (file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)) return "/logo.jpg";
@@ -198,7 +208,20 @@ export function initEditor() {
       lsRemove(STORE.logo);
     }
   }
+
+  function restoreTemplateLogo(fileId = fileManager.getActiveFile().id) {
+    const storageKey = templateLogoStorageKey(fileId);
+    const raw = lsGet(storageKey);
+    if (!raw) return;
+    try {
+      const s = JSON.parse(raw) as StoredLogo;
+      templateLogo = { path: s.path, name: s.name, bytes: base64ToBytes(s.b64) };
+    } catch {
+      lsRemove(storageKey);
+    }
+  }
   restoreLogo();
+  restoreTemplateLogo();
   showLogo();
 
   // --- live-preview sharing ("Jaa") ---
@@ -280,10 +303,11 @@ export function initEditor() {
   // The snapshot pushed to viewers: the document plus the uploaded logo bytes,
   // so a viewer reproduces the preview with the same render() pipeline.
   function snapshot(): Snapshot {
+    const effectiveLogo = getEffectiveLogo();
     return {
       markdown: editor.state.doc.toString(),
-      logo: logo
-        ? { name: logo.name, path: logo.path, b64: bytesToBase64(logo.bytes) }
+      logo: effectiveLogo
+        ? { name: effectiveLogo.name, path: effectiveLogo.path, b64: bytesToBase64(effectiveLogo.bytes) }
         : null,
     };
   }
@@ -464,7 +488,27 @@ export function initEditor() {
     broadcaster?.push(snapshot());
   }
 
-  downloadEl.addEventListener("click", async () => {
+  const updateDownloadTooltip = (mod: boolean) => {
+    downloadEl.title = mod
+      ? "Lataa Word (.docx)"
+      : "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
+  };
+  downloadEl.title = "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
+  downloadEl.setAttribute("aria-label", "Lataa PDF (Alt-klikkaus: lataa Word / .docx)");
+
+  downloadEl.addEventListener("click", async (e: MouseEvent) => {
+    if (e.altKey || e.shiftKey) {
+      try {
+        const docxBytes = exportToDocx(editor.state.doc.toString());
+        const baseName = fileManager.getActiveFile().name.replace(/\.[^.]+$/, "") || "asiakirja";
+        downloadDocxFile(docxBytes, `${baseName}.docx`);
+        toast(`Asiakirja ladattu Word-muodossa (${baseName}.docx).`, "success");
+        return;
+      } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
     try {
       const pdf = await preview.pdf();
       if (!pdf) return;
@@ -495,8 +539,10 @@ export function initEditor() {
 
   function clearLogo() {
     logo = undefined;
+    templateLogo = undefined;
     logoEl.value = "";
     lsRemove(STORE.logo);
+    lsRemove(templateLogoStorageKey());
     lsSet(STORE.logoCleared, "1");
     showLogo();
   }
@@ -732,6 +778,9 @@ export function initEditor() {
   function switchToFile(fileId: string) {
     fileManager.saveActiveContent(editor.state.doc.toString());
     const newFile = fileManager.setActiveFile(fileId);
+    templateLogo = undefined;
+    restoreTemplateLogo(fileId);
+    showLogo();
     applyFileContentToEditor(newFile.content);
     renderFilesList();
   }
@@ -790,13 +839,20 @@ export function initEditor() {
       onSelectTemplate: (template) => {
         fileManager.saveActiveContent(editor.state.doc.toString());
         const newFile = fileManager.createFile(template.defaultFileName, template.content);
-        if (template.logoSvg) {
-          const bytes = new TextEncoder().encode(template.logoSvg);
-          logo = { path: "/logo.svg", name: `${template.title} (logo.svg)`, bytes };
-          lsRemove(STORE.logoCleared);
-          lsSet(STORE.logo, JSON.stringify({ path: "/logo.svg", name: `${template.title} (logo.svg)`, b64: bytesToBase64(bytes) }));
-          showLogo();
+        templateLogo = template.logoSvg
+          ? { path: "/template-logo.svg", name: `${template.title} (logo.svg)`, bytes: new TextEncoder().encode(template.logoSvg) }
+          : undefined;
+        if (templateLogo) {
+          lsSet(templateLogoStorageKey(newFile.id), JSON.stringify({
+            path: templateLogo.path,
+            name: templateLogo.name,
+            b64: bytesToBase64(templateLogo.bytes),
+          }));
+        } else {
+          lsRemove(templateLogoStorageKey(newFile.id));
         }
+        lsRemove(STORE.logoCleared);
+        showLogo();
         applyFileContentToEditor(newFile.content);
         renderFilesList();
         closeFilesPanel();
@@ -805,10 +861,105 @@ export function initEditor() {
     });
   }
 
+  function promptImportDocxOrMd() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".docx,.md,.txt";
+    input.style.display = "none";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        fileManager.saveActiveContent(editor.state.doc.toString());
+        let content = "";
+        if (file.name.endsWith(".docx")) {
+          const buf = await file.arrayBuffer();
+          content = importFromDocx(buf);
+        } else {
+          content = await file.text();
+        }
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        const newFileName = fileManager.suggestFileName(`${baseName}.md`);
+        const newFile = fileManager.createFile(newFileName, content);
+        applyFileContentToEditor(newFile.content);
+        renderFilesList();
+        closeFilesPanel();
+        toast(`Tiedosto "${newFile.name}" tuotu onnistuneesti!`, "success");
+      } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+      }
+    });
+    document.body.appendChild(input);
+    input.click();
+    input.remove();
+  }
+
+  const updateFilesNewTooltip = (mod: boolean) => {
+    if (filesNewEl) {
+      filesNewEl.title = mod
+        ? "Tuo Word- (.docx) tai Markdown-tiedosto"
+        : "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+    }
+  };
+
+  if (filesNewEl) {
+    filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.altKey || e.shiftKey) {
+      updateDownloadTooltip(true);
+      updateFilesNewTooltip(true);
+    }
+  });
+
+  window.addEventListener("keyup", () => {
+    updateDownloadTooltip(false);
+    updateFilesNewTooltip(false);
+  });
+
+  window.addEventListener("dragover", (e) => {
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener("drop", async (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    const file = e.dataTransfer.files[0];
+    if (!file.name.endsWith(".docx") && !file.name.endsWith(".md") && !file.name.endsWith(".txt")) {
+      return;
+    }
+    e.preventDefault();
+    try {
+      fileManager.saveActiveContent(editor.state.doc.toString());
+      let content = "";
+      if (file.name.endsWith(".docx")) {
+        const buf = await file.arrayBuffer();
+        content = importFromDocx(buf);
+      } else {
+        content = await file.text();
+      }
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const newFileName = fileManager.suggestFileName(`${baseName}.md`);
+      const newFile = fileManager.createFile(newFileName, content);
+      applyFileContentToEditor(newFile.content);
+      renderFilesList();
+      closeFilesPanel();
+      toast(`Tiedosto "${newFile.name}" tuotu onnistuneesti!`, "success");
+    } catch (err) {
+      fail(err instanceof Error ? err.message : String(err));
+    }
+  });
+
   if (filesToggleEl) {
     filesToggleEl.addEventListener("click", () => toggleFilesPanel());
     filesCloseEl?.addEventListener("click", () => closeFilesPanel());
-    filesNewEl?.addEventListener("click", () => {
+    filesNewEl?.addEventListener("click", (e: MouseEvent) => {
+      if (e.altKey || e.shiftKey) {
+        promptImportDocxOrMd();
+        return;
+      }
       if (templateManager) {
         templateManager.open();
       } else {

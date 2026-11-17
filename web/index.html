@@ -3,18 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>SFS 2487:2024 – selaineditori</title>
-    <meta name="description" content="Selaimessa toimiva Markdown→PDF-editori SFS 2487:2024 -asiakirjoille." />
+    <title>Asiakirjat – SFS 2487:2024</title>
+    <meta name="description" content="Selaimessa toimiva SFS 2487:2024 -asiakirjaeditori." />
 
     <!-- Installable PWA: standalone display (no browser chrome) on the home
          screen, brand theme colour, and platform icons. -->
     <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#37474f" />
+    <meta name="theme-color" content="#05131D" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="SFS 2487" />
+    <meta name="apple-mobile-web-app-title" content="Asiakirjat" />
     <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body class="show-editor">
@@ -138,7 +138,7 @@
         <button id="share" type="button" class="iconbtn" hidden aria-pressed="false" title="Jaa asiakirja" aria-label="Jaa asiakirja">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share" /></svg>
         </button>
-        <button id="download" type="button" class="iconbtn" disabled title="Lataa PDF" aria-label="Lataa PDF">
+        <button id="download" type="button" class="iconbtn" disabled title="Lataa PDF (Alt-klikkaus: lataa Word / .docx)" aria-label="Lataa PDF (Alt-klikkaus: lataa Word / .docx)">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
         </button>
       </div>
@@ -153,7 +153,7 @@
         </button>
       </div>
       <div class="files-toolbar">
-        <button id="files-new" type="button" class="files-new-btn" title="Luo uusi tiedosto">
+        <button id="files-new" type="button" class="files-new-btn" title="Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
           <span>Uusi tiedosto</span>
         </button>
