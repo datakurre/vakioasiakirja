@@ -402,12 +402,12 @@ export function saveCollabToLocal(
     const defaultName = fileManager.suggestFileName(`yhteistyo-${roomId}.md`);
     const name = options?.customName?.trim() || defaultName;
     const created = fileManager.createFile(name, currentText);
-    toast(`Huone tallennettu uuteen tiedostoon "${created.name}"!`);
+    toast(`Huone tallennettu uuteen tiedostoon "${created.name}"!`, "success");
     return created;
   } else {
     fileManager.saveActiveContent(currentText);
     const activeFile = fileManager.getActiveFile();
-    toast(`Asiakirja kopioitu henkilökohtaiseen luonnokseesi ("${activeFile.name}")!`);
+    toast(`Asiakirja kopioitu henkilökohtaiseen luonnokseesi ("${activeFile.name}")!`, "success");
     return activeFile;
   }
 }
@@ -430,7 +430,7 @@ export function importLocalFileToCollab(
     ytext.insert(0, content);
   });
   if (toast) {
-    toast(`Tiedoston "${file.name}" sisältö tuotu huoneeseen.`);
+    toast(`Tiedoston "${file.name}" sisältö tuotu huoneeseen.`, "success");
   }
   if (closePanel) {
     closePanel();
@@ -1043,7 +1043,7 @@ export async function initCollabEditor(roomId: string, token: string) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const b64 = bytesToBase64(bytes);
       metaMap.set("logo", { name: file.name, path, b64 });
-      toast("Logo lisätty ja jaettu kaikille muokkaajille");
+      toast("Logo lisätty ja jaettu kaikille muokkaajille", "success");
     } catch (err) {
       fail("Logon lataaminen epäonnistui: " + String(err));
     }
@@ -1081,7 +1081,7 @@ export async function initCollabEditor(roomId: string, token: string) {
   copyBtn.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      toast("Muokkauslinkki kopioitu leikepöydälle!");
+      toast("Muokkauslinkki kopioitu leikepöydälle!", "success");
       const origText = copyBtn.querySelector(".collab-btn-label");
       if (origText) {
         origText.textContent = "Kopioitu!";
@@ -1330,7 +1330,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     filesNewEl?.addEventListener("click", () => {
       try {
         const created = fileManager.createFile();
-        toast(`Uusi tiedosto "${created.name}" luotu.`);
+        toast(`Uusi tiedosto "${created.name}" luotu.`, "success");
         renderFilesList();
       } catch (err) {
         fail(err instanceof Error ? err.message : String(err));

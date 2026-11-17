@@ -12,8 +12,13 @@ import {
   BUILTIN_TEMPLATES,
   getDocumentTemplates,
   getTemplateById,
+  TEMPLATE_MUISTIO,
 } from "../src/templates.ts";
 import { TemplateManager } from "../src/template-manager.ts";
+import { createToaster } from "../src/ui.ts";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 test("branding: getActiveBranding returns defaults when no override present", () => {
   const dom = new JSDOM("<!doctype html><html><head></head><body></body></html>");
@@ -195,4 +200,48 @@ test("templates: custom templates via window.__ASSOCIATION_TEMPLATES__ with cust
   const tpl = getTemplateById("custom-yhdistys-poytakirja");
   assert.ok(tpl);
   assert.equal(tpl.logoSvg, customLogoSvg);
+});
+
+test("toasts: positive events create green status toast and errors create red alert toast", () => {
+  const dom = new JSDOM("<!doctype html><html><body><div id='toasts'></div></body></html>");
+  (global as any).window = dom.window;
+  (global as any).document = dom.window.document;
+
+  const toastsEl = dom.window.document.getElementById("toasts")!;
+  const toast = createToaster(toastsEl);
+
+  // 1. Positive message with auto-detection (creation of new document/page)
+  toast('Asiakirja pohjasta "Muistio" luotu.');
+  const toast1 = toastsEl.children[0] as HTMLElement;
+  assert.ok(toast1.classList.contains("toast-success"));
+  assert.equal(toast1.getAttribute("role"), "status");
+
+  // 2. Explicit success toast
+  toast("Tiedosto tallennettu onnistuneesti!", "success");
+  const toast2 = toastsEl.children[1] as HTMLElement;
+  assert.ok(toast2.classList.contains("toast-success"));
+  assert.equal(toast2.getAttribute("role"), "status");
+
+  // 3. Error toast
+  toast("Kääntäminen epäonnistui: virhe rivillä 12");
+  const toast3 = toastsEl.children[2] as HTMLElement;
+  assert.ok(toast3.classList.contains("toast-error"));
+  assert.equal(toast3.getAttribute("role"), "alert");
+});
+
+test("seed.md and TEMPLATE_MUISTIO provide generic anonymous Muistio template", () => {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const seedContent = readFileSync(resolve(currentDir, "../src/seed.md"), "utf-8");
+
+  // Verify seed is a generic Muistio template
+  assert.ok(seedContent.includes("doctype: Muistio"));
+  assert.ok(seedContent.includes("title: Muistio"));
+  assert.ok(seedContent.includes("Etunimi Sukunimi"));
+  assert.ok(!seedContent.includes("Virve Virtanen"));
+  assert.ok(!seedContent.includes("Marja Mäkinen"));
+
+  // Verify TEMPLATE_MUISTIO is generic and anonymous
+  assert.ok(TEMPLATE_MUISTIO.includes("doctype: Muistio"));
+  assert.ok(TEMPLATE_MUISTIO.includes("Etunimi Sukunimi"));
+  assert.ok(!TEMPLATE_MUISTIO.includes("Virve Virtanen"));
 });

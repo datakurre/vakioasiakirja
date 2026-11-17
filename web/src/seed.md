@@ -1,64 +1,39 @@
 ---
-# Markdown-versio ../latex/esimerkki-poytakirja.tex-asiakirjasta: sama
-# sisältö kirjoitettuna pandocin YAML-metatietoina ja markdown-merkintöinä.
-doctype: Pöytäkirja
-date: 15.5.2024
-author: Virve Virtanen
-confidentiality: Luottamuksellinen
-subject: Digiprojekti
-title: Asiakaspalautteet ja etusivun uudistaminen
-logo: ../logo-organisaatio.pdf
+doctype: Muistio
+date: PP.KK.VVVV
+author: Etunimi Sukunimi
+subject: Muistion aihe tai asia
+title: Muistio
+features: [no-endmatter-newpage]
 contact:
-  name: Organisaatio Oy
+  name: Organisaatio
   lines:
-    - Katuosoite
-    - Postinumero Postitoimipaikka
-    - Puhelinnumero
-    - www-osoite
-    - Y-tunnus
-attachments:
-  - Yhteenveto asiakaspalautteesta
-  - Ehdotus etusivulle tehtävistä muutoksista
-distribution:
-  - Digiprojektin ohjausryhmä
-forinformation:
-  - Johtoryhmä
+    - Katuosoite 1
+    - 00100 Helsinki
+    - info@organisaatio.fi
 ---
 
 Aika ja paikka
-:   13.5.2024 klo 12.30--13.45\
-    Verkkokokous
+:   PP.KK.VVVV klo TT.MM\
+    Kokouspaikka / etäyhteys
 
 Osallistujat
-:   Marja Mäkinen, puheenjohtaja\
-    Niilo Nieminen\
-    Lasse Lahtinen\
-    Virve Virtanen, sihteeri
+:   Etunimi Sukunimi\
+    Etunimi Sukunimi\
+    Etunimi Sukunimi
 
-# Kokouksen avaus
+# Käsitellyt asiat
 
-Puheenjohtaja avasi kokouksen ja toivotti kaikki tervetulleiksi.
+[Kirjaa tähän käsitellyt asiat, tausta ja keskeiset havainnot.]
 
-# Asiakaspalautteen läpikäynti ja tehtävät muutokset
+# [Muu käsiteltävä asia]
 
-Käytiin läpi yhteenveto asiakaspalautteesta (liite 1). Päätettiin, että
-tuotehinnasto päivitetään kaksi kertaa kuukaudessa.
+[Kirjaa tähän seuraava käsiteltävä asia tai huomio.]
 
-# Etusivun uudistaminen
+# Sovitut toimenpiteet ja vastuut
 
-Hyväksyttiin viestintäosaston sihteerin ehdotus (liite 2) tehtävistä
-muutoksista sillä lisäyksellä, että yhteystiedot näkyvät heti etusivulla.
-Päätettiin, että puheenjohtaja esittelee tehtävät muutokset johdolle.
+[Kirjaa tähän sovitut jatkotoimenpiteet, vastuuhenkilöt ja määräajat.]
 
-# Seuraavat kokoukset
-
-- 20.5.2024 toimituksen kokoustilassa
-- 27.5.2024 verkossa
-- 10.6.2024 toimituksen kokoustilassa.
-
-# Allekirjoitukset (esimerkki sähköisestä allekirjoituksesta)
-
-::: esignatures
-- Marja Mäkinen, puheenjohtaja <marja.makinen@yritys.fi>
-- Virve Virtanen, sihteeri <virve.virtanen@yritys.fi>
+::: handsignature
+Etunimi Sukunimi, rooli
 :::

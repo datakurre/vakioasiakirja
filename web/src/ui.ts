@@ -30,16 +30,26 @@ export function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
-// Errors land in a transient bottom-right toast instead of the status bar:
+// Errors and status updates land in a transient bottom-right toast instead of the status bar:
 // compiler and connection messages can be long and multi-line, and inlining
-// them would reflow the bar. The toast is role="alert" (announced) and
-// dismissable by mouse, its close button, or Escape. Returns a `toast(message)`
-// bound to the given container.
-export function createToaster(toastsEl: HTMLElement): (message: string) => void {
-  return function toast(message: string) {
+// them would reflow the bar. The toast is dismissable by mouse, its close button, or Escape.
+// Returns a `toast(message, type?)` bound to the given container.
+export type ToastType = "error" | "success" | "info" | "warning";
+
+export function createToaster(toastsEl: HTMLElement): (message: string, type?: ToastType) => void {
+  return function toast(message: string, type?: ToastType) {
+    let resolvedType = type;
+    if (!resolvedType) {
+      if (/luotu|kopioitu|tallennettu|tuotu|onnistui|lisätty/i.test(message) && !/epäonnistui/i.test(message)) {
+        resolvedType = "success";
+      } else {
+        resolvedType = "error";
+      }
+    }
+
     const el = document.createElement("div");
-    el.className = "toast";
-    el.setAttribute("role", "alert");
+    el.className = `toast toast-${resolvedType}`;
+    el.setAttribute("role", resolvedType === "error" ? "alert" : "status");
 
     const msg = document.createElement("div");
     msg.className = "toast-message";

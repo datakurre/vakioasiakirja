@@ -196,31 +196,43 @@ Tulevan vuoden painopisteenä on palveluiden saavutettavuuden ja laadun jatkuva 
 
 export const TEMPLATE_MUISTIO = `---
 doctype: Muistio
-date: 15.5.2024
-author: Virve Virtanen
-subject: Sisäinen tiedote
-title: Toimitilauudistuksen aikataulu ja ohjeet
+date: PP.KK.VVVV
+author: Etunimi Sukunimi
+subject: Muistion aihe tai asia
+title: Muistio
+features: [no-endmatter-newpage]
 contact:
-  name: Organisaatio Oy
+  name: Organisaatio
   lines:
     - Katuosoite 1
     - 00100 Helsinki
+    - info@organisaatio.fi
 ---
 
-# 1. Tausta ja tavoite
+Aika ja paikka
+:   PP.KK.VVVV klo TT.MM\\
+    Kokouspaikka / etäyhteys
 
-Toimistomme tiloja uudistetaan ergonomian ja yhteistyötilojen parantamiseksi.
-Muutostyöt alkavat kesäkuussa.
+Osallistujat
+:   Etunimi Sukunimi\\
+    Etunimi Sukunimi\\
+    Etunimi Sukunimi
 
-# 2. Aikataulu
+# Käsitellyt asiat
 
-- 1.6. Valmistelut ja tavaroiden pakkaus
-- 15.6.--30.6. Pintaremontti ja kalusteasennukset
-- 1.7. Uusien tilojen käyttöönotto
+[Kirjaa tähän käsitellyt asiat, tausta ja keskeiset havainnot.]
 
-# 3. Toimintaohjeet henkilöstölle
+# [Muu käsiteltävä asia]
 
-Kaikkia pyydetään siivoamaan työpisteensä ennen toukokuun loppua.
+[Kirjaa tähän seuraava käsiteltävä asia tai huomio.]
+
+# Sovitut toimenpiteet ja vastuut
+
+[Kirjaa tähän sovitut jatkotoimenpiteet, vastuuhenkilöt ja määräajat.]
+
+::: handsignature
+Etunimi Sukunimi, rooli
+:::
 `;
 
 export const TEMPLATE_TYHJA = `---

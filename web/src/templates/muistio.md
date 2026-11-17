@@ -1,50 +1,39 @@
 ---
-# Markdown-versio ../latex/esimerkki-muistio.tex-asiakirjasta: muistio
-# tiiviillä, sisennetyllä kappaletyylillä. Ominaisuus "features: [no-gap]"
-# erottaa peräkkäiset kappaleet ensimmäisen rivin sisennyksellä kappalevälin
-# sijaan (oletustyylissä kappaleet erotetaan kappalevälillä, 6.4.3).
 doctype: Muistio
-date: 3.6.2024
-author: Sari Salonen
-subject: Henkilöstöhallinto
-title: Etätyökäytäntöjen päivitys
-logo: ../logo-organisaatio.pdf
+date: PP.KK.VVVV
+author: Etunimi Sukunimi
+subject: Muistion aihe tai asia
+title: Muistio
+features: [no-endmatter-newpage]
 contact:
-  name: Organisaatio Oy
+  name: Organisaatio
   lines:
-    - Katuosoite
-    - Postinumero Postitoimipaikka
-    - hr@organisaatio.fi
-forinformation:
-  - Johtoryhmä
-features: [no-gap, no-endmatter-newpage]
+    - Katuosoite 1
+    - 00100 Helsinki
+    - info@organisaatio.fi
 ---
 
-Vastaanottajat
-:   Esihenkilöt ja henkilöstö
+Aika ja paikka
+:   PP.KK.VVVV klo TT.MM\
+    Kokouspaikka / etäyhteys
 
-# Taustaa
+Osallistujat
+:   Etunimi Sukunimi\
+    Etunimi Sukunimi\
+    Etunimi Sukunimi
 
-Nykyiset etätyökäytännöt laadittiin poikkeusolojen aikana, ja ne ovat
-olleet voimassa muuttumattomina kahden vuoden ajan. Käytäntöjen
-toimivuudesta on kertynyt runsaasti kokemusta sekä esihenkilöiltä että
-henkilöstöltä.
+# Käsitellyt asiat
 
-Saadun palautteen perusteella käytännöt kaipaavat täsmennyksiä erityisesti
-läsnäolon ja tavoitettavuuden osalta. Tähän muistioon on koottu keskeiset
-muutosehdotukset jatkokäsittelyä varten.
+[Kirjaa tähän käsitellyt asiat, tausta ja keskeiset havainnot.]
 
-# Ehdotetut muutokset
+# [Muu käsiteltävä asia]
 
-Etätyötä voi jatkossa tehdä enintään kolmena päivänä viikossa. Vähintään
-kaksi päivää tehdään lähtökohtaisesti työpaikalla, jotta tiimien yhteistyö
-ja uusien työntekijöiden perehdytys säilyvät sujuvina.
+[Kirjaa tähän seuraava käsiteltävä asia tai huomio.]
 
-Yhteiset kokouspäivät sovitaan tiimeittäin, ja niistä ilmoitetaan
-kalenterissa hyvissä ajoin. Tavoitettavuus työaikana koskee yhtä lailla
-etä- ja lähityötä.
+# Sovitut toimenpiteet ja vastuut
 
-# Aikataulu
+[Kirjaa tähän sovitut jatkotoimenpiteet, vastuuhenkilöt ja määräajat.]
 
-Päivitetyt käytännöt otetaan käyttöön seuraavan vuosineljänneksen alusta.
-Esihenkilöt käyvät muutokset läpi tiimeissään ennen niiden voimaantuloa.
+::: handsignature
+Etunimi Sukunimi, rooli
+:::

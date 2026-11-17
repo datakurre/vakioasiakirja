@@ -487,6 +487,22 @@ body.keyboard #vim-mode:not([hidden]) {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
+.toast.toast-success {
+  background: #2e7d32;
+}
+
+.toast.toast-warning {
+  background: #e65100;
+}
+
+.toast.toast-info {
+  background: #1565c0;
+}
+
+.toast.toast-error {
+  background: #b71c1c;
+}
+
 .toast-message {
   white-space: pre-wrap;
   max-height: 40vh;
