@@ -1343,7 +1343,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     }
 
     if (filesNewEl) {
-      filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+      filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
     }
 
     filesNewEl?.addEventListener("click", (e: MouseEvent) => {
@@ -1363,11 +1363,12 @@ export async function initCollabEditor(roomId: string, token: string) {
             } else {
               content = await file.text();
             }
-            const baseName = file.name.replace(/\.[^.]+$/, "");
-            const newFileName = fileManager.suggestFileName(`${baseName}.md`);
-            const created = fileManager.createFile(newFileName, content);
-            toast(`Tiedosto "${created.name}" tuotu paikallisiin tiedostoihin.`, "success");
-            renderFilesList();
+            ydoc.transact(() => {
+              ytext.delete(0, ytext.length);
+              ytext.insert(0, content);
+            });
+            toast(`Avoimen asiakirjan sisältö korvattu tiedostolla "${file.name}"!`, "success");
+            closeFilesPanel();
           } catch (err) {
             fail(err instanceof Error ? err.message : String(err));
           }

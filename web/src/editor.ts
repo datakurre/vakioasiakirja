@@ -870,7 +870,6 @@ export function initEditor() {
       const file = input.files?.[0];
       if (!file) return;
       try {
-        fileManager.saveActiveContent(editor.state.doc.toString());
         let content = "";
         if (file.name.endsWith(".docx")) {
           const buf = await file.arrayBuffer();
@@ -878,13 +877,11 @@ export function initEditor() {
         } else {
           content = await file.text();
         }
-        const baseName = file.name.replace(/\.[^.]+$/, "");
-        const newFileName = fileManager.suggestFileName(`${baseName}.md`);
-        const newFile = fileManager.createFile(newFileName, content);
-        applyFileContentToEditor(newFile.content);
+        applyFileContentToEditor(content);
+        fileManager.saveActiveContent(content);
         renderFilesList();
         closeFilesPanel();
-        toast(`Tiedosto "${newFile.name}" tuotu onnistuneesti!`, "success");
+        toast(`Avoimen asiakirjan sisältö korvattu tiedostolla "${file.name}"!`, "success");
       } catch (err) {
         fail(err instanceof Error ? err.message : String(err));
       }
@@ -897,13 +894,13 @@ export function initEditor() {
   const updateFilesNewTooltip = (mod: boolean) => {
     if (filesNewEl) {
       filesNewEl.title = mod
-        ? "Tuo Word- (.docx) tai Markdown-tiedosto"
-        : "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+        ? "Korvaa avoin asiakirja Word- (.docx) tai Markdown-tiedostolla"
+        : "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
     }
   };
 
   if (filesNewEl) {
-    filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: tuo Word- tai Markdown-tiedosto)";
+    filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
   }
 
   window.addEventListener("keydown", (e) => {
