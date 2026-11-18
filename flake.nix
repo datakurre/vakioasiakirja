@@ -37,7 +37,7 @@
         web = pkgs.buildNpmPackage {
           name = "sfs-2487-2024-web-editor";
           src = ./web;
-          npmDepsHash = "sha256-V8ar4FqexooHEnuyS0d+DV/AmTMzjA/CICaLG6YOaHI=";
+          npmDepsHash = "sha256-YaSp6IBiAjn6Od3ljqi7AIjOmCR+9RZ2lr5FUwqphnY=";
           VITE_BASE = "./";
           # Base URL of the WebRTC signaling Worker (see signaling/) that powers
           # live-preview sharing. Empty by default, which hides the "Jaa" button
