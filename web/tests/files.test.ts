@@ -210,3 +210,48 @@ test("createSafeStorage: gracefully falls back to memory if storage throws", () 
   safe.removeItem("testKey");
   assert.equal(safe.getItem("testKey"), null);
 });
+
+test("FileManager: saveActiveContentDebounced and flush persistence", async () => {
+  const storage = createMemoryStorage();
+  const fm = new FileManager({ storage, defaultSeed: "Alku" });
+  const activeId = fm.getActiveFileId();
+
+  fm.saveActiveContentDebounced("Päivitys luonnokseen", 50);
+  // Synchronous check: should NOT yet be written in storage
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Alku"
+  );
+
+  // Explicit flush writes immediately
+  fm.flush();
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Päivitys luonnokseen"
+  );
+
+  // Debounce with timer
+  fm.saveActiveContentDebounced("Toinen muokkaus", 20);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Toinen muokkaus"
+  );
+});
+
+test("FileManager: switching active file flushes pending debounced save", () => {
+  const storage = createMemoryStorage();
+  const fm = new FileManager({ storage, defaultSeed: "Alku" });
+  const file1 = fm.getActiveFile();
+  const file2 = fm.createFile("toinen.md", "Sisältö 2");
+
+  fm.setActiveFile(file1.id);
+  fm.saveActiveContentDebounced("Kirjoitetaan tiedostoon 1...", 500);
+
+  // Switch to file2: should flush file1 edits before changing
+  fm.setActiveFile(file2.id);
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + file1.id),
+    "Kirjoitetaan tiedostoon 1..."
+  );
+});

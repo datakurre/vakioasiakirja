@@ -15,6 +15,7 @@ import { markdownToTypst, ConversionError } from "./md-to-typst.ts";
 import templateSource from "./sfs-2487-2024.typ?raw";
 import { HighlightTracker } from "./highlight.ts";
 import { createPagePulseTracker, type PagePulseTracker } from "./pulse.ts";
+import type { WorkerRequest, WorkerResponse } from "./typst-worker-types.ts";
 
 export { createPagePulseTracker, type PagePulseTracker };
 
@@ -25,18 +26,19 @@ const FONTS = [
   "cursor-regular", "cursor-bold", "cursor-italic", "cursor-bolditalic",
 ].map((n) => `${base}fonts/texgyre${n}.otf`);
 
-let typstInited = false;
-// Initialise typst.ts once per page. `assets: false` keeps typst.ts from
-// fetching its default fonts off a CDN (jsdelivr): the editor ships only the
-// bundled TeX Gyre faces and stays fully offline / self-contained.
-function initTypst() {
-  if (typstInited) return;
+let inThreadTypstInited = false;
+let inThreadTemplateAdded = false;
+let inThreadCurrentTypst = "";
+let inThreadCurrentLogoPath: string | undefined;
+
+function initInThreadTypst() {
+  if (inThreadTypstInited) return;
   $typst.setCompilerInitOptions({
     getModule: () => compilerWasmUrl,
     beforeBuild: [preloadRemoteFonts(FONTS, { assets: false })],
   });
   $typst.setRendererInitOptions({ getModule: () => rendererWasmUrl });
-  typstInited = true;
+  inThreadTypstInited = true;
 }
 
 // An uploaded/received logo image, mapped into the typst.ts shadow filesystem.
@@ -55,6 +57,7 @@ export interface PreviewElements {
   fitHeightEl: HTMLButtonElement;
   twoUpEl: HTMLButtonElement;
   zoomLevelEl: HTMLElement;
+  autoscrollEl?: HTMLButtonElement;
 }
 
 export interface PreviewCallbacks {
@@ -66,6 +69,8 @@ export interface PreviewCallbacks {
   viewStorageKey?: string;
   // Optional highlight tracker instance override.
   highlightTracker?: HighlightTracker;
+  // Optional worker bridge override (e.g. for testing).
+  bridge?: TypstWorkerBridge;
 }
 
 export interface RenderOptions {
@@ -83,9 +88,195 @@ export interface Preview {
   flashControls(): void;
   // Reset cached page SVGs for pulse detection.
   resetPulse?(): void;
+  // Optional cleanup of resources
+  destroy?(): void;
 }
 
+export class TypstWorkerBridge {
+  private worker: Worker | null = null;
+  private pendingRequests = new Map<
+    number,
+    {
+      resolve: (res: any) => void;
+      reject: (err: any) => void;
+    }
+  >();
+  private nextRequestId = 0;
+  private fallbackInThread = false;
 
+  constructor() {
+    this.initWorker();
+  }
+
+  private initWorker() {
+    // If Worker global is unavailable or running in a Node.js test environment, fallback in-thread
+    if (
+      typeof Worker === "undefined" ||
+      (typeof process !== "undefined" && process.versions?.node && typeof window === "undefined")
+    ) {
+      this.fallbackInThread = true;
+      return;
+    }
+
+    try {
+      this.worker = new Worker(
+        new URL("./typst.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+
+      this.worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+        const msg = e.data;
+        if (!msg || typeof msg.id !== "number") return;
+        const pending = this.pendingRequests.get(msg.id);
+        if (pending) {
+          this.pendingRequests.delete(msg.id);
+          pending.resolve(msg);
+        }
+      };
+
+      this.worker.onerror = (err) => {
+        console.warn("TypstWorker error, falling back to in-thread:", err);
+        this.fallbackInThread = true;
+        for (const [, pending] of this.pendingRequests) {
+          pending.reject(err);
+        }
+        this.pendingRequests.clear();
+        this.worker?.terminate();
+        this.worker = null;
+      };
+    } catch (err) {
+      console.warn("TypstWorker initialization failed, using in-thread fallback:", err);
+      this.fallbackInThread = true;
+      this.worker = null;
+    }
+  }
+
+  get isFallback(): boolean {
+    return this.fallbackInThread;
+  }
+
+  async render(md: string, logo?: Logo): Promise<{ svg: string }>;
+  async render(id: number, md: string, logo?: Logo): Promise<{ svg: string }>;
+  async render(arg1: number | string, arg2?: string | Logo, arg3?: Logo): Promise<{ svg: string }> {
+    let md: string;
+    let logo: Logo | undefined;
+    if (typeof arg1 === "number") {
+      md = arg2 as string;
+      logo = arg3;
+    } else {
+      md = arg1;
+      logo = arg2 as Logo | undefined;
+    }
+
+    if (this.fallbackInThread || !this.worker) {
+      return this.renderInThread(md, logo);
+    }
+
+    const reqId = ++this.nextRequestId;
+    return new Promise<{ svg: string }>((resolve, reject) => {
+      this.pendingRequests.set(reqId, {
+        resolve: (res: WorkerResponse) => {
+          if (res.type === "render_success") {
+            resolve({ svg: res.svg });
+          } else if (res.type === "render_error") {
+            const err = res.isConversionError
+              ? new ConversionError(res.error)
+              : new Error(res.error);
+            reject(err);
+          } else {
+            reject(new Error(`Unexpected worker response type: ${res.type}`));
+          }
+        },
+        reject,
+      });
+
+      try {
+        const req: WorkerRequest = {
+          id: reqId,
+          type: "render",
+          md,
+          logo: logo ? { path: logo.path, bytes: logo.bytes } : undefined,
+        };
+        this.worker!.postMessage(req);
+      } catch (postErr) {
+        this.pendingRequests.delete(reqId);
+        console.warn("Worker postMessage failed, falling back to in-thread:", postErr);
+        this.fallbackInThread = true;
+        this.renderInThread(md, logo).then(resolve, reject);
+      }
+    });
+  }
+
+  async pdf(): Promise<Uint8Array | undefined> {
+    if (this.fallbackInThread || !this.worker) {
+      return this.pdfInThread();
+    }
+
+    const id = ++this.nextRequestId;
+    return new Promise<Uint8Array | undefined>((resolve, reject) => {
+      this.pendingRequests.set(id, {
+        resolve: (res: WorkerResponse) => {
+          if (res.type === "pdf_success") {
+            resolve(res.pdf);
+          } else if (res.type === "pdf_error") {
+            reject(new Error(res.error));
+          } else {
+            reject(new Error(`Unexpected worker response type: ${res.type}`));
+          }
+        },
+        reject,
+      });
+
+      try {
+        const req: WorkerRequest = { id, type: "pdf" };
+        this.worker!.postMessage(req);
+      } catch (postErr) {
+        this.pendingRequests.delete(id);
+        console.warn("Worker postMessage failed for PDF, falling back to in-thread:", postErr);
+        this.fallbackInThread = true;
+        this.pdfInThread().then(resolve, reject);
+      }
+    });
+  }
+
+  private async renderInThread(md: string, logo?: Logo): Promise<{ svg: string }> {
+    initInThreadTypst();
+    const typst = markdownToTypst(md, { logoPath: logo?.path });
+    if (!inThreadTemplateAdded) {
+      await $typst.addSource("/sfs-2487-2024.typ", templateSource);
+      inThreadTemplateAdded = true;
+    }
+    if (inThreadCurrentLogoPath && (!logo || inThreadCurrentLogoPath !== logo.path)) {
+      try {
+        await $typst.unmapShadow(inThreadCurrentLogoPath);
+      } catch {
+        /* ignore */
+      }
+      inThreadCurrentLogoPath = undefined;
+    }
+    if (logo) {
+      await $typst.mapShadow(logo.path, logo.bytes);
+      inThreadCurrentLogoPath = logo.path;
+    }
+    const svg = await $typst.svg({ mainContent: typst });
+    inThreadCurrentTypst = typst;
+    return { svg };
+  }
+
+  private async pdfInThread(): Promise<Uint8Array | undefined> {
+    initInThreadTypst();
+    if (!inThreadCurrentTypst) return undefined;
+    return (await $typst.pdf({ mainContent: inThreadCurrentTypst })) as Uint8Array | undefined;
+  }
+
+  destroy(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.pendingRequests.clear();
+  }
+}
 
 interface ViewPrefs {
   zoom: number; // explicit scale when fit === "none" (1 = natural pt → px)
@@ -115,15 +306,14 @@ function lsSet(key: string, value: string) {
 }
 
 export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Preview {
-  initTypst();
+  const bridge = cb.bridge ?? new TypstWorkerBridge();
 
   const highlightTracker = cb.highlightTracker ?? new HighlightTracker();
   const setBusy = (busy: boolean) => els.previewEl.setAttribute("aria-busy", String(busy));
 
-  let templateAdded = false;
-  let currentTypst = "";
   let rendered = false;
   let nextRenderSeq = 0;
+  let latestAppliedSeq = 0;
   const pulseTracker = createPagePulseTracker();
 
   let view: ViewPrefs = { zoom: 1, fit: "width", twoUp: false };
@@ -227,37 +417,22 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
 
   async function render(md: string, logo?: Logo, options?: RenderOptions) {
     const currentSeq = ++nextRenderSeq;
-    let typst: string;
-    try {
-      typst = markdownToTypst(md, { logoPath: logo?.path });
-    } catch (e) {
-      if (currentSeq !== nextRenderSeq) return;
-      setBusy(false);
-      cb.fail(e instanceof ConversionError ? e.message : String(e));
-      return;
-    }
     cb.setStatus("kääntää…");
     setBusy(true);
+
     try {
-      if (!templateAdded) {
-        await $typst.addSource("/sfs-2487-2024.typ", templateSource);
-        templateAdded = true;
-      }
-      // Re-map the logo each render: cheap, and keeps the VFS in sync after a
-      // change or removal.
-      if (logo) await $typst.mapShadow(logo.path, logo.bytes);
-      const svg = await $typst.svg({ mainContent: typst });
-      if (currentSeq !== nextRenderSeq) return;
-      currentTypst = typst;
+      const { svg } = await bridge.render(currentSeq, md, logo);
+      if (currentSeq !== nextRenderSeq || currentSeq <= latestAppliedSeq) return;
+      latestAppliedSeq = currentSeq;
       showPages(svg, options?.liveEdit ?? false);
       rendered = true;
       cb.setStatus("käännetty");
       setBusy(false);
       cb.onRendered?.();
-    } catch (e) {
-      if (currentSeq !== nextRenderSeq) return;
+    } catch (e: any) {
+      if (currentSeq !== nextRenderSeq || currentSeq <= latestAppliedSeq) return;
       setBusy(false);
-      cb.fail(String(e));
+      cb.fail(e instanceof ConversionError ? e.message : (e?.message || String(e)));
     }
   }
 
@@ -304,7 +479,8 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     resetPulse: () => pulseTracker.reset(),
     pdf: async () => {
       if (!rendered) return undefined;
-      return (await $typst.pdf({ mainContent: currentTypst })) as Uint8Array | undefined;
+      return bridge.pdf();
     },
+    destroy: () => bridge.destroy(),
   };
 }

@@ -302,3 +302,19 @@ test("share panel: interaction state transitions and mutual exclusivity", () => 
   assert.equal(sharePanelHidden, true, "Opening files panel must close share panel");
   assert.equal(filesPanelHidden, false);
 });
+
+test("preview controls: autoscroll button and sprite structure in index.html", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const htmlPath = path.resolve(import.meta.dirname, "../index.html");
+  const html = fs.readFileSync(htmlPath, "utf-8");
+
+  assert.ok(html.includes('<symbol id="i-autoscroll"'), "Icon sprite contains i-autoscroll symbol");
+  assert.ok(html.includes('class="sprites"'), "SVG icon container has class 'sprites'");
+  assert.ok(html.includes('<button id="autoscroll"'), "Preview controls contains autoscroll button");
+
+  // Check that autoscroll is before zoom-out
+  const autoscrollIndex = html.indexOf('id="autoscroll"');
+  const zoomOutIndex = html.indexOf('id="zoom-out"');
+  assert.ok(autoscrollIndex > 0 && zoomOutIndex > autoscrollIndex, "autoscroll button is placed before zoom-out");
+});

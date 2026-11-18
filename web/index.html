@@ -21,7 +21,10 @@
     <!-- Icon sprite: stroke icons drawn with currentColor, referenced by <use>.
          Hidden from layout and the accessibility tree (each button carries its
          own aria-label, and the icons are aria-hidden). -->
-    <svg width="0" height="0" aria-hidden="true" style="position: absolute" focusable="false">
+    <svg width="0" height="0" class="sprites" aria-hidden="true" style="position: absolute" focusable="false">
+      <symbol id="i-autoscroll" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4" />
+      </symbol>
       <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
       </symbol>
@@ -81,6 +84,9 @@
         <!-- Floating controls over the bottom-right of the preview; they fade in
              on hover/focus/activity and fade out otherwise (see src/preview.ts). -->
         <div id="preview-controls" role="toolbar" aria-label="Esikatselun hallinta">
+          <button id="autoscroll" type="button" class="iconbtn" title="Automaattinen vieritys (päällä)" aria-label="Automaattinen vieritys" aria-pressed="true">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-autoscroll" /></svg>
+          </button>
           <button id="zoom-out" type="button" class="iconbtn" title="Loitonna" aria-label="Loitonna">
             <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-out" /></svg>
           </button>
@@ -132,13 +138,13 @@
         <button id="files-toggle" type="button" class="iconbtn" aria-expanded="false" aria-controls="files-panel" title="Tiedostot" aria-label="Tiedostot">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder" /></svg>
         </button>
-        <button id="reset" type="button" class="iconbtn" title="Uusi esimerkki" aria-label="Uusi esimerkki">
+        <button id="reset" type="button" class="iconbtn" title="Uusi asiakirja" aria-label="Uusi asiakirja">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-new" /></svg>
         </button>
         <button id="share" type="button" class="iconbtn" hidden aria-pressed="false" title="Jaa asiakirja" aria-label="Jaa asiakirja">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-share" /></svg>
         </button>
-        <button id="download" type="button" class="iconbtn" disabled title="Lataa PDF (Alt-klikkaus: lataa Word / .docx)" aria-label="Lataa PDF (Alt-klikkaus: lataa Word / .docx)">
+        <button id="download" type="button" class="iconbtn" disabled title="Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]" aria-label="Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
         </button>
       </div>
@@ -238,13 +244,60 @@
       <div class="template-dialog-inner">
         <div class="template-dialog-header">
           <h2 id="template-dialog-title" class="template-dialog-title">Valitse asiakirjapohja</h2>
-          <button id="template-dialog-close" type="button" class="iconbtn" title="Sulje valikko" aria-label="Sulje valikko">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
-          </button>
+          <div class="template-dialog-header-actions">
+            <button id="template-dialog-replace" type="button" class="textbtn secondary" title="Korvaa avoin asiakirja Word- tai Markdown-tiedostolla">Korvaa…</button>
+            <button id="template-dialog-close" type="button" class="iconbtn" title="Sulje valikko" aria-label="Sulje valikko">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+            </button>
+          </div>
         </div>
         <div id="template-dialog-grid" class="template-grid" role="list"></div>
         <div class="template-dialog-actions">
           <button id="template-dialog-cancel" type="button" class="textbtn secondary">Peruuta</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Document download format selection dialog (Ctrl+Shift+S) -->
+    <dialog id="download-dialog" class="share-dialog download-dialog" aria-labelledby="download-dialog-title">
+      <div class="share-dialog-inner">
+        <header class="share-dialog-header">
+          <div class="share-dialog-title-group">
+            <svg class="icon share-dialog-title-icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg>
+            <h2 id="download-dialog-title" class="share-dialog-title">Lataa asiakirja</h2>
+          </div>
+          <button id="download-dialog-close" type="button" class="iconbtn share-dialog-close" title="Sulje" aria-label="Sulje">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <div class="download-dialog-body">
+          <p class="share-card-desc">Valitse tiedostomuoto ladattavaksi:</p>
+          <div class="download-format-list">
+            <button id="download-format-pdf" type="button" class="download-format-btn">
+              <span class="download-format-badge badge-pdf">PDF</span>
+              <div class="download-format-info">
+                <strong>PDF-asiakirja (.pdf)</strong>
+                <span>Valmis tuloste ja arkistointikelpoinen asiakirja</span>
+              </div>
+            </button>
+            <button id="download-format-docx" type="button" class="download-format-btn">
+              <span class="download-format-badge badge-docx">DOCX</span>
+              <div class="download-format-info">
+                <strong>Word-asiakirja (.docx)</strong>
+                <span>Muokattava Word-tekstinkäsittelytiedosto</span>
+              </div>
+            </button>
+            <button id="download-format-md" type="button" class="download-format-btn">
+              <span class="download-format-badge badge-md">MD</span>
+              <div class="download-format-info">
+                <strong>Markdown (.md)</strong>
+                <span>Lähdeteksti tekstimuotoisena</span>
+              </div>
+            </button>
+          </div>
+        </div>
+        <div class="share-dialog-footer">
+          <button id="download-dialog-cancel" type="button" class="textbtn secondary">Peruuta</button>
         </div>
       </div>
     </dialog>

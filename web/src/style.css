@@ -476,11 +476,11 @@ body.keyboard #vim-mode:not([hidden]) {
 .toast {
   pointer-events: auto;
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.6rem;
   background: #b71c1c;
   color: #fff;
-  padding: 0.6rem 0.7rem;
+  padding: 0.5rem 0.65rem 0.5rem 0.85rem;
   border-radius: 0.3rem;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   font-size: 0.8rem;
@@ -513,6 +513,11 @@ body.keyboard #vim-mode:not([hidden]) {
 .toast-close {
   flex: 0 0 auto;
   color: inherit;
+  padding: 0.25rem;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .toast-close:hover {
@@ -978,6 +983,7 @@ body.collab-mode #files-panel {
   text-align: center;
 }
 
+body.viewer #autoscroll,
 body.viewer #editor,
 body.viewer #divider,
 body.viewer #view-toggle,
@@ -1486,6 +1492,12 @@ body.collab-error-view main {
   background: #f8f9fa;
 }
 
+.template-dialog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .template-dialog-title {
   margin: 0;
   font-size: 1.15rem;
@@ -1559,6 +1571,107 @@ body.collab-error-view main {
   justify-content: flex-end;
   padding: 0.75rem 1.25rem;
   border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+/* --- Download Format Selection Dialog --- */
+dialog.download-dialog {
+  max-width: min(30rem, 94vw);
+  width: min(30rem, 94vw);
+}
+
+.download-dialog .share-dialog-inner {
+  max-width: 100%;
+  width: 100%;
+}
+
+.download-dialog-body {
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.download-format-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.download-format-btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease-in-out;
+  color: #0f172a;
+}
+
+.download-format-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.download-format-btn:focus-visible {
+  outline: 2px solid var(--brand-focus-outline, #90caf9);
+  outline-offset: 1px;
+}
+
+.download-format-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.25rem;
+  letter-spacing: 0.05em;
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+.badge-pdf {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.badge-docx {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-md {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.download-format-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.download-format-info strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.download-format-info span {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.share-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.4rem;
+  border-top: 1px solid #eceff1;
   background: #f8f9fa;
 }
 

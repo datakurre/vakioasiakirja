@@ -3,7 +3,7 @@
 // CodeMirror 6 binding with Y.UndoManager isolation, and live Typst.ts preview.
 
 import { EditorView, keymap, lineNumbers, drawSelection, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { Compartment, StateField, StateEffect, Transaction, type Range, type Extension, type EditorState } from "@codemirror/state";
+import { Compartment, Prec, StateField, StateEffect, Transaction, type Range, type Extension, type EditorState } from "@codemirror/state";
 import { defaultKeymap, undo as cmUndo, redo as cmRedo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { vim, getCM, Vim } from "@replit/codemirror-vim";
@@ -18,7 +18,8 @@ import { getCollabUrl, getCollabWsUrl } from "./config.ts";
 import { SelectionHighlighter } from "./selection-highlighter.ts";
 import type { SelectionPayload } from "./share.ts";
 import { FileManager, type FileMeta, formatFileDate } from "./files.ts";
-import { exportToDocx, importFromDocx, downloadDocxFile } from "./docx.ts";
+import { createAutoscrollTracker } from "./autoscroll.ts";
+import { DownloadDialog } from "./download-dialog.ts";
 
 export const clearRemoteHighlight = StateEffect.define<void>();
 export const addRemoteHighlight = StateEffect.define<{ from: number; to: number }[]>();
@@ -121,10 +122,9 @@ export function remoteHighlightExtension(timeoutMs = 1500): Extension {
 
 export function computeSelectionPayload(
   state: EditorState,
-  visualModeActive: boolean,
+  visualModeActive = false,
   visualSubMode: "visual" | "linewise" | "blockwise" = "visual",
 ): SelectionPayload | null {
-  if (!visualModeActive) return null;
   const main = state.selection.main;
   if (main.empty) return null;
 
@@ -141,7 +141,7 @@ export function computeSelectionPayload(
 
   return {
     active: true,
-    mode: visualSubMode,
+    mode: visualModeActive ? visualSubMode : "standard",
     text,
     prefix,
     suffix,
@@ -611,6 +611,8 @@ export async function initCollabEditor(roomId: string, token: string) {
   const selectionHighlighter = new SelectionHighlighter();
   let collabSelectionManager: CollabSelectionManager | undefined;
 
+  let autoscrollTracker: ReturnType<typeof createAutoscrollTracker> | undefined;
+
   const { createPreview } = await import("./preview.ts");
   const preview = createPreview(
     {
@@ -623,6 +625,7 @@ export async function initCollabEditor(roomId: string, token: string) {
       fitHeightEl: document.getElementById("fit-height") as HTMLButtonElement,
       twoUpEl: document.getElementById("two-up") as HTMLButtonElement,
       zoomLevelEl: document.getElementById("zoom-level")!,
+      autoscrollEl: document.getElementById("autoscroll") as HTMLButtonElement,
     },
     {
       setStatus,
@@ -631,6 +634,7 @@ export async function initCollabEditor(roomId: string, token: string) {
       onRendered: () => {
         downloadEl.disabled = false;
         collabSelectionManager?.render();
+        autoscrollTracker?.sync();
       },
     },
   );
@@ -643,6 +647,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     getLogo: logoForPreview,
     onRenderComplete: () => {
       collabSelectionManager?.render();
+      autoscrollTracker?.sync();
     },
     debounceMs: 300,
   });
@@ -814,13 +819,13 @@ export async function initCollabEditor(roomId: string, token: string) {
   }
 
   function syncSelection(state: EditorState) {
-    if (!visualModeActive) {
+    const payload = getSelectionPayload(state);
+    if (!payload) {
       if (collabSelectionManager?.getLocalSelection() !== null) {
         collabSelectionManager?.clearLocalSelection();
       }
       return;
     }
-    const payload = getSelectionPayload(state);
     collabSelectionManager?.setLocalSelection(payload);
   }
 
@@ -844,6 +849,46 @@ export async function initCollabEditor(roomId: string, token: string) {
 
   const undoManager = new Y.UndoManager(ytext);
 
+  const downloadPdf = async () => {
+    try {
+      renderCoordinator.cancelScheduledRender();
+      if (!preview.hasContent()) {
+        await renderCoordinator.initialRender();
+      } else {
+        await preview.render(ytext.toString(), logoForPreview(), { liveEdit: true });
+      }
+      const pdf = await preview.pdf();
+      if (!pdf) return;
+      const blob = new Blob([pdf as BlobPart], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `asiakirja-${roomId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`Asiakirja ladattu PDF-muodossa (asiakirja-${roomId}.pdf).`, "success");
+    } catch (e) {
+      fail(String(e));
+    }
+  };
+
+  let lastSaveToastTime = 0;
+  const triggerSave = () => {
+    const now = Date.now();
+    if (now - lastSaveToastTime < 200) return;
+    lastSaveToastTime = now;
+    toast("Tallennettu selaimeen", "success");
+  };
+
+  let downloadDialog: DownloadDialog | undefined;
+  let lastDownloadDialogOpenTime = 0;
+  const triggerDownloadDialog = () => {
+    const now = Date.now();
+    if (now - lastDownloadDialogOpenTime < 200) return;
+    lastDownloadDialogOpenTime = now;
+    downloadDialog?.open();
+  };
+
   const editor = new EditorView({
     parent: editorEl,
     extensions: [
@@ -857,7 +902,26 @@ export async function initCollabEditor(roomId: string, token: string) {
       // Collaborative extension: binds ytext and remote cursors/selections
       yCollab(ytext, provider.awareness, { undoManager }),
       // Collaborative undo/redo keymap: isolates local changes without reverting remote edits
-      keymap.of([...defaultKeymap, ...yUndoManagerKeymap]),
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Mod-s",
+            run: () => {
+              triggerSave();
+              return true;
+            },
+          },
+          {
+            key: "Mod-Shift-s",
+            run: () => {
+              triggerDownloadDialog();
+              return true;
+            },
+          },
+          ...defaultKeymap,
+          ...yUndoManagerKeymap,
+        ]),
+      ),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           // Indicate saving state temporarily
@@ -868,11 +932,26 @@ export async function initCollabEditor(roomId: string, token: string) {
           }, 600);
           renderCoordinator.scheduleRender(true);
         }
-        if (visualModeActive && (u.selectionSet || u.docChanged)) {
+        if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
         }
       }),
     ],
+  });
+
+  downloadDialog = new DownloadDialog({
+    getMarkdown: () => ytext.toString(),
+    getFilenameBase: () => `asiakirja-${roomId}`,
+    onDownloadPdf: downloadPdf,
+    toast,
+    fail,
+  });
+
+  const autoscrollEl = document.getElementById("autoscroll") as HTMLButtonElement | null;
+  autoscrollTracker = createAutoscrollTracker({
+    buttonEl: autoscrollEl,
+    previewEl: document.getElementById("preview")!,
+    getEditorView: () => editor,
   });
 
   // Vim mode indicator
@@ -1055,67 +1134,27 @@ export async function initCollabEditor(roomId: string, token: string) {
     toast("Logo poistettu kaikilta muokkaajilta");
   });
 
-  const updateDownloadTooltip = (mod: boolean) => {
-    downloadEl.title = mod
-      ? "Lataa Word (.docx)"
-      : "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
-  };
-
-  const updateFilesNewTooltip = (mod: boolean) => {
-    if (filesNewEl) {
-      filesNewEl.title = mod
-        ? "Korvaa avoin asiakirja Word- (.docx) tai Markdown-tiedostolla"
-        : "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
-    }
-  };
-
-  downloadEl.title = "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
-  downloadEl.setAttribute("aria-label", "Lataa PDF (Alt-klikkaus: lataa Word / .docx)");
+  downloadEl.title = "Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]";
+  downloadEl.setAttribute("aria-label", "Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]");
 
   window.addEventListener("keydown", (e) => {
-    if (e.altKey || e.shiftKey) {
-      updateDownloadTooltip(true);
-      updateFilesNewTooltip(true);
+    const isMod = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+    if (isMod && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      triggerSave();
+      return;
+    }
+    const isModShift = (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey;
+    if (isModShift && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      triggerDownloadDialog();
+      return;
     }
   });
 
-  window.addEventListener("keyup", () => {
-    updateDownloadTooltip(false);
-    updateFilesNewTooltip(false);
-  });
-
-  // --- PDF / Word Download Button ---
-  downloadEl.addEventListener("click", async (e: MouseEvent) => {
-    if (e.altKey || e.shiftKey) {
-      try {
-        const docxBytes = exportToDocx(ytext.toString());
-        downloadDocxFile(docxBytes, `asiakirja-${roomId}.docx`);
-        toast(`Asiakirja ladattu Word-muodossa (asiakirja-${roomId}.docx).`, "success");
-        return;
-      } catch (err) {
-        fail(err instanceof Error ? err.message : String(err));
-        return;
-      }
-    }
-    try {
-      renderCoordinator.cancelScheduledRender();
-      if (!preview.hasContent()) {
-        await renderCoordinator.initialRender();
-      } else {
-        await preview.render(ytext.toString(), logoForPreview(), { liveEdit: true });
-      }
-      const pdf = await preview.pdf();
-      if (!pdf) return;
-      const blob = new Blob([pdf as BlobPart], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `asiakirja-${roomId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      fail(String(e));
-    }
+  // --- Download Button ---
+  downloadEl.addEventListener("click", () => {
+    downloadDialog?.open();
   });
 
   // --- Action Buttons ---
@@ -1369,41 +1408,11 @@ export async function initCollabEditor(roomId: string, token: string) {
     }
 
     if (filesNewEl) {
-      filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
+      filesNewEl.title = "Uusi tiedosto";
+      filesNewEl.setAttribute("aria-label", "Uusi tiedosto");
     }
 
-    filesNewEl?.addEventListener("click", (e: MouseEvent) => {
-      if (e.altKey || e.shiftKey) {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".docx,.md,.txt";
-        input.style.display = "none";
-        input.addEventListener("change", async () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          try {
-            let content = "";
-            if (file.name.endsWith(".docx")) {
-              const buf = await file.arrayBuffer();
-              content = importFromDocx(buf);
-            } else {
-              content = await file.text();
-            }
-            ydoc.transact(() => {
-              ytext.delete(0, ytext.length);
-              ytext.insert(0, content);
-            });
-            toast(`Avoimen asiakirjan sisältö korvattu tiedostolla "${file.name}"!`, "success");
-            closeFilesPanel();
-          } catch (err) {
-            fail(err instanceof Error ? err.message : String(err));
-          }
-        });
-        document.body.appendChild(input);
-        input.click();
-        input.remove();
-        return;
-      }
+    filesNewEl?.addEventListener("click", () => {
       try {
         const created = fileManager.createFile();
         toast(`Uusi tiedosto "${created.name}" luotu.`, "success");
@@ -1483,6 +1492,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     "beforeunload",
     () => {
       try {
+        autoscrollTracker?.destroy();
         collabSelectionManager?.clearLocalSelection();
         renderCoordinator.destroy();
         idbProvider?.destroy();

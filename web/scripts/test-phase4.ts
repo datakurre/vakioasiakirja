@@ -550,8 +550,16 @@ test("Collaborative Vim visual mode selection: payload computation and awareness
     selection: { anchor: start, head: end },
   });
 
-  // 1. Not in visual mode -> computeSelectionPayload returns null
-  assert.equal(computeSelectionPayload(state1, false, "visual"), null);
+  // 1. Standard non-Vim selection -> computeSelectionPayload calculates valid SelectionPayload with mode: "standard"
+  const standardSel = computeSelectionPayload(state1, false, "visual");
+  assert.ok(standardSel);
+  assert.equal(standardSel.active, true);
+  assert.equal(standardSel.mode, "standard");
+  assert.equal(standardSel.text, "1 § Kokouksen avaus");
+
+  // Empty selection returns null
+  const emptyState = EditorState.create({ doc: sampleDoc, selection: { anchor: start, head: start } });
+  assert.equal(computeSelectionPayload(emptyState, false, "visual"), null);
 
   // 2. Entering visual mode -> computeSelectionPayload calculates valid SelectionPayload
   const payload = computeSelectionPayload(state1, true, "visual");

@@ -93,6 +93,8 @@ export class FileManager {
 
   private indexDirty = false;
   private persistTimer: any = null;
+  private debouncedTimer: any = null;
+  private pendingDebouncedContent: string | null = null;
 
   constructor(options?: FileManagerOptions) {
     const rawStorage =
@@ -199,6 +201,7 @@ export class FileManager {
   }
 
   setActiveFile(id: string): DocumentFile {
+    this.flush();
     const meta = this.files.find((f) => f.id === id);
     if (!meta) {
       throw new Error(`Tiedostoa id:llä "${id}" ei löytynyt.`);
@@ -215,6 +218,12 @@ export class FileManager {
   }
 
   saveActiveContent(content: string): void {
+    if (this.debouncedTimer !== null) {
+      clearTimeout(this.debouncedTimer);
+      this.debouncedTimer = null;
+    }
+    this.pendingDebouncedContent = null;
+
     if (!this.activeId) return;
     this.storage.setItem(
       FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + this.activeId,
@@ -228,7 +237,36 @@ export class FileManager {
     }
   }
 
+  saveActiveContentDebounced(content: string, delayMs = 600): void {
+    this.pendingDebouncedContent = content;
+    if (this.debouncedTimer !== null) {
+      clearTimeout(this.debouncedTimer);
+    }
+    this.debouncedTimer = setTimeout(() => {
+      this.flush();
+    }, delayMs);
+    if (typeof this.debouncedTimer?.unref === "function") {
+      this.debouncedTimer.unref();
+    }
+  }
+
+  flush(): void {
+    if (this.debouncedTimer !== null) {
+      clearTimeout(this.debouncedTimer);
+      this.debouncedTimer = null;
+    }
+    if (this.pendingDebouncedContent !== null) {
+      const content = this.pendingDebouncedContent;
+      this.pendingDebouncedContent = null;
+      this.saveActiveContent(content);
+    }
+    if (this.indexDirty) {
+      this.persistIndex();
+    }
+  }
+
   createFile(name?: string, content?: string): DocumentFile {
+    this.flush();
     let fileName: string;
     if (name && name.trim()) {
       let trimmed = name.trim();
@@ -289,6 +327,7 @@ export class FileManager {
   }
 
   deleteFile(id: string): { activeFile: DocumentFile; deletedId: string } {
+    this.flush();
     const index = this.files.findIndex((f) => f.id === id);
     if (index === -1) {
       throw new Error(`Tiedostoa id:llä "${id}" ei löytynyt.`);
@@ -314,6 +353,7 @@ export class FileManager {
   }
 
   resetActiveFile(seed?: string): DocumentFile {
+    this.flush();
     const content = seed !== undefined ? seed : this.defaultSeed;
     this.saveActiveContent(content);
     return this.getActiveFile();

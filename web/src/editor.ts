@@ -4,7 +4,7 @@
 // src/main.ts for the default (non-viewer) route.
 
 import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view";
-import { Compartment, type EditorState } from "@codemirror/state";
+import { Compartment, Prec, type EditorState } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { vim, getCM, Vim } from "@replit/codemirror-vim";
@@ -25,7 +25,9 @@ import { getCollabUrl } from "./config.ts";
 import { getActiveBranding } from "./branding.ts";
 import { TemplateManager } from "./template-manager.ts";
 import { getDocumentTemplates } from "./templates.ts";
-import { exportToDocx, importFromDocx, downloadDocxFile } from "./docx.ts";
+import { importFromDocx } from "./docx.ts";
+import { createAutoscrollTracker } from "./autoscroll.ts";
+import { DownloadDialog } from "./download-dialog.ts";
 // The default seed document (generic Muistio template), kept so the bundle is self-contained.
 import seed from "./seed.md?raw";
 
@@ -91,6 +93,7 @@ export function initEditor() {
       fitHeightEl: document.getElementById("fit-height") as HTMLButtonElement,
       twoUpEl: document.getElementById("two-up") as HTMLButtonElement,
       zoomLevelEl: document.getElementById("zoom-level")!,
+      autoscrollEl: document.getElementById("autoscroll") as HTMLButtonElement,
     },
     {
       setStatus,
@@ -478,37 +481,25 @@ export function initEditor() {
     }
   }
 
+  let hasInitialRendered = false;
+
   // Render, and (when sharing) push the fresh snapshot to viewers.
-  function update(md: string) {
-    void preview.render(md, logoForPreview()).then(() => {
+  function update(md: string, liveEdit = true) {
+    const isLive = hasInitialRendered ? liveEdit : false;
+    hasInitialRendered = true;
+    void preview.render(md, logoForPreview(), { liveEdit: isLive }).then(() => {
       if (currentSelection?.active) {
         selectionHighlighter.update(pagesEl, currentSelection);
       }
+      autoscrollTracker?.sync();
     });
     broadcaster?.push(snapshot());
   }
 
-  const updateDownloadTooltip = (mod: boolean) => {
-    downloadEl.title = mod
-      ? "Lataa Word (.docx)"
-      : "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
-  };
-  downloadEl.title = "Lataa PDF (Alt-klikkaus: lataa Word / .docx)";
-  downloadEl.setAttribute("aria-label", "Lataa PDF (Alt-klikkaus: lataa Word / .docx)");
+  downloadEl.title = "Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]";
+  downloadEl.setAttribute("aria-label", "Lataa asiakirja (PDF, Word, Markdown) [Ctrl+Shift+S]");
 
-  downloadEl.addEventListener("click", async (e: MouseEvent) => {
-    if (e.altKey || e.shiftKey) {
-      try {
-        const docxBytes = exportToDocx(editor.state.doc.toString());
-        const baseName = fileManager.getActiveFile().name.replace(/\.[^.]+$/, "") || "asiakirja";
-        downloadDocxFile(docxBytes, `${baseName}.docx`);
-        toast(`Asiakirja ladattu Word-muodossa (${baseName}.docx).`, "success");
-        return;
-      } catch (err) {
-        fail(err instanceof Error ? err.message : String(err));
-        return;
-      }
-    }
+  const downloadPdf = async () => {
     try {
       const pdf = await preview.pdf();
       if (!pdf) return;
@@ -520,9 +511,14 @@ export function initEditor() {
       a.download = `${baseName}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+      toast(`Asiakirja ladattu PDF-muodossa (${baseName}.pdf).`, "success");
     } catch (e) {
       fail(String(e));
     }
+  };
+
+  downloadEl.addEventListener("click", () => {
+    downloadDialog?.open();
   });
 
   logoEl.addEventListener("change", async () => {
@@ -575,7 +571,6 @@ export function initEditor() {
   });
 
   function getSelectionPayload(state: EditorState): SelectionPayload | null {
-    if (!visualModeActive) return null;
     const main = state.selection.main;
     if (main.empty) return null;
 
@@ -592,7 +587,7 @@ export function initEditor() {
 
     return {
       active: true,
-      mode: visualSubMode,
+      mode: visualModeActive ? visualSubMode : "standard",
       text,
       prefix,
       suffix,
@@ -603,7 +598,8 @@ export function initEditor() {
   }
 
   function syncSelection(state: EditorState) {
-    if (!visualModeActive) {
+    const payload = getSelectionPayload(state);
+    if (!payload) {
       if (currentSelection !== null) {
         currentSelection = null;
         broadcaster?.pushSelection(null);
@@ -611,13 +607,33 @@ export function initEditor() {
       }
       return;
     }
-    const payload = getSelectionPayload(state);
     currentSelection = payload;
     broadcaster?.pushSelection(payload);
     selectionHighlighter.update(pagesEl, payload);
   }
 
   let timer: number | undefined;
+  let autoscrollTracker: ReturnType<typeof createAutoscrollTracker> | undefined;
+
+  let lastSaveToastTime = 0;
+  const triggerSave = () => {
+    const now = Date.now();
+    if (now - lastSaveToastTime < 200) return;
+    lastSaveToastTime = now;
+    fileManager.flush();
+    fileManager.saveActiveContent(editor.state.doc.toString());
+    toast("Tallennettu selaimeen", "success");
+  };
+
+  let downloadDialog: DownloadDialog | undefined;
+  let lastDownloadDialogOpenTime = 0;
+  const triggerDownloadDialog = () => {
+    const now = Date.now();
+    if (now - lastDownloadDialogOpenTime < 200) return;
+    lastDownloadDialogOpenTime = now;
+    downloadDialog?.open();
+  };
+
   const editor = new EditorView({
     parent: editorEl,
     doc: fileManager.getActiveFile().content,
@@ -627,21 +643,55 @@ export function initEditor() {
       history(),
       drawSelection(),
       selectionTheme,
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Mod-s",
+            run: () => {
+              triggerSave();
+              return true;
+            },
+          },
+          {
+            key: "Mod-Shift-s",
+            run: () => {
+              triggerDownloadDialog();
+              return true;
+            },
+          },
+          ...defaultKeymap,
+          ...historyKeymap,
+        ]),
+      ),
       markdown(),
       EditorView.lineWrapping,
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           const text = u.state.doc.toString();
-          fileManager.saveActiveContent(text);
+          fileManager.saveActiveContentDebounced(text);
           clearTimeout(timer);
-          timer = window.setTimeout(() => update(text), 300);
+          timer = window.setTimeout(() => update(text, true), 300);
         }
-        if (visualModeActive && (u.selectionSet || u.docChanged)) {
+        if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
         }
       }),
     ],
+  });
+
+  downloadDialog = new DownloadDialog({
+    getMarkdown: () => editor.state.doc.toString(),
+    getFilenameBase: () => fileManager.getActiveFile().name.replace(/\.[^.]+$/, "") || "asiakirja",
+    onDownloadPdf: downloadPdf,
+    toast,
+    fail,
+  });
+
+  const autoscrollEl = document.getElementById("autoscroll") as HTMLButtonElement | null;
+  autoscrollTracker = createAutoscrollTracker({
+    buttonEl: autoscrollEl,
+    previewEl: document.getElementById("preview")!,
+    getEditorView: () => editor,
   });
 
   function vimModeLabel(mode: string, sub?: string): string {
@@ -753,6 +803,8 @@ export function initEditor() {
 
   function applyFileContentToEditor(content: string) {
     clearTimeout(timer);
+    hasInitialRendered = false;
+    preview.resetPulse?.();
     const cm = getCM(editor);
     if (cm) {
       try {
@@ -772,29 +824,22 @@ export function initEditor() {
       changes: { from: 0, to: editor.state.doc.length, insert: content },
       selection: { anchor: 0 },
     });
-    update(content);
+    clearTimeout(timer);
+    update(content, false);
   }
 
   function switchToFile(fileId: string) {
+    fileManager.flush();
     fileManager.saveActiveContent(editor.state.doc.toString());
     const newFile = fileManager.setActiveFile(fileId);
     templateLogo = undefined;
     restoreTemplateLogo(fileId);
     showLogo();
+    hasInitialRendered = false;
+    preview.resetPulse?.();
     applyFileContentToEditor(newFile.content);
     renderFilesList();
   }
-
-  resetEl.addEventListener("click", () => {
-    if (!confirm("Aloitetaanko alusta esimerkkiasiakirjasta? Nykyisen tiedoston muutokset ja logo poistetaan.")) return;
-    const fresh = getInitialDefaultSeed();
-    fileManager.resetActiveFile(fresh);
-    clearLogo();
-    lsRemove(STORE.logoCleared);
-    showLogo();
-    applyFileContentToEditor(fresh);
-    renderFilesList();
-  });
 
   // --- file manager drawer (tiedostonhallinta) ---
   function syncFilesControls() {
@@ -827,6 +872,7 @@ export function initEditor() {
   const templateDialogEl = document.getElementById("template-dialog") as HTMLDialogElement | null;
   const templateDialogCloseEl = document.getElementById("template-dialog-close") as HTMLButtonElement | null;
   const templateDialogCancelEl = document.getElementById("template-dialog-cancel") as HTMLButtonElement | null;
+  const templateDialogReplaceEl = document.getElementById("template-dialog-replace") as HTMLButtonElement | null;
   const templateDialogGridEl = document.getElementById("template-dialog-grid") as HTMLElement | null;
 
   let templateManager: TemplateManager | undefined;
@@ -835,8 +881,13 @@ export function initEditor() {
       dialogEl: templateDialogEl,
       closeEl: templateDialogCloseEl,
       cancelEl: templateDialogCancelEl,
+      replaceEl: templateDialogReplaceEl,
       gridEl: templateDialogGridEl,
+      onReplace: () => {
+        promptImportDocxOrMd();
+      },
       onSelectTemplate: (template) => {
+        fileManager.flush();
         fileManager.saveActiveContent(editor.state.doc.toString());
         const newFile = fileManager.createFile(template.defaultFileName, template.content);
         templateLogo = template.logoSvg
@@ -870,6 +921,7 @@ export function initEditor() {
       const file = input.files?.[0];
       if (!file) return;
       try {
+        fileManager.flush();
         let content = "";
         if (file.name.endsWith(".docx")) {
           const buf = await file.arrayBuffer();
@@ -891,28 +943,42 @@ export function initEditor() {
     input.remove();
   }
 
-  const updateFilesNewTooltip = (mod: boolean) => {
-    if (filesNewEl) {
-      filesNewEl.title = mod
-        ? "Korvaa avoin asiakirja Word- (.docx) tai Markdown-tiedostolla"
-        : "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
+  const handleNewDocument = () => {
+    if (templateManager) {
+      templateManager.open();
+    } else {
+      fileManager.saveActiveContent(editor.state.doc.toString());
+      const freshSeed = getInitialDefaultSeed();
+      const newFile = fileManager.createFile(undefined, freshSeed);
+      applyFileContentToEditor(newFile.content);
+      renderFilesList();
     }
   };
 
+  if (resetEl) {
+    resetEl.title = "Uusi asiakirja";
+    resetEl.setAttribute("aria-label", "Uusi asiakirja");
+  }
   if (filesNewEl) {
-    filesNewEl.title = "Luo uusi tiedosto (Alt-klikkaus: korvaa avoin asiakirja Word- tai Markdown-tiedostolla)";
+    filesNewEl.title = "Uusi tiedosto";
+    filesNewEl.setAttribute("aria-label", "Uusi tiedosto");
   }
 
-  window.addEventListener("keydown", (e) => {
-    if (e.altKey || e.shiftKey) {
-      updateDownloadTooltip(true);
-      updateFilesNewTooltip(true);
-    }
-  });
+  resetEl?.addEventListener("click", handleNewDocument);
 
-  window.addEventListener("keyup", () => {
-    updateDownloadTooltip(false);
-    updateFilesNewTooltip(false);
+  window.addEventListener("keydown", (e) => {
+    const isMod = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+    if (isMod && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      triggerSave();
+      return;
+    }
+    const isModShift = (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey;
+    if (isModShift && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      triggerDownloadDialog();
+      return;
+    }
   });
 
   window.addEventListener("dragover", (e) => {
@@ -929,6 +995,7 @@ export function initEditor() {
     }
     e.preventDefault();
     try {
+      fileManager.flush();
       fileManager.saveActiveContent(editor.state.doc.toString());
       let content = "";
       if (file.name.endsWith(".docx")) {
@@ -952,21 +1019,7 @@ export function initEditor() {
   if (filesToggleEl) {
     filesToggleEl.addEventListener("click", () => toggleFilesPanel());
     filesCloseEl?.addEventListener("click", () => closeFilesPanel());
-    filesNewEl?.addEventListener("click", (e: MouseEvent) => {
-      if (e.altKey || e.shiftKey) {
-        promptImportDocxOrMd();
-        return;
-      }
-      if (templateManager) {
-        templateManager.open();
-      } else {
-        fileManager.saveActiveContent(editor.state.doc.toString());
-        const freshSeed = getInitialDefaultSeed();
-        const newFile = fileManager.createFile(undefined, freshSeed);
-        applyFileContentToEditor(newFile.content);
-        renderFilesList();
-      }
-    });
+    filesNewEl?.addEventListener("click", handleNewDocument);
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !filesPanelEl.hidden) {
@@ -1135,6 +1188,15 @@ export function initEditor() {
   const savedSplit = lsGet(STORE.split);
   if (savedSplit) setSplit(parseFloat(savedSplit));
 
+  window.addEventListener("beforeunload", () => {
+    fileManager.flush();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      fileManager.flush();
+    }
+  });
+
   setStatus("alustetaan typst.ts…");
-  void preview.render(editor.state.doc.toString(), logoForPreview());
+  update(editor.state.doc.toString(), false);
 }

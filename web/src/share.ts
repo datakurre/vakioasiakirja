@@ -89,7 +89,7 @@ export interface Snapshot {
 
 export interface SelectionPayload {
   active: boolean;
-  mode?: "visual" | "linewise" | "blockwise";
+  mode?: "visual" | "linewise" | "blockwise" | "standard";
   text: string;
   prefix?: string;
   suffix?: string;
