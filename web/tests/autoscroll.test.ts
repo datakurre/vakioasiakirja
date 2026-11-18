@@ -744,3 +744,96 @@ test("AutoscrollTracker: source === 'selection' provides responsive cursor align
     (globalThis as any).cancelAnimationFrame = origCancelRaf;
   }
 });
+
+test("AutoscrollTracker: long paragraph (>200 chars) windows around cursor head", () => {
+  const mockStorage = createMockStorage();
+  (globalThis as any).localStorage = mockStorage;
+
+  let scrolledTop = -1;
+  // Paragraph longer than 200 chars
+  const prefix = "Alun tekstiä joka toistuu pitkään ja täyttää rivin. ".repeat(4);
+  const targetWord = "KohdeKohtaUniikki";
+  const fullLine = prefix + targetWord + " ja loppusanat.";
+  const doc = fullLine;
+
+  const targetOffset = doc.indexOf(targetWord);
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: targetOffset + 5 }, // cursor head inside targetWord
+  });
+
+  const mockEditor = { state } as unknown as EditorView;
+
+  const fo = {
+    getAttribute(attr: string) {
+      if (attr === "x") return "10";
+      if (attr === "y") return "10";
+      if (attr === "width") return "100";
+      if (attr === "height") return "30";
+      return null;
+    },
+    parentElement: null as any,
+  };
+
+  const parentG = {
+    getAttribute() {
+      return null;
+    },
+    parentElement: null,
+  };
+
+  const targetNode = {
+    getAttribute(attr: string) {
+      if (attr === "data-tid") return "tid-target";
+      return null;
+    },
+    textContent: targetWord + " ja loppusanat.",
+    querySelector(selector: string) {
+      if (selector === "foreignObject") return fo;
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+    getBoundingClientRect() {
+      // Positioned below safe zone
+      return { top: 600, bottom: 630, left: 10, right: 110, width: 100, height: 30 };
+    },
+    parentElement: parentG,
+  };
+  fo.parentElement = targetNode;
+
+  const pageSvg = {
+    querySelectorAll(selector: string) {
+      if (selector === "g.typst-text") return [targetNode];
+      return [];
+    },
+  };
+
+  const preview = {
+    scrollHeight: 2000,
+    clientHeight: 600,
+    scrollTop: 0,
+    querySelectorAll(selector: string) {
+      if (selector === "svg.page") return [pageSvg];
+      return [];
+    },
+    getBoundingClientRect() {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600 };
+    },
+    scrollTo(options: any) {
+      scrolledTop = options.top;
+      this.scrollTop = options.top;
+    },
+  } as unknown as HTMLElement;
+
+  const tracker = createAutoscrollTracker({
+    previewEl: preview,
+    getEditorView: () => mockEditor,
+  });
+
+  tracker.sync();
+  // Safe bottom is 600 - 60 = 540; target bottom is 630. Delta = 630 - 540 = 90
+  assert.equal(scrolledTop, 90);
+  tracker.destroy();
+});

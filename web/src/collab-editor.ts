@@ -171,7 +171,7 @@ export class CollabRenderCoordinator {
     this.getMarkdown = options.getMarkdown;
     this.getLogo = options.getLogo ?? (() => undefined);
     this.onRenderComplete = options.onRenderComplete;
-    this.debounceMs = options.debounceMs ?? 300;
+    this.debounceMs = options.debounceMs ?? 450;
   }
 
   isInitialRendered(): boolean {
@@ -711,7 +711,7 @@ export async function initCollabEditor(roomId: string, token: string) {
       collabSelectionManager?.scheduleRender();
       autoscrollTracker?.scheduleSync("render");
     },
-    debounceMs: 300,
+    debounceMs: 450,
   });
 
   function syncLogoFromMeta() {
@@ -893,6 +893,9 @@ export async function initCollabEditor(roomId: string, token: string) {
   let selectionRafId: number | null = null;
 
   function syncSelection(state: EditorState) {
+    if (state.selection.main.empty && collabSelectionManager?.getLocalSelection() === null) {
+      return;
+    }
     const payload = getSelectionPayload(state);
     if (!payload) {
       if (selectionRafId !== null && typeof cancelAnimationFrame !== "undefined") {
@@ -1013,6 +1016,7 @@ export async function initCollabEditor(roomId: string, token: string) {
       ),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
+          preview.markStale?.();
           // Indicate saving state temporarily
           updateConnectionBadge("saving");
           clearTimeout(savingTimer);
@@ -1021,7 +1025,7 @@ export async function initCollabEditor(roomId: string, token: string) {
           }, 600);
           renderCoordinator.scheduleRender(true);
         }
-        if (u.selectionSet || u.docChanged) {
+        if (u.selectionSet || (u.docChanged && collabSelectionManager?.getLocalSelection() !== null)) {
           syncSelection(u.state);
         }
         if (u.docChanged) {

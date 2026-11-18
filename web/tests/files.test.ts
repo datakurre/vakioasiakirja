@@ -255,3 +255,60 @@ test("FileManager: switching active file flushes pending debounced save", () => 
     "Kirjoitetaan tiedostoon 1..."
   );
 });
+
+test("FileManager: lazy content provider is evaluated on flush", () => {
+  const storage = createMemoryStorage();
+  const fm = new FileManager({ storage, defaultSeed: "Alku" });
+  const activeId = fm.getActiveFileId();
+
+  let evaluated = false;
+  fm.saveActiveContentDebounced(() => {
+    evaluated = true;
+    return "Dynaaminen sisältö";
+  }, 500);
+
+  assert.equal(evaluated, false);
+  fm.flush();
+  assert.equal(evaluated, true);
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Dynaaminen sisältö"
+  );
+});
+
+test("FileManager: direct saveActiveContent cancels pending lazy content provider", () => {
+  const storage = createMemoryStorage();
+  const fm = new FileManager({ storage, defaultSeed: "Alku" });
+  const activeId = fm.getActiveFileId();
+
+  fm.saveActiveContentDebounced(() => "Vanha laiska sisältö", 500);
+  fm.saveActiveContent("Suora tallennus");
+  fm.flush();
+
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Suora tallennus"
+  );
+});
+
+test("FileManager: error inside lazy content provider does not corrupt flush state", () => {
+  const storage = createMemoryStorage();
+  const fm = new FileManager({ storage, defaultSeed: "Alku" });
+  const activeId = fm.getActiveFileId();
+
+  fm.saveActiveContentDebounced(() => {
+    throw new Error("Pum!");
+  }, 500);
+
+  // Flush should not throw uncaught error and should clear the pending provider
+  fm.flush();
+
+  // Subsequent direct save works cleanly
+  fm.saveActiveContent("Palautunut sisältö");
+  fm.flush();
+
+  assert.equal(
+    storage.getItem(FILE_STORAGE_KEYS.FILE_CONTENT_PREFIX + activeId),
+    "Palautunut sisältö"
+  );
+});

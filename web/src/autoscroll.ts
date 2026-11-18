@@ -141,6 +141,15 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
         }
       }
 
+      // For long paragraphs, window around cursor head to avoid searching massive strings
+      if (lineText.length > 200) {
+        const lineObj = state.doc.line(targetLineNumber);
+        const offset = Math.max(0, Math.min(lineObj.length, head - lineObj.from));
+        const start = Math.max(0, offset - 60);
+        const end = Math.min(lineObj.length, offset + 60);
+        lineText = lineObj.text.slice(start, end).trim();
+      }
+
       let elementMatched = false;
 
       // 2. Search for the corresponding rendered text element in preview pages

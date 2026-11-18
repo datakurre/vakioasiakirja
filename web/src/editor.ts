@@ -641,6 +641,9 @@ export function initEditor() {
   }
 
   function syncSelection(state: EditorState) {
+    if (state.selection.main.empty && currentSelection === null) {
+      return;
+    }
     const payload = getSelectionPayload(state);
     if (!payload) {
       if (currentSelection !== null) {
@@ -727,12 +730,12 @@ export function initEditor() {
       EditorView.lineWrapping,
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
-          const text = u.state.doc.toString();
-          fileManager.saveActiveContentDebounced(text);
+          preview.markStale?.();
+          fileManager.saveActiveContentDebounced(() => editor.state.doc.toString());
           clearTimeout(timer);
-          timer = window.setTimeout(() => update(text, true), 300);
+          timer = window.setTimeout(() => update(editor.state.doc.toString(), true), 450);
         }
-        if (u.selectionSet || u.docChanged) {
+        if (u.selectionSet || (u.docChanged && currentSelection !== null)) {
           syncSelection(u.state);
         }
         if (u.docChanged) {

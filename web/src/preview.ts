@@ -97,6 +97,7 @@ export interface RenderOptions {
 export interface Preview {
   // Convert Markdown and compile it to the live SVG preview.
   render(md: string, logo?: Logo, options?: RenderOptions): Promise<void>;
+  markStale?(): void;
   // The PDF of the last successfully rendered document (or undefined).
   pdf(): Promise<Uint8Array | undefined>;
   // Whether a document has been rendered (drives the Download button).
@@ -496,8 +497,13 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   }
   applyView();
 
+  function markStale() {
+    nextRenderSeq++;
+  }
+
   return {
     render,
+    markStale,
     hasContent: () => rendered,
     flashControls,
     resetPulse: () => pulseTracker.reset(),

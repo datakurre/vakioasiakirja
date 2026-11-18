@@ -157,6 +157,37 @@ test("preview: ticket sequencing discard logic", async () => {
   assert.deepEqual(appliedSequences, [2]);
 });
 
+test("preview: markStale cancels in-flight renders before next trigger", async () => {
+  let nextRenderSeq = 0;
+  const appliedSequences: number[] = [];
+
+  function markStale() {
+    nextRenderSeq++;
+  }
+
+  async function mockRender(seqDelayMs: number) {
+    const currentSeq = ++nextRenderSeq;
+    await new Promise((resolve) => setTimeout(resolve, seqDelayMs));
+    if (currentSeq !== nextRenderSeq) {
+      return; // Discard stale render
+    }
+    appliedSequences.push(currentSeq);
+  }
+
+  // Start slow compile
+  const r1 = mockRender(50);
+  // User types keystroke, marking current in-flight render stale
+  markStale();
+  await r1;
+
+  // Stale render must be discarded even without a subsequent render completing yet
+  assert.deepEqual(appliedSequences, []);
+
+  // Subsequent render after debounce pause completes normally
+  await mockRender(10);
+  assert.deepEqual(appliedSequences, [3]);
+});
+
 test("preview: font URLs resolution does not append assets/ in subpaths", () => {
   function getFontUrls(baseUrl?: string, locationHref?: string): string[] {
     const base = baseUrl || "/";

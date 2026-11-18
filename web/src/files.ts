@@ -95,6 +95,7 @@ export class FileManager {
   private persistTimer: any = null;
   private debouncedTimer: any = null;
   private pendingDebouncedContent: string | null = null;
+  private pendingContentProvider: (() => string) | null = null;
 
   constructor(options?: FileManagerOptions) {
     const rawStorage =
@@ -223,6 +224,7 @@ export class FileManager {
       this.debouncedTimer = null;
     }
     this.pendingDebouncedContent = null;
+    this.pendingContentProvider = null;
 
     if (!this.activeId) return;
     this.storage.setItem(
@@ -237,8 +239,14 @@ export class FileManager {
     }
   }
 
-  saveActiveContentDebounced(content: string, delayMs = 600): void {
-    this.pendingDebouncedContent = content;
+  saveActiveContentDebounced(contentOrProvider: string | (() => string), delayMs = 600): void {
+    if (typeof contentOrProvider === "function") {
+      this.pendingContentProvider = contentOrProvider;
+      this.pendingDebouncedContent = null;
+    } else {
+      this.pendingDebouncedContent = contentOrProvider;
+      this.pendingContentProvider = null;
+    }
     if (this.debouncedTimer !== null) {
       clearTimeout(this.debouncedTimer);
     }
@@ -255,10 +263,21 @@ export class FileManager {
       clearTimeout(this.debouncedTimer);
       this.debouncedTimer = null;
     }
-    if (this.pendingDebouncedContent !== null) {
-      const content = this.pendingDebouncedContent;
+    let contentToSave: string | null = null;
+    if (this.pendingContentProvider !== null) {
+      const provider = this.pendingContentProvider;
+      this.pendingContentProvider = null;
+      try {
+        contentToSave = provider();
+      } catch (err) {
+        console.error("FileManager: error in pendingContentProvider", err);
+      }
+    } else if (this.pendingDebouncedContent !== null) {
+      contentToSave = this.pendingDebouncedContent;
       this.pendingDebouncedContent = null;
-      this.saveActiveContent(content);
+    }
+    if (contentToSave !== null) {
+      this.saveActiveContent(contentToSave);
     }
     if (this.indexDirty) {
       this.persistIndex();
