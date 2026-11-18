@@ -48,7 +48,7 @@ export function initViewer(roomId: string) {
       twoUpEl: document.getElementById("two-up") as HTMLButtonElement,
       zoomLevelEl: document.getElementById("zoom-level")!,
     },
-    { setStatus, fail },
+    { setStatus, fail, selectionHighlighter },
   );
 
   let hasReceivedFirstSnapshot = false;

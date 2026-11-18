@@ -9,6 +9,7 @@ export interface AutoscrollTracker {
   setEnabled(enabled: boolean): void;
   toggle(): boolean;
   sync(): void;
+  scheduleSync(): void;
   destroy(): void;
 }
 
@@ -194,6 +195,21 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     }
   }
 
+  let syncRafId: number | null = null;
+
+  function scheduleSync(): void {
+    if (!enabled) return;
+    if (typeof requestAnimationFrame === "undefined") {
+      sync();
+      return;
+    }
+    if (syncRafId !== null) return;
+    syncRafId = requestAnimationFrame(() => {
+      syncRafId = null;
+      sync();
+    });
+  }
+
   const onClick = () => {
     toggle();
   };
@@ -206,7 +222,12 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     setEnabled,
     toggle,
     sync,
+    scheduleSync,
     destroy: () => {
+      if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+        cancelAnimationFrame(syncRafId);
+        syncRafId = null;
+      }
       buttonEl?.removeEventListener("click", onClick);
     },
   };

@@ -86,6 +86,8 @@ export interface PreviewCallbacks {
   highlightTracker?: HighlightTracker;
   // Optional worker bridge override (e.g. for testing).
   bridge?: TypstWorkerBridge;
+  // Optional selection highlighter instance to invalidate cache on re-render.
+  selectionHighlighter?: { invalidateCache(): void };
 }
 
 export interface RenderOptions {
@@ -393,6 +395,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     if (!baseSvg) {
       pageSizes = [];
       els.pagesEl.innerHTML = svgText;
+      cb.selectionHighlighter?.invalidateCache();
       return;
     }
     // typst.ts embeds a <script> for interactivity; cloned once per page it
@@ -403,6 +406,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     if (pages.length === 0) {
       pageSizes = [];
       els.pagesEl.replaceChildren(baseSvg);
+      cb.selectionHighlighter?.invalidateCache();
       return;
     }
     const pageContents = pages.map((p) => p.innerHTML);
@@ -431,6 +435,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     }
     pageSizes = sizes;
     els.pagesEl.replaceChildren(...cards);
+    cb.selectionHighlighter?.invalidateCache();
     applyView();
   }
 

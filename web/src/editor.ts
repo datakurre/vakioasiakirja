@@ -99,6 +99,7 @@ export function initEditor() {
       setStatus,
       fail,
       viewStorageKey: "sfs2487.view",
+      selectionHighlighter,
       onRendered: () => {
         downloadEl.disabled = false;
       },
@@ -362,6 +363,11 @@ export function initEditor() {
   }
 
   function stopSharing() {
+    if (broadcastThrottleTimer !== null) {
+      clearTimeout(broadcastThrottleTimer);
+      broadcastThrottleTimer = null;
+    }
+    latestPayloadToBroadcast = null;
     const bc = broadcaster;
     broadcaster = undefined;
     shareState = "idle";
@@ -491,7 +497,7 @@ export function initEditor() {
       if (currentSelection?.active) {
         selectionHighlighter.update(pagesEl, currentSelection);
       }
-      autoscrollTracker?.sync();
+      autoscrollTracker?.scheduleSync();
     });
     broadcaster?.push(snapshot());
   }
@@ -597,19 +603,73 @@ export function initEditor() {
     };
   }
 
+  let selectionRafId: number | null = null;
+  let broadcastThrottleTimer: number | null = null;
+  let lastBroadcastTime = 0;
+  let latestPayloadToBroadcast: SelectionPayload | null = null;
+
+  function pushSelectionThrottled(payload: SelectionPayload | null) {
+    if (!broadcaster) return;
+    if (!payload) {
+      if (broadcastThrottleTimer !== null) {
+        clearTimeout(broadcastThrottleTimer);
+        broadcastThrottleTimer = null;
+      }
+      latestPayloadToBroadcast = null;
+      broadcaster.pushSelection(null);
+      return;
+    }
+
+    latestPayloadToBroadcast = payload;
+    const now = Date.now();
+    if (now - lastBroadcastTime >= 50) {
+      lastBroadcastTime = now;
+      if (broadcastThrottleTimer !== null) {
+        clearTimeout(broadcastThrottleTimer);
+        broadcastThrottleTimer = null;
+      }
+      broadcaster.pushSelection(payload);
+    } else if (broadcastThrottleTimer === null) {
+      broadcastThrottleTimer = setTimeout(() => {
+        broadcastThrottleTimer = null;
+        lastBroadcastTime = Date.now();
+        if (latestPayloadToBroadcast && broadcaster) {
+          broadcaster.pushSelection(latestPayloadToBroadcast);
+        }
+      }, 50 - (now - lastBroadcastTime)) as unknown as number;
+    }
+  }
+
   function syncSelection(state: EditorState) {
     const payload = getSelectionPayload(state);
     if (!payload) {
       if (currentSelection !== null) {
         currentSelection = null;
-        broadcaster?.pushSelection(null);
+        if (selectionRafId !== null) {
+          cancelAnimationFrame(selectionRafId);
+          selectionRafId = null;
+        }
+        pushSelectionThrottled(null);
         selectionHighlighter.update(pagesEl, null);
       }
       return;
     }
     currentSelection = payload;
-    broadcaster?.pushSelection(payload);
-    selectionHighlighter.update(pagesEl, payload);
+    pushSelectionThrottled(payload);
+
+    if (typeof requestAnimationFrame === "undefined") {
+      selectionHighlighter.update(pagesEl, payload);
+      return;
+    }
+
+    if (selectionRafId === null) {
+      selectionRafId = requestAnimationFrame(() => {
+        selectionRafId = null;
+        if (currentSelection?.active) {
+          selectionHighlighter.update(pagesEl, currentSelection);
+        }
+      });
+    }
   }
 
   let timer: number | undefined;
@@ -674,6 +734,7 @@ export function initEditor() {
         }
         if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
+          autoscrollTracker?.scheduleSync();
         }
       }),
     ],
@@ -692,6 +753,7 @@ export function initEditor() {
     buttonEl: autoscrollEl,
     previewEl: document.getElementById("preview")!,
     getEditorView: () => editor,
+    selectionHighlighter,
   });
 
   function vimModeLabel(mode: string, sub?: string): string {
@@ -816,8 +878,12 @@ export function initEditor() {
     if (visualModeActive) {
       visualModeActive = false;
     }
+    if (selectionRafId !== null) {
+      cancelAnimationFrame(selectionRafId);
+      selectionRafId = null;
+    }
     currentSelection = null;
-    broadcaster?.pushSelection(null);
+    pushSelectionThrottled(null);
     selectionHighlighter.update(pagesEl, null);
 
     editor.dispatch({
@@ -1189,6 +1255,15 @@ export function initEditor() {
   if (savedSplit) setSplit(parseFloat(savedSplit));
 
   window.addEventListener("beforeunload", () => {
+    if (selectionRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(selectionRafId);
+      selectionRafId = null;
+    }
+    if (broadcastThrottleTimer !== null) {
+      clearTimeout(broadcastThrottleTimer);
+      broadcastThrottleTimer = null;
+    }
+    autoscrollTracker?.destroy();
     fileManager.flush();
   });
   document.addEventListener("visibilitychange", () => {

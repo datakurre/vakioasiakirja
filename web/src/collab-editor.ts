@@ -222,6 +222,10 @@ export class CollabSelectionManager {
     setLocalStateField: (field: string, val: any) => void;
   };
   private localSelection: SelectionPayload | null = null;
+  private renderRaf: number | null = null;
+  private awarenessThrottleTimer: number | null = null;
+  private lastAwarenessPushTime = 0;
+  private pendingAwarenessPayload: SelectionPayload | null = null;
 
   constructor(options: {
     selectionHighlighter: SelectionHighlighter;
@@ -241,9 +245,40 @@ export class CollabSelectionManager {
     return this.localSelection;
   }
 
+  private pushAwarenessThrottled(payload: SelectionPayload | null): void {
+    if (!payload) {
+      if (this.awarenessThrottleTimer !== null) {
+        clearTimeout(this.awarenessThrottleTimer);
+        this.awarenessThrottleTimer = null;
+      }
+      this.pendingAwarenessPayload = null;
+      this.awareness.setLocalStateField("selection", null);
+      return;
+    }
+
+    this.pendingAwarenessPayload = payload;
+    const now = Date.now();
+    if (now - this.lastAwarenessPushTime >= 50) {
+      this.lastAwarenessPushTime = now;
+      if (this.awarenessThrottleTimer !== null) {
+        clearTimeout(this.awarenessThrottleTimer);
+        this.awarenessThrottleTimer = null;
+      }
+      this.awareness.setLocalStateField("selection", payload);
+    } else if (this.awarenessThrottleTimer === null) {
+      this.awarenessThrottleTimer = setTimeout(() => {
+        this.awarenessThrottleTimer = null;
+        this.lastAwarenessPushTime = Date.now();
+        if (this.pendingAwarenessPayload) {
+          this.awareness.setLocalStateField("selection", this.pendingAwarenessPayload);
+        }
+      }, 50 - (now - this.lastAwarenessPushTime)) as unknown as number;
+    }
+  }
+
   setLocalSelection(payload: SelectionPayload | null): void {
     this.localSelection = payload;
-    this.awareness.setLocalStateField("selection", payload);
+    this.pushAwarenessThrottled(payload);
     this.render();
   }
 
@@ -267,12 +302,39 @@ export class CollabSelectionManager {
     return active;
   }
 
+  scheduleRender(): void {
+    if (typeof requestAnimationFrame === "undefined") {
+      this.render();
+      return;
+    }
+    if (this.renderRaf !== null) return;
+    this.renderRaf = requestAnimationFrame(() => {
+      this.renderRaf = null;
+      this.render();
+    });
+  }
+
   render(): void {
+    if (this.renderRaf !== null && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(this.renderRaf);
+      this.renderRaf = null;
+    }
     const active = this.getActiveSelections();
     if (active.length === 0) {
       this.selectionHighlighter.clear(this.pagesEl);
     } else {
       this.selectionHighlighter.update(this.pagesEl, active);
+    }
+  }
+
+  destroy(): void {
+    if (this.renderRaf !== null && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(this.renderRaf);
+      this.renderRaf = null;
+    }
+    if (this.awarenessThrottleTimer !== null) {
+      clearTimeout(this.awarenessThrottleTimer);
+      this.awarenessThrottleTimer = null;
     }
   }
 }
@@ -631,10 +693,11 @@ export async function initCollabEditor(roomId: string, token: string) {
       setStatus,
       fail,
       viewStorageKey: "sfs2487.collab.view",
+      selectionHighlighter,
       onRendered: () => {
         downloadEl.disabled = false;
         collabSelectionManager?.render();
-        autoscrollTracker?.sync();
+        autoscrollTracker?.scheduleSync();
       },
     },
   );
@@ -646,8 +709,8 @@ export async function initCollabEditor(roomId: string, token: string) {
     getMarkdown: () => ytext.toString(),
     getLogo: logoForPreview,
     onRenderComplete: () => {
-      collabSelectionManager?.render();
-      autoscrollTracker?.sync();
+      collabSelectionManager?.scheduleRender();
+      autoscrollTracker?.scheduleSync();
     },
     debounceMs: 300,
   });
@@ -736,9 +799,19 @@ export async function initCollabEditor(roomId: string, token: string) {
     });
   }
 
-  provider.awareness.on("change", () => {
+  provider.awareness.on("change", (changes?: { added?: number[]; updated?: number[]; removed?: number[] }) => {
     renderCollaborators();
-    collabSelectionManager?.render();
+    // Avoid redundant double-renders on local selection changes:
+    // Only schedule selection render if a remote client's state actually changed.
+    const added = changes?.added ?? [];
+    const updated = changes?.updated ?? [];
+    const removed = changes?.removed ?? [];
+    const hasRemoteChanges = [...added, ...updated, ...removed].some(
+      (id) => id !== provider.awareness.clientID
+    );
+    if (hasRemoteChanges || (!added.length && !updated.length && !removed.length)) {
+      collabSelectionManager?.scheduleRender();
+    }
   });
   renderCollaborators();
 
@@ -818,15 +891,32 @@ export async function initCollabEditor(roomId: string, token: string) {
     return computeSelectionPayload(state, visualModeActive, visualSubMode);
   }
 
+  let selectionRafId: number | null = null;
+
   function syncSelection(state: EditorState) {
     const payload = getSelectionPayload(state);
     if (!payload) {
+      if (selectionRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+        cancelAnimationFrame(selectionRafId);
+        selectionRafId = null;
+      }
       if (collabSelectionManager?.getLocalSelection() !== null) {
         collabSelectionManager?.clearLocalSelection();
       }
       return;
     }
-    collabSelectionManager?.setLocalSelection(payload);
+
+    if (typeof requestAnimationFrame === "undefined") {
+      collabSelectionManager?.setLocalSelection(payload);
+      return;
+    }
+
+    if (selectionRafId === null) {
+      selectionRafId = requestAnimationFrame(() => {
+        selectionRafId = null;
+        collabSelectionManager?.setLocalSelection(payload);
+      });
+    }
   }
 
   // Vim preference support and collaborative undo/redo mapping
@@ -934,6 +1024,7 @@ export async function initCollabEditor(roomId: string, token: string) {
         }
         if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
+          autoscrollTracker?.scheduleSync();
         }
       }),
     ],
@@ -952,6 +1043,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     buttonEl: autoscrollEl,
     previewEl: document.getElementById("preview")!,
     getEditorView: () => editor,
+    selectionHighlighter,
   });
 
   // Vim mode indicator
@@ -1492,7 +1584,12 @@ export async function initCollabEditor(roomId: string, token: string) {
     "beforeunload",
     () => {
       try {
+        if (selectionRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+          cancelAnimationFrame(selectionRafId);
+          selectionRafId = null;
+        }
         autoscrollTracker?.destroy();
+        collabSelectionManager?.destroy();
         collabSelectionManager?.clearLocalSelection();
         renderCoordinator.destroy();
         idbProvider?.destroy();
