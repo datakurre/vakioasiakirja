@@ -366,17 +366,24 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   const currentZoom = () => (view.fit === "none" ? view.zoom : fitZoom());
 
   function applyView() {
+    // Read clean layout metrics BEFORE any DOM mutations
+    const z = currentZoom();
     els.pagesEl.classList.toggle("two-up", view.twoUp);
     els.twoUpEl.setAttribute("aria-pressed", String(view.twoUp));
-    const z = currentZoom();
     const cards = els.pagesEl.querySelectorAll<SVGSVGElement>("svg.page");
-    cards.forEach((card, i) => {
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
       const s = pageSizes[i] ?? pageSizes[0];
-      if (!s) return;
-      card.style.width = `${s.w * z}px`;
-      card.style.height = `${s.h * z}px`;
-    });
-    els.zoomLevelEl.textContent = `${Math.round(z * 100)} %`;
+      if (!s) continue;
+      const wStr = `${s.w * z}px`;
+      const hStr = `${s.h * z}px`;
+      if (card.style.width !== wStr) card.style.width = wStr;
+      if (card.style.height !== hStr) card.style.height = hStr;
+    }
+    const zoomText = `${Math.round(z * 100)} %`;
+    if (els.zoomLevelEl.textContent !== zoomText) {
+      els.zoomLevelEl.textContent = zoomText;
+    }
   }
 
   function setZoom(z: number) {
@@ -435,6 +442,17 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       sizes.push({ w, h });
     }
     pageSizes = sizes;
+
+    // Pre-apply inline dimensions before inserting into live DOM
+    const z = currentZoom();
+    for (let i = 0; i < cards.length; i++) {
+      const s = sizes[i];
+      if (s) {
+        cards[i].style.width = `${s.w * z}px`;
+        cards[i].style.height = `${s.h * z}px`;
+      }
+    }
+
     els.pagesEl.replaceChildren(...cards);
     cb.selectionHighlighter?.invalidateCache();
     applyView();

@@ -26,16 +26,27 @@ export interface HighlightTrackerOptions {
   ry?: number;
 }
 
+const scaleCache = new Map<string, { sx: number; sy: number }>();
+
 /**
  * Parses scale factors from an SVG transform string (e.g. `scale(0.011,-0.011)` or `scale(16,-16)`).
  */
 export function parseScale(transform: string | null): { sx: number; sy: number } {
   if (!transform) return { sx: 1, sy: 1 };
+  const cached = scaleCache.get(transform);
+  if (cached) return cached;
   const m = transform.match(/scale\(\s*([-\d.eE]+)(?:[,\s]+([-\d.eE]+))?\s*\)/);
-  if (!m) return { sx: 1, sy: 1 };
+  if (!m) {
+    const res = { sx: 1, sy: 1 };
+    scaleCache.set(transform, res);
+    return res;
+  }
   const sx = parseFloat(m[1]);
   const sy = m[2] !== undefined ? parseFloat(m[2]) : sx;
-  return { sx, sy };
+  const res = { sx, sy };
+  if (scaleCache.size > 256) scaleCache.clear();
+  scaleCache.set(transform, res);
+  return res;
 }
 
 /**
@@ -43,7 +54,13 @@ export function parseScale(transform: string | null): { sx: number; sy: number }
  * Uses the inner `<foreignObject>` geometry combined with cumulative `<g>` scale transforms.
  */
 export function getBBoxInParent(textNode: SVGGElement): BBox | null {
-  const fo = textNode.querySelector("foreignObject");
+  const fo = (
+    textNode.firstElementChild?.tagName === "foreignObject"
+      ? textNode.firstElementChild
+      : (typeof textNode.getElementsByTagName === "function" && textNode.getElementsByTagName("foreignObject")[0]) ||
+        (typeof textNode.querySelector === "function" && textNode.querySelector("foreignObject")) ||
+        null
+  ) as SVGForeignObjectElement | null;
   if (!fo) return null;
 
   const rawX = parseFloat(fo.getAttribute("x") || "0");
@@ -119,18 +136,21 @@ export function alignLines(prev: readonly string[], curr: readonly string[]): Ma
 
   if (midN === 0 || midM === 0) return currToPrev;
 
-  // DP matrix on the middle slice
-  const dp: number[][] = Array.from({ length: midN + 1 }, () =>
-    new Array(midM + 1).fill(0)
-  );
+  // High-performance flat Int32Array for LCS DP matrix
+  const stride = midM + 1;
+  const dp = new Int32Array((midN + 1) * stride);
 
   for (let i = 1; i <= midN; i++) {
     const prevItem = prev[prevMidStart + i - 1];
+    const rowPrev = (i - 1) * stride;
+    const rowCurr = i * stride;
     for (let j = 1; j <= midM; j++) {
       if (prevItem === curr[currMidStart + j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
+        dp[rowCurr + j] = dp[rowPrev + j - 1] + 1;
       } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+        const up = dp[rowPrev + j];
+        const left = dp[rowCurr + j - 1];
+        dp[rowCurr + j] = up >= left ? up : left;
       }
     }
   }
@@ -139,11 +159,13 @@ export function alignLines(prev: readonly string[], curr: readonly string[]): Ma
   let i = midN;
   let j = midM;
   while (i > 0 && j > 0) {
+    const rowPrev = (i - 1) * stride;
+    const rowCurr = i * stride;
     if (prev[prevMidStart + i - 1] === curr[currMidStart + j - 1]) {
       currToPrev.set(currMidStart + j - 1, prevMidStart + i - 1);
       i--;
       j--;
-    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+    } else if (dp[rowPrev + j] >= dp[rowCurr + j - 1]) {
       i--;
     } else {
       j--;

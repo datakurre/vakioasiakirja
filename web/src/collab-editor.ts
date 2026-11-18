@@ -626,7 +626,10 @@ export async function initCollabEditor(roomId: string, token: string) {
   const exitBtn = document.getElementById("collab-exit-btn") as HTMLButtonElement;
 
   type ConnectionState = "connecting" | "connected" | "saving" | "disconnected";
+  let currentBadgeState: ConnectionState | null = null;
   function updateConnectionBadge(state: ConnectionState) {
+    if (currentBadgeState === state) return;
+    currentBadgeState = state;
     statusBadgeEl.className = `collab-status-badge status-${state}`;
     switch (state) {
       case "connecting":
