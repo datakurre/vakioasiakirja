@@ -1,20 +1,19 @@
 // Service worker for the SFS 2487:2024 editor PWA.
 //
 // The app is a fully static, self-contained bundle (a ~28 MB Typst compiler
-// WASM, fonts, JS/CSS — all immutable, content-hashed by Vite). A cache-first
-// strategy therefore makes relaunches instant and the installed app work
-// offline, which is what "installed to the home screen" should feel like.
+// WASM, fonts, JS/CSS — all immutable, content-hashed by Vite).
 //
-// Same-origin GET requests are served from the cache when present and refreshed
-// in the background (stale-while-revalidate); a cache miss falls through to the
-// network and is stored. Navigations fall back to the cached shell when offline.
-// Scope is the SW's own directory, so it works at any base path (GitHub Pages'
-// project subpath as well as the dev root).
+// Upgrade & caching strategy:
+// - Navigation requests (index.html, page refresh) use Network-First with cache fallback.
+//   This ensures a standard page refresh always fetches the latest deployment when online.
+// - Content-hashed assets (/assets/*) use Cache-First because hashed filenames are immutable.
+// - Other same-origin static assets use Stale-While-Revalidate with background revalidation.
+// - Automatic activation via skipWaiting() and clients.claim(), plus SKIP_WAITING message listener.
 
-const CACHE = "sfs2487-v1";
+const CACHE = "sfs2487-v2";
 
 self.addEventListener("install", () => {
-  // Take over as soon as the new worker is ready; we have no precache step.
+  // Take over immediately when a new service worker is installed
   self.skipWaiting();
 });
 
@@ -29,37 +28,86 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // never touch cross-origin
 
+  // 1. Navigation requests (page refresh, document load): Network-First
+  // Guarantees that any usual page refresh retrieves the latest index.html if online.
+  const isNavigation =
+    req.mode === "navigate" ||
+    req.destination === "document" ||
+    url.pathname.endsWith(".html") ||
+    url.pathname === self.location.pathname.replace(/\/sw\.js$/, "/");
+
+  if (isNavigation) {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkRes = await fetch(req);
+          if (networkRes && networkRes.ok) {
+            const cache = await caches.open(CACHE);
+            cache.put(req, networkRes.clone());
+            return networkRes;
+          }
+        } catch {
+          // Network failed (offline) -> fall through to cache
+        }
+        const cache = await caches.open(CACHE);
+        const cached =
+          (await cache.match(req)) ||
+          (await cache.match("index.html")) ||
+          (await cache.match("./"));
+        if (cached) return cached;
+        throw new Error("Offline and no cached shell");
+      })(),
+    );
+    return;
+  }
+
+  // 2. Content-hashed static assets (/assets/*): Cache-First
+  // Vite embeds cryptographic content hashes in filenames, so they are immutable.
+  if (url.pathname.includes("/assets/")) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        const res = await fetch(req);
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      })(),
+    );
+    return;
+  }
+
+  // 3. Other same-origin GET requests (fonts, icons, manifest): Stale-While-Revalidate
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE);
       const cached = await cache.match(req);
+      const fetchPromise = fetch(req)
+        .then((res) => {
+          if (res && res.ok) cache.put(req, res.clone());
+          return res;
+        })
+        .catch(() => null);
+
       if (cached) {
-        // Refresh in the background so a later visit picks up any change.
-        event.waitUntil(
-          fetch(req)
-            .then((res) => res.ok && cache.put(req, res.clone()))
-            .catch(() => {}),
-        );
+        event.waitUntil(fetchPromise);
         return cached;
       }
-      try {
-        const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-      } catch (err) {
-        // Offline and uncached: serve the app shell for navigations.
-        if (req.mode === "navigate") {
-          const shell = (await cache.match("index.html")) || (await cache.match("./"));
-          if (shell) return shell;
-        }
-        throw err;
-      }
+      const res = await fetchPromise;
+      if (res) return res;
+      throw new Error("Resource unavailable offline");
     })(),
   );
 });
