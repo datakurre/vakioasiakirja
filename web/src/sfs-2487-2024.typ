@@ -251,13 +251,13 @@
   // information areas they hang at the 20 mm margin (cls \maketitle outdents
   // the recipient and title parboxes by \sfs@column), not the body indent.
   let title-size = fontsize + 3pt
-  let title-leading = title-size * 0.2
-  block(below: 1.5 * parskip, pad(left: -column, {
+  let title-below = 1.5 * parskip
+  let title-leading = title-below / 2
+  block(below: title-below, pad(left: -column, {
     set par(leading: title-leading)
     if subject != none {
       strong(subject)
       linebreak()
-      v(2.5pt, weak: false)
     }
     text(size: title-size, weight: "bold", hyphenate: false, title)
   }))

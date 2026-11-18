@@ -9,7 +9,7 @@ import templateSource from "./sfs-2487-2024.typ?raw";
 import type { WorkerRequest, WorkerResponse } from "./typst-worker-types.ts";
 
 let typstInited = false;
-let templateAdded = false;
+let currentTemplateSource: string | null = null;
 let currentTypst = "";
 let currentLogoPath: string | undefined;
 
@@ -100,9 +100,9 @@ self.addEventListener("message", async (e: MessageEvent<WorkerRequest>) => {
         return;
       }
 
-      if (!templateAdded) {
+      if (currentTemplateSource !== templateSource) {
         await $typst.addSource("/sfs-2487-2024.typ", templateSource);
-        templateAdded = true;
+        currentTemplateSource = templateSource;
       }
       if (currentLogoPath && (!req.logo || currentLogoPath !== req.logo.path)) {
         try {

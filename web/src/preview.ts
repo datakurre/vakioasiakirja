@@ -42,7 +42,7 @@ export function getPreloadFontUrls(): string[] {
 const FONTS = getPreloadFontUrls();
 
 let inThreadTypstInited = false;
-let inThreadTemplateAdded = false;
+let inThreadCurrentTemplateSource: string | null = null;
 let inThreadCurrentTypst = "";
 let inThreadCurrentLogoPath: string | undefined;
 
@@ -263,9 +263,9 @@ export class TypstWorkerBridge {
   private async renderInThread(md: string, logo?: Logo): Promise<{ svg: string }> {
     initInThreadTypst();
     const typst = markdownToTypst(md, { logoPath: logo?.path });
-    if (!inThreadTemplateAdded) {
+    if (inThreadCurrentTemplateSource !== templateSource) {
       await $typst.addSource("/sfs-2487-2024.typ", templateSource);
-      inThreadTemplateAdded = true;
+      inThreadCurrentTemplateSource = templateSource;
     }
     if (inThreadCurrentLogoPath && (!logo || inThreadCurrentLogoPath !== logo.path)) {
       try {
