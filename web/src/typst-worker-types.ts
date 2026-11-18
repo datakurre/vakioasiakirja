@@ -4,7 +4,8 @@ export interface WorkerLogo {
 }
 
 export type WorkerRequest =
-  | { id: number; type: "render"; md: string; logo?: WorkerLogo }
+  | { id: number; type: "init"; fontUrls?: string[] }
+  | { id: number; type: "render"; md: string; logo?: WorkerLogo; fontUrls?: string[] }
   | { id: number; type: "pdf" };
 
 export type WorkerResponse =

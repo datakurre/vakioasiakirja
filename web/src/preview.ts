@@ -19,12 +19,27 @@ import type { WorkerRequest, WorkerResponse } from "./typst-worker-types.ts";
 
 export { createPagePulseTracker, type PagePulseTracker };
 
-const base = import.meta.env.BASE_URL;
-const FONTS = [
-  "heros-regular", "heros-bold", "heros-italic", "heros-bolditalic",
-  "pagella-regular", "pagella-bold", "pagella-italic", "pagella-bolditalic",
-  "cursor-regular", "cursor-bold", "cursor-italic", "cursor-bolditalic",
-].map((n) => `${base}fonts/texgyre${n}.otf`);
+export function getPreloadFontUrls(): string[] {
+  const base = import.meta.env.BASE_URL || "/";
+  const names = [
+    "heros-regular", "heros-bold", "heros-italic", "heros-bolditalic",
+    "pagella-regular", "pagella-bold", "pagella-italic", "pagella-bolditalic",
+    "cursor-regular", "cursor-bold", "cursor-italic", "cursor-bolditalic",
+  ];
+  return names.map((n) => {
+    const rel = `${base}fonts/texgyre${n}.otf`;
+    if (typeof window !== "undefined" && window.location) {
+      try {
+        return new URL(rel, window.location.href).href;
+      } catch {
+        return rel;
+      }
+    }
+    return rel;
+  });
+}
+
+const FONTS = getPreloadFontUrls();
 
 let inThreadTypstInited = false;
 let inThreadTemplateAdded = false;
@@ -124,6 +139,9 @@ export class TypstWorkerBridge {
         { type: "module" }
       );
 
+      const fontUrls = getPreloadFontUrls();
+      this.worker.postMessage({ id: 0, type: "init", fontUrls });
+
       this.worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
         const msg = e.data;
         if (!msg || typeof msg.id !== "number") return;
@@ -196,6 +214,7 @@ export class TypstWorkerBridge {
           type: "render",
           md,
           logo: logo ? { path: logo.path, bytes: logo.bytes } : undefined,
+          fontUrls: getPreloadFontUrls(),
         };
         this.worker!.postMessage(req);
       } catch (postErr) {

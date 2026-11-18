@@ -32,19 +32,38 @@ function getFontUrls(): string[] {
     "pagella-regular", "pagella-bold", "pagella-italic", "pagella-bolditalic",
     "cursor-regular", "cursor-bold", "cursor-italic", "cursor-bolditalic",
   ];
+
+  let rootUrl: string;
+  try {
+    if (base.startsWith("http://") || base.startsWith("https://") || base.startsWith("/")) {
+      rootUrl = new URL(base, self.location.origin).href;
+    } else {
+      // Relative base like "./". If worker chunk is in /assets/, resolve relative to parent of /assets/
+      const workerUrl = new URL(self.location.href);
+      let dir = workerUrl.pathname.replace(/\/[^/]*$/, "/");
+      if (dir.endsWith("/assets/")) {
+        dir = dir.slice(0, -"/assets/".length + 1);
+      }
+      workerUrl.pathname = dir;
+      rootUrl = new URL(base, workerUrl.href).href;
+    }
+  } catch {
+    rootUrl = self.location.href;
+  }
+  if (!rootUrl.endsWith("/")) rootUrl += "/";
+
   return names.map((n) => {
-    const rel = `${base}fonts/texgyre${n}.otf`;
     try {
-      return new URL(rel, self.location.href).href;
+      return new URL(`fonts/texgyre${n}.otf`, rootUrl).href;
     } catch {
-      return rel;
+      return `${base}fonts/texgyre${n}.otf`;
     }
   });
 }
 
-function initTypst() {
+function initTypst(customFonts?: string[]) {
   if (typstInited) return;
-  const fonts = getFontUrls();
+  const fonts = customFonts && customFonts.length > 0 ? customFonts : getFontUrls();
   $typst.setCompilerInitOptions({
     getModule: () => toAbsoluteUrl(compilerWasmUrl),
     beforeBuild: [preloadRemoteFonts(fonts, { assets: false })],
@@ -59,9 +78,14 @@ self.addEventListener("message", async (e: MessageEvent<WorkerRequest>) => {
   const req = e.data;
   if (!req || typeof req.id !== "number") return;
 
+  if (req.type === "init") {
+    initTypst(req.fontUrls);
+    return;
+  }
+
   if (req.type === "render") {
     try {
-      initTypst();
+      initTypst(req.fontUrls);
       let typst: string;
       try {
         typst = markdownToTypst(req.md, { logoPath: req.logo?.path });

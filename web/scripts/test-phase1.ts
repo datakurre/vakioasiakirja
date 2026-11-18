@@ -157,6 +157,59 @@ test("preview: ticket sequencing discard logic", async () => {
   assert.deepEqual(appliedSequences, [2]);
 });
 
+test("preview: font URLs resolution does not append assets/ in subpaths", () => {
+  function getFontUrls(baseUrl?: string, locationHref?: string): string[] {
+    const base = baseUrl || "/";
+    const names = [
+      "heros-regular", "heros-bold", "heros-italic", "heros-bolditalic",
+      "pagella-regular", "pagella-bold", "pagella-italic", "pagella-bolditalic",
+      "cursor-regular", "cursor-bold", "cursor-italic", "cursor-bolditalic",
+    ];
+
+    let rootUrl: string;
+    try {
+      if (base.startsWith("http://") || base.startsWith("https://") || base.startsWith("/")) {
+        rootUrl = new URL(base, locationHref ? new URL(locationHref).origin : "http://localhost").href;
+      } else {
+        const workerUrl = new URL(locationHref ?? "http://localhost");
+        let dir = workerUrl.pathname.replace(/\/[^/]*$/, "/");
+        if (dir.endsWith("/assets/")) {
+          dir = dir.slice(0, -"/assets/".length + 1);
+        }
+        workerUrl.pathname = dir;
+        rootUrl = new URL(base, workerUrl.href).href;
+      }
+    } catch {
+      rootUrl = locationHref ?? "/";
+    }
+    if (!rootUrl.endsWith("/")) rootUrl += "/";
+
+    return names.map((n) => {
+      try {
+        return new URL(`fonts/texgyre${n}.otf`, rootUrl).href;
+      } catch {
+        return `${base}fonts/texgyre${n}.otf`;
+      }
+    });
+  }
+
+  // 1. Worker running in dist/assets under GitHub Pages subpath
+  const ghPagesWorkerUrls = getFontUrls("./", "https://datakurre.github.io/vakioasiakirja/web/assets/typst.worker-VG7YwIfj.js");
+  assert.equal(ghPagesWorkerUrls.length, 12);
+  assert.equal(ghPagesWorkerUrls[0], "https://datakurre.github.io/vakioasiakirja/web/fonts/texgyreheros-regular.otf");
+  for (const url of ghPagesWorkerUrls) {
+    assert.ok(!url.includes("assets/fonts/"), `URL ${url} should not point to assets/fonts/`);
+  }
+
+  // 2. Main thread on GitHub Pages
+  function getMainThreadFontUrls(base = "./", href = "https://datakurre.github.io/vakioasiakirja/web/"): string[] {
+    const names = ["heros-regular"];
+    return names.map((n) => new URL(`${base}fonts/texgyre${n}.otf`, href).href);
+  }
+  const ghPagesMainUrls = getMainThreadFontUrls("./", "https://datakurre.github.io/vakioasiakirja/web/");
+  assert.equal(ghPagesMainUrls[0], "https://datakurre.github.io/vakioasiakirja/web/fonts/texgyreheros-regular.otf");
+});
+
 test("share panel: minimalist popover DOM verification and structure", async () => {
   const fs = await import("node:fs");
   const path = await import("node:path");
