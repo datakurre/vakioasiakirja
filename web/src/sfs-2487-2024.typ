@@ -250,9 +250,16 @@
   // document's level-1 heading, bold and 3 pt larger (5.2.1). Like the other
   // information areas they hang at the 20 mm margin (cls \maketitle outdents
   // the recipient and title parboxes by \sfs@column), not the body indent.
+  let title-size = fontsize + 3pt
+  let title-leading = title-size * 0.2
   block(below: 1.5 * parskip, pad(left: -column, {
-    if subject != none { strong(subject); linebreak() }
-    text(size: fontsize + 3pt, weight: "bold", hyphenate: false, title)
+    set par(leading: title-leading)
+    if subject != none {
+      strong(subject)
+      linebreak()
+      v(2.5pt, weak: false)
+    }
+    text(size: title-size, weight: "bold", hyphenate: false, title)
   }))
 
   if toc {

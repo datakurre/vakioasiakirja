@@ -388,7 +388,7 @@
   % subject and title baselines is the title leading, as in the standard's
   % model documents (Liite A and B), not the smaller body leading.
   \sfs@struct{Title}{\parbox[t]{\dimexpr\textwidth+\sfs@column\relax}{%
-    \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\\fi
+    \ifx\sfs@subject\@empty\else\textbf{\sfs@subject}\\[2.5pt]\fi
     \sfs@titlefont\@title}}\par
   \sfs@tagon
   % Restore the body paragraph spacing pinned above: the compact style runs
