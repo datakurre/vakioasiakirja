@@ -3,13 +3,18 @@ import { SelectionHighlighter } from "./selection-highlighter.ts";
 import type { SelectionPayload } from "./share.ts";
 
 export const AUTOSCROLL_STORAGE_KEY = "sfs2487.autoscroll";
+export const AUTOSCROLL_DEADBAND = 60; // px margin from top and bottom
+export const AUTOSCROLL_MIN_DELTA = 10; // px threshold to avoid micro-oscillation
+export const AUTOSCROLL_EDIT_DEBOUNCE_MS = 350; // ms cooldown for active typing
+
+export type AutoscrollSource = "selection" | "edit" | "render";
 
 export interface AutoscrollTracker {
   isEnabled(): boolean;
   setEnabled(enabled: boolean): void;
   toggle(): boolean;
-  sync(): void;
-  scheduleSync(): void;
+  sync(source?: AutoscrollSource): void;
+  scheduleSync(source?: AutoscrollSource): void;
   destroy(): void;
 }
 
@@ -19,6 +24,9 @@ export interface AutoscrollTrackerOptions {
   getEditorView: () => EditorView | undefined;
   storageKey?: string;
   selectionHighlighter?: SelectionHighlighter;
+  debounceMs?: number;
+  deadband?: number;
+  minDelta?: number;
 }
 
 export function createAutoscrollTracker(options: AutoscrollTrackerOptions): AutoscrollTracker {
@@ -27,6 +35,9 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     previewEl,
     getEditorView,
     storageKey = AUTOSCROLL_STORAGE_KEY,
+    debounceMs = AUTOSCROLL_EDIT_DEBOUNCE_MS,
+    deadband: configuredDeadband = AUTOSCROLL_DEADBAND,
+    minDelta = AUTOSCROLL_MIN_DELTA,
   } = options;
 
   const highlighter = options.selectionHighlighter ?? new SelectionHighlighter();
@@ -41,12 +52,28 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     // Keep default enabled = true
   }
 
+  let isEditing = false;
+  let editTimer: ReturnType<typeof setTimeout> | null = null;
+  let syncRafId: number | null = null;
+
   function updateButton() {
     if (!buttonEl) return;
     buttonEl.setAttribute("aria-pressed", String(enabled));
     buttonEl.title = enabled
       ? "Automaattinen vieritys (päällä)"
       : "Automaattinen vieritys (pois)";
+  }
+
+  function clearTimers() {
+    if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+      cancelAnimationFrame(syncRafId);
+      syncRafId = null;
+    }
+    if (editTimer !== null) {
+      clearTimeout(editTimer);
+      editTimer = null;
+    }
+    isEditing = false;
   }
 
   function setEnabled(val: boolean) {
@@ -58,7 +85,9 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     }
     updateButton();
     if (enabled) {
-      sync();
+      sync("render");
+    } else {
+      clearTimers();
     }
   }
 
@@ -67,7 +96,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     return enabled;
   }
 
-  function sync(): void {
+  function sync(source: AutoscrollSource = "selection"): void {
     if (!enabled) return;
     const editor = getEditorView();
     if (!editor) return;
@@ -150,24 +179,54 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
                 if (elRect.height > 0 || elRect.width > 0 || elRect.top > 0) {
                   elementMatched = true;
 
-                  // 3. Avoid jitter if already comfortably visible in the viewport
-                  const isComfortablyVisible =
-                    elRect.top >= previewRect.top + 40 &&
-                    elRect.bottom <= previewRect.bottom - 40;
+                  // 3. Hysteresis, Deadband & Minimal Displacement
+                  // Safe zone margins prevent unnecessary scrolling while cursor is within viewport.
+                  const effectiveDeadband = Math.min(
+                    configuredDeadband,
+                    Math.max(0, Math.floor(previewEl.clientHeight / 4))
+                  );
+                  const safeTop = previewRect.top + effectiveDeadband;
+                  const safeBottom = previewRect.bottom - effectiveDeadband;
+                  const fitsInSafeZone = elRect.height <= (safeBottom - safeTop);
 
-                  if (!isComfortablyVisible) {
-                    const exactOffset = elRect.top - previewRect.top + previewEl.scrollTop;
-                    // Align rendered element near upper third of viewport
-                    const viewportHeight = previewEl.clientHeight;
-                    const desiredScrollTop = exactOffset - viewportHeight * 0.33;
-                    const targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(desiredScrollTop)));
+                  let targetScrollTop: number | null = null;
 
-                    if (Math.abs(previewEl.scrollTop - targetScrollTop) >= 3) {
-                      previewEl.scrollTo({
-                        top: targetScrollTop,
-                        behavior: scrollBehavior,
-                      });
+                  if (fitsInSafeZone) {
+                    const isComfortablyVisible =
+                      elRect.top >= safeTop &&
+                      elRect.bottom <= safeBottom;
+
+                    if (!isComfortablyVisible) {
+                      if (elRect.bottom > safeBottom) {
+                        // Slightly below bottom safe zone: scroll down just enough to bring into lower safe area
+                        const delta = elRect.bottom - safeBottom;
+                        targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                      } else if (elRect.top < safeTop) {
+                        // Slightly above top safe zone: scroll up just enough to bring into upper safe area
+                        const delta = elRect.top - safeTop;
+                        targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                      }
                     }
+                  } else {
+                    // Element taller than safe area: align top of element with safeTop
+                    const isComfortablyVisible =
+                      elRect.top >= safeTop &&
+                      elRect.top <= safeBottom;
+
+                    if (!isComfortablyVisible) {
+                      const delta = elRect.top - safeTop;
+                      targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                    }
+                  }
+
+                  if (
+                    targetScrollTop !== null &&
+                    Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta
+                  ) {
+                    previewEl.scrollTo({
+                      top: targetScrollTop,
+                      behavior: scrollBehavior,
+                    });
                   }
                 }
               }
@@ -179,11 +238,13 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
       }
 
       // 4. Fallback: If no rendered element matches (e.g. raw frontmatter or empty document),
-      // fall back to proportional scroll.
-      if (!elementMatched) {
+      // fall back to proportional scroll, BUT SUPPRESS during active editing when element matching
+      // temporarily fails due to unrendered typed text.
+      const isCurrentlyEditing = isEditing || source === "edit";
+      if (!elementMatched && !isCurrentlyEditing) {
         const ratio = totalLines > 1 ? (currentLine - 1) / (totalLines - 1) : 0;
         const targetScrollTop = Math.round(ratio * maxScroll);
-        if (Math.abs(previewEl.scrollTop - targetScrollTop) >= 2) {
+        if (Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta) {
           previewEl.scrollTo({
             top: targetScrollTop,
             behavior: scrollBehavior,
@@ -195,18 +256,61 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     }
   }
 
-  let syncRafId: number | null = null;
-
-  function scheduleSync(): void {
+  function scheduleSync(source: AutoscrollSource = "selection"): void {
     if (!enabled) return;
+
+    if (source === "edit") {
+      isEditing = true;
+      if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+        cancelAnimationFrame(syncRafId);
+        syncRafId = null;
+      }
+      if (editTimer !== null) {
+        clearTimeout(editTimer);
+      }
+      editTimer = setTimeout(() => {
+        editTimer = null;
+        isEditing = false;
+        sync("edit");
+      }, debounceMs);
+      return;
+    }
+
+    if (source === "render") {
+      if (editTimer !== null) {
+        clearTimeout(editTimer);
+        editTimer = null;
+      }
+      isEditing = false;
+      if (typeof requestAnimationFrame === "undefined") {
+        sync("render");
+        return;
+      }
+      if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
+        cancelAnimationFrame(syncRafId);
+      }
+      syncRafId = requestAnimationFrame(() => {
+        syncRafId = null;
+        sync("render");
+      });
+      return;
+    }
+
+    // source === "selection" (cursor navigation without edits)
+    if (editTimer !== null) {
+      clearTimeout(editTimer);
+      editTimer = null;
+    }
+    isEditing = false;
+
     if (typeof requestAnimationFrame === "undefined") {
-      sync();
+      sync("selection");
       return;
     }
     if (syncRafId !== null) return;
     syncRafId = requestAnimationFrame(() => {
       syncRafId = null;
-      sync();
+      sync("selection");
     });
   }
 
@@ -224,10 +328,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     sync,
     scheduleSync,
     destroy: () => {
-      if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
-        cancelAnimationFrame(syncRafId);
-        syncRafId = null;
-      }
+      clearTimers();
       buttonEl?.removeEventListener("click", onClick);
     },
   };

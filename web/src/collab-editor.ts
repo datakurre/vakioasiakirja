@@ -697,7 +697,6 @@ export async function initCollabEditor(roomId: string, token: string) {
       onRendered: () => {
         downloadEl.disabled = false;
         collabSelectionManager?.render();
-        autoscrollTracker?.scheduleSync();
       },
     },
   );
@@ -710,7 +709,7 @@ export async function initCollabEditor(roomId: string, token: string) {
     getLogo: logoForPreview,
     onRenderComplete: () => {
       collabSelectionManager?.scheduleRender();
-      autoscrollTracker?.scheduleSync();
+      autoscrollTracker?.scheduleSync("render");
     },
     debounceMs: 300,
   });
@@ -1024,7 +1023,11 @@ export async function initCollabEditor(roomId: string, token: string) {
         }
         if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
-          autoscrollTracker?.scheduleSync();
+        }
+        if (u.docChanged) {
+          autoscrollTracker?.scheduleSync("edit");
+        } else if (u.selectionSet) {
+          autoscrollTracker?.scheduleSync("selection");
         }
       }),
     ],

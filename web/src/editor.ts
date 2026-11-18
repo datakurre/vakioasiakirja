@@ -497,7 +497,7 @@ export function initEditor() {
       if (currentSelection?.active) {
         selectionHighlighter.update(pagesEl, currentSelection);
       }
-      autoscrollTracker?.scheduleSync();
+      autoscrollTracker?.scheduleSync("render");
     });
     broadcaster?.push(snapshot());
   }
@@ -734,7 +734,11 @@ export function initEditor() {
         }
         if (u.selectionSet || u.docChanged) {
           syncSelection(u.state);
-          autoscrollTracker?.scheduleSync();
+        }
+        if (u.docChanged) {
+          autoscrollTracker?.scheduleSync("edit");
+        } else if (u.selectionSet) {
+          autoscrollTracker?.scheduleSync("selection");
         }
       }),
     ],
