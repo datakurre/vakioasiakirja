@@ -81,6 +81,7 @@ export function initEditor() {
   let currentSelection: SelectionPayload | null = null;
   let visualModeActive = false;
   let visualSubMode: "visual" | "linewise" | "blockwise" = "visual";
+  let autoscrollTracker: ReturnType<typeof createAutoscrollTracker> | undefined;
 
   const preview = createPreview(
     {
@@ -102,6 +103,7 @@ export function initEditor() {
       selectionHighlighter,
       onRendered: () => {
         downloadEl.disabled = false;
+        autoscrollTracker?.scheduleSync("render");
       },
     },
   );
@@ -497,7 +499,6 @@ export function initEditor() {
       if (currentSelection?.active) {
         selectionHighlighter.update(pagesEl, currentSelection);
       }
-      autoscrollTracker?.scheduleSync("render");
     });
     broadcaster?.push(snapshot());
   }
@@ -676,7 +677,6 @@ export function initEditor() {
   }
 
   let timer: number | undefined;
-  let autoscrollTracker: ReturnType<typeof createAutoscrollTracker> | undefined;
 
   let lastSaveToastTime = 0;
   const triggerSave = () => {
@@ -738,9 +738,10 @@ export function initEditor() {
         if (u.selectionSet || (u.docChanged && currentSelection !== null)) {
           syncSelection(u.state);
         }
+        const hasVisualSelection = !u.state.selection.main.empty || visualModeActive;
         if (u.docChanged) {
           autoscrollTracker?.scheduleSync("edit");
-        } else if (u.selectionSet) {
+        } else if (u.selectionSet && hasVisualSelection) {
           autoscrollTracker?.scheduleSync("selection");
         }
       }),
@@ -806,6 +807,7 @@ export function initEditor() {
             ? "blockwise"
             : "visual";
         syncSelection(editor.state);
+        autoscrollTracker?.scheduleSync("selection");
       } else {
         if (visualModeActive) {
           visualModeActive = false;

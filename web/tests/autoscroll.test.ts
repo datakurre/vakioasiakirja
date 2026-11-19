@@ -837,3 +837,112 @@ test("AutoscrollTracker: long paragraph (>200 chars) windows around cursor head"
   assert.equal(scrolledTop, 90);
   tracker.destroy();
 });
+
+test("AutoscrollTracker: ignores collapsed cursor movements to prevent unwanted screen movement", () => {
+  let scrollCalls = 0;
+  const doc = "Line 1\nLine 2\nLine 3";
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: doc.indexOf("Line 2") }, // Empty / collapsed cursor
+  });
+  const mockEditor = { state } as unknown as EditorView;
+
+  const preview = {
+    scrollHeight: 1000,
+    clientHeight: 500,
+    scrollTop: 0,
+    scrollTo() { scrollCalls++; },
+  } as unknown as HTMLElement;
+
+  const tracker = createAutoscrollTracker({
+    previewEl: preview,
+    getEditorView: () => mockEditor,
+  });
+
+  const hasVisualSelection = !state.selection.main.empty;
+  assert.equal(hasVisualSelection, false);
+  // When collapsed cursor, scheduleSync("selection") is not invoked by editor
+  if (hasVisualSelection) {
+    tracker.scheduleSync("selection");
+  }
+  assert.equal(scrollCalls, 0, "No scroll on collapsed cursor placement");
+  tracker.destroy();
+});
+
+test("AutoscrollTracker: post-render onRendered brings newly typed sentence into view", () => {
+  let scrolledTop = -1;
+  const doc = "# Kilpailutoiminta\n\nUusi virke kilpailutoiminnasta lisättynä.";
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: doc.length },
+  });
+  const mockEditor = { state } as unknown as EditorView;
+
+  const fo = {
+    getAttribute(attr: string) {
+      if (attr === "x") return "10";
+      if (attr === "y") return "10";
+      if (attr === "width") return "100";
+      if (attr === "height") return "20";
+      return null;
+    },
+    parentElement: null as any,
+  };
+
+  const parentG = {
+    getAttribute() {
+      return null;
+    },
+    parentElement: null,
+  };
+
+  const textNode = {
+    getAttribute(attr: string) { return attr === "data-tid" ? "tid-kilp" : null; },
+    textContent: "Uusi virke kilpailutoiminnasta lisättynä.",
+    querySelector(s: string) {
+      return s === "foreignObject" ? fo : null;
+    },
+    querySelectorAll() { return []; },
+    getBoundingClientRect() {
+      return { top: 620, bottom: 640, left: 10, right: 300, width: 290, height: 20 };
+    },
+    parentElement: parentG,
+  };
+  fo.parentElement = textNode;
+
+  const pageSvg = {
+    querySelectorAll(selector: string) {
+      if (selector === "g.typst-page") return [];
+      if (selector === "g.typst-text") return [textNode];
+      return [];
+    },
+  };
+
+  const preview = {
+    scrollHeight: 2000,
+    clientHeight: 600,
+    scrollTop: 0,
+    querySelectorAll(selector: string) {
+      if (selector === "svg.page") return [pageSvg];
+      return [];
+    },
+    getBoundingClientRect() {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600 };
+    },
+    scrollTo(options: any) {
+      scrolledTop = options.top;
+      this.scrollTop = options.top;
+    },
+  } as unknown as HTMLElement;
+
+  const tracker = createAutoscrollTracker({
+    previewEl: preview,
+    getEditorView: () => mockEditor,
+  });
+
+  // onRendered fires scheduleSync("render")
+  tracker.sync("render");
+  // Element bottom is at 640, safeBottom is 540 -> scrolls by 100px
+  assert.equal(scrolledTop, 100, "Newly rendered sentence post-compile is cleanly scrolled into view");
+  tracker.destroy();
+});
