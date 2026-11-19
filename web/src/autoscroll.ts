@@ -110,11 +110,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
       const maxScroll = previewEl.scrollHeight - previewEl.clientHeight;
       if (maxScroll <= 0) return;
 
-      const prefersReducedMotion =
-        typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const scrollBehavior = prefersReducedMotion ? "auto" : "smooth";
+      const scrollBehavior: ScrollBehavior = "auto";
 
       // 1. Inspect the cursor position: get the current line text, or if empty,
       // scan backward to the nearest non-empty line (heading, list item, paragraph).
@@ -141,6 +137,9 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
         }
       }
 
+      let windowedFrom = state.doc.line(targetLineNumber).from;
+      let windowedTo = state.doc.line(targetLineNumber).to;
+
       // For long paragraphs, window around cursor head to avoid searching massive strings
       if (lineText.length > 200) {
         const lineObj = state.doc.line(targetLineNumber);
@@ -148,6 +147,8 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
         const start = Math.max(0, offset - 60);
         const end = Math.min(lineObj.length, offset + 60);
         lineText = lineObj.text.slice(start, end).trim();
+        windowedFrom = lineObj.from + start;
+        windowedTo = lineObj.from + end;
       }
 
       let elementMatched = false;
@@ -162,10 +163,8 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
           const visibleLines = highlighter.getVisibleLines(previewEl);
           if (visibleLines.length > 0) {
             const relPos = state.doc.length > 0 ? head / state.doc.length : 0;
-            const from = state.doc.line(targetLineNumber).from;
-            const to = state.doc.line(targetLineNumber).to;
-            const prefix = state.sliceDoc(Math.max(0, from - 80), from);
-            const suffix = state.sliceDoc(to, Math.min(state.doc.length, to + 80));
+            const prefix = state.sliceDoc(Math.max(0, windowedFrom - 80), windowedFrom);
+            const suffix = state.sliceDoc(windowedTo, Math.min(state.doc.length, windowedTo + 80));
 
             const payload: SelectionPayload = {
               active: true,
@@ -232,10 +231,17 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
                     targetScrollTop !== null &&
                     Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta
                   ) {
-                    previewEl.scrollTo({
-                      top: targetScrollTop,
-                      behavior: scrollBehavior,
-                    });
+                    try {
+                      previewEl.scrollTo({
+                        top: targetScrollTop,
+                        behavior: scrollBehavior,
+                      });
+                    } catch {
+                      previewEl.scrollTop = targetScrollTop;
+                    }
+                    if (Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta) {
+                      previewEl.scrollTop = targetScrollTop;
+                    }
                   }
                 }
               }
@@ -254,10 +260,17 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
         const ratio = totalLines > 1 ? (currentLine - 1) / (totalLines - 1) : 0;
         const targetScrollTop = Math.round(ratio * maxScroll);
         if (Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta) {
-          previewEl.scrollTo({
-            top: targetScrollTop,
-            behavior: scrollBehavior,
-          });
+          try {
+            previewEl.scrollTo({
+              top: targetScrollTop,
+              behavior: scrollBehavior,
+            });
+          } catch {
+            previewEl.scrollTop = targetScrollTop;
+          }
+          if (Math.abs(previewEl.scrollTop - targetScrollTop) >= minDelta) {
+            previewEl.scrollTop = targetScrollTop;
+          }
         }
       }
     } catch {
@@ -298,10 +311,16 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
       if (syncRafId !== null && typeof cancelAnimationFrame !== "undefined") {
         cancelAnimationFrame(syncRafId);
       }
-      syncRafId = requestAnimationFrame(() => {
+      let executed = false;
+      const doSync = () => {
+        if (executed) return;
+        executed = true;
         syncRafId = null;
         sync("render");
-      });
+      };
+      syncRafId = requestAnimationFrame(doSync);
+      // Fallback for background tabs or headless environments where rAF is throttled/paused
+      setTimeout(doSync, 50);
       return;
     }
 
@@ -317,10 +336,16 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
       return;
     }
     if (syncRafId !== null) return;
-    syncRafId = requestAnimationFrame(() => {
+    let executed = false;
+    const doSync = () => {
+      if (executed) return;
+      executed = true;
       syncRafId = null;
       sync("selection");
-    });
+    };
+    syncRafId = requestAnimationFrame(doSync);
+    // Fallback for background tabs or headless environments where rAF is throttled/paused
+    setTimeout(doSync, 50);
   }
 
   const onClick = () => {

@@ -946,3 +946,109 @@ test("AutoscrollTracker: post-render onRendered brings newly typed sentence into
   assert.equal(scrolledTop, 100, "Newly rendered sentence post-compile is cleanly scrolled into view");
   tracker.destroy();
 });
+
+test("AutoscrollTracker: Table of Contents leader dots do not prevent matching section heading or sentence under it", () => {
+  const mockStorage = createMockStorage();
+  (globalThis as any).localStorage = mockStorage;
+
+  let scrolledTop = -1;
+  const doc = `# Johdanto\n\nTekstiä.\n\n# Kilpailutoiminta\n\nYksi kaksi kolme neljä. Viisi kuusi seitsemän.\n`;
+  const state = EditorState.create({
+    doc,
+    selection: { anchor: doc.indexOf("Yksi kaksi kolme") + 5 },
+  });
+
+  const mockEditor = { state } as unknown as EditorView;
+
+  const foDot = {
+    getAttribute(attr: string) {
+      if (attr === "width") return "2";
+      if (attr === "height") return "12";
+      return null;
+    },
+    parentElement: null as any,
+  };
+  const dotNode = {
+    getAttribute(attr: string) { return attr === "data-tid" ? "tid-dot" : null; },
+    textContent: ".",
+    querySelector(s: string) { return s === "foreignObject" ? foDot : null; },
+    querySelectorAll() { return []; },
+    getBoundingClientRect() { return { top: 300, bottom: 312, left: 100, right: 102, width: 2, height: 12 }; },
+    parentElement: { getAttribute: () => null, parentElement: null },
+  };
+  foDot.parentElement = dotNode;
+
+  const foHeading = {
+    getAttribute(attr: string) {
+      if (attr === "width") return "150";
+      if (attr === "height") return "20";
+      return null;
+    },
+    parentElement: null as any,
+  };
+  const headingNode = {
+    getAttribute(attr: string) { return attr === "data-tid" ? "tid-h" : null; },
+    textContent: "3 Kilpailutoiminta",
+    querySelector(s: string) { return s === "foreignObject" ? foHeading : null; },
+    querySelectorAll() { return []; },
+    getBoundingClientRect() { return { top: 700, bottom: 720, left: 10, right: 160, width: 150, height: 20 }; },
+    parentElement: { getAttribute: () => null, parentElement: null },
+  };
+  foHeading.parentElement = headingNode;
+
+  const foSentence = {
+    getAttribute(attr: string) {
+      if (attr === "width") return "300";
+      if (attr === "height") return "20";
+      return null;
+    },
+    parentElement: null as any,
+  };
+  const sentenceNode = {
+    getAttribute(attr: string) { return attr === "data-tid" ? "tid-s" : null; },
+    textContent: "Yksi kaksi kolme neljä. Viisi kuusi seitsemän.",
+    querySelector(s: string) { return s === "foreignObject" ? foSentence : null; },
+    querySelectorAll() { return []; },
+    getBoundingClientRect() { return { top: 730, bottom: 750, left: 10, right: 310, width: 300, height: 20 }; },
+    parentElement: { getAttribute: () => null, parentElement: null },
+  };
+  foSentence.parentElement = sentenceNode;
+
+  // Simulate multiple leader dots followed by heading and sentence
+  const allNodes = [dotNode, dotNode, dotNode, headingNode, sentenceNode];
+
+  const pageSvg = {
+    querySelectorAll(selector: string) {
+      if (selector === "g.typst-page") return [];
+      if (selector === "g.typst-text") return allNodes;
+      return [];
+    },
+  };
+
+  const preview = {
+    scrollHeight: 2000,
+    clientHeight: 600,
+    scrollTop: 0,
+    querySelectorAll(selector: string) {
+      if (selector === "svg.page") return [pageSvg];
+      return [];
+    },
+    getBoundingClientRect() {
+      return { top: 0, bottom: 600, left: 0, right: 800, width: 800, height: 600 };
+    },
+    scrollTo(options: any) {
+      scrolledTop = options.top;
+      this.scrollTop = options.top;
+    },
+  } as unknown as HTMLElement;
+
+  const tracker = createAutoscrollTracker({
+    previewEl: preview,
+    getEditorView: () => mockEditor,
+  });
+
+  tracker.sync("render");
+  // sentenceNode bottom is at 750, safeBottom is 540 -> target is 750 - 540 = 210
+  assert.equal(scrolledTop, 210, "Focuses sentence on page 2 despite presence of TOC leader dots");
+  tracker.destroy();
+});

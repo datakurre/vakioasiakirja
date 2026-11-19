@@ -109,6 +109,12 @@ export class SelectionHighlighter {
       result = extractTextLines(root);
     }
 
+    // Filter out Typst Table of Contents leader dots (. and …) which distort line distribution and cause false matches
+    result = result.filter((line) => {
+      const t = (line.element.textContent || "").trim();
+      return t !== "." && t !== "…" && !/^[.\s]+$/.test(t);
+    });
+
     this.cachedRoot = root;
     this.cachedFirstChild = root.firstElementChild;
     this.cachedLines = result;
@@ -306,14 +312,14 @@ export class SelectionHighlighter {
           }
 
           let textScore = 0;
-          if (candNorm === normSel) {
+          if (candNorm === normSel || candNorm.replace(/^\d+(?:\.\d+)*\s+/, "") === normSel) {
             textScore = 100;
           } else if (i === j && candNorm.includes(normSel)) {
             const ratio = normSel.length / Math.max(1, candNorm.length);
             textScore = 70 + 25 * ratio;
-          } else if (normSel.includes(candNorm) && candNorm.length > 0) {
+          } else if (normSel.includes(candNorm) && candNorm.length >= 3 && /[a-zA-Z0-9\u00C0-\u024F\u1E00-\u1EFF]/.test(candNorm)) {
             const ratio = candNorm.length / Math.max(1, normSel.length);
-            textScore = 60 + 35 * ratio;
+            textScore = 40 + 55 * ratio;
           } else {
             // Linear Set & two-pointer matching (O(W_cand + W_sel))
             const candWordSet = new Set(candWords);
