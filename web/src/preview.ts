@@ -16,6 +16,12 @@ import templateSource from "./sfs-2487-2024.typ?raw";
 import { HighlightTracker } from "./highlight.ts";
 import { createPagePulseTracker, type PagePulseTracker } from "./pulse.ts";
 import type { WorkerRequest, WorkerResponse } from "./typst-worker-types.ts";
+import {
+  hoistSvgStyles,
+  pageSignature,
+  reconcilePageCards,
+  type PageCardEntry,
+} from "./page-cards.ts";
 
 export { createPagePulseTracker, type PagePulseTracker };
 
@@ -342,6 +348,8 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
   let view: ViewPrefs = { zoom: 1, fit: "width", twoUp: false };
   // Natural page sizes (pt) recorded by showPages; the fit math scales from these.
   let pageSizes: { w: number; h: number }[] = [];
+  // Mounted page cards with their content signatures, for incremental updates.
+  let pageEntries: PageCardEntry[] = [];
 
   const saveView = () => {
     if (cb.viewStorageKey) lsSet(cb.viewStorageKey, JSON.stringify(view));
@@ -403,6 +411,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     const baseSvg = holder.querySelector("svg");
     if (!baseSvg) {
       pageSizes = [];
+      pageEntries = [];
       els.pagesEl.innerHTML = svgText;
       cb.selectionHighlighter?.invalidateCache();
       return;
@@ -410,63 +419,47 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
     // typst.ts embeds a <script> for interactivity; cloned once per page it
     // would re-declare its globals (a console error). Drop it before cloning.
     baseSvg.querySelectorAll("script").forEach((s) => s.remove());
+    hoistSvgStyles(baseSvg, document);
     highlightTracker.process(baseSvg, isLiveEdit);
     const pages = Array.from(baseSvg.querySelectorAll("g.typst-page"));
     if (pages.length === 0) {
       pageSizes = [];
+      pageEntries = [];
       els.pagesEl.replaceChildren(baseSvg);
       cb.selectionHighlighter?.invalidateCache();
       return;
     }
-    const pageContents = pages.map((p) => p.innerHTML);
-    const modifiedPages = pulseTracker.checkModified(pageContents);
+    const modifiedPages = pulseTracker.checkModified(pages.map(pageSignature));
 
-    const cards: SVGSVGElement[] = [];
-    const sizes: { w: number; h: number }[] = [];
-    for (let i = 0; i < pages.length; i++) {
-      const page = pages[i];
-      const t = (page.getAttribute("transform") ?? "").match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)/);
-      const y = t ? parseFloat(t[2]) : 0;
-      const w = parseFloat(page.getAttribute("data-page-width") ?? "0");
-      const h = parseFloat(page.getAttribute("data-page-height") ?? "0");
-      const card = baseSvg.cloneNode(true) as SVGSVGElement;
-
-      // Prune non-target typst-page groups from this cloned card to avoid mounting N x N page elements
-      const cardPages = card.querySelectorAll("g.typst-page");
-      for (let j = 0; j < cardPages.length; j++) {
-        if (j !== i) {
-          cardPages[j].remove();
-        }
-      }
-
-      card.setAttribute("viewBox", `0 ${y} ${w} ${h}`);
-      card.setAttribute("preserveAspectRatio", "xMidYMid meet");
-      card.style.overflow = "hidden";
-      card.removeAttribute("data-width");
-      card.removeAttribute("data-height");
-      card.classList.add("page", "preview-page");
-      if (modifiedPages[i]) {
-        card.classList.add("page-pulse", "page-modified");
-      }
-      cards.push(card);
-      sizes.push({ w, h });
-    }
-    pageSizes = sizes;
-
-    // Pre-apply inline dimensions before inserting into live DOM
+    // Pre-size rebuilt cards before they enter the live DOM (no extra reflow).
     const z = currentZoom();
-    for (let i = 0; i < cards.length; i++) {
-      const s = sizes[i];
-      if (s) {
-        cards[i].style.width = `${s.w * z}px`;
-        cards[i].style.height = `${s.h * z}px`;
-      }
+    const { entries, rebuilt } = reconcilePageCards(
+      els.pagesEl,
+      baseSvg as SVGSVGElement,
+      pages,
+      pageEntries,
+      modifiedPages,
+    );
+    for (const i of rebuilt) {
+      const e = entries[i];
+      e.card.style.width = `${e.w * z}px`;
+      e.card.style.height = `${e.h * z}px`;
     }
+    pageEntries = entries;
+    pageSizes = entries.map((e) => ({ w: e.w, h: e.h }));
 
-    els.pagesEl.replaceChildren(...cards);
     cb.selectionHighlighter?.invalidateCache();
     applyView();
   }
+
+  // Drop the pulse classes once the (compositor-only) pulse has played, so a
+  // finished pulse never replays and the pseudo-element layer is released.
+  els.pagesEl.addEventListener("animationend", (ev) => {
+    const target = ev.target as Element | null;
+    if (!target?.classList?.contains("page-wrap")) return;
+    target.classList.remove("page-pulse", "page-modified");
+    target.querySelector("svg.page")?.classList.remove("page-pulse", "page-modified");
+  });
 
   async function render(md: string, logo?: Logo, options?: RenderOptions) {
     const currentSeq = ++nextRenderSeq;

@@ -325,21 +325,31 @@ main {
   }
 }
 
-/* Page modification pulse animation in preview */
-#pages svg.page.page-pulse,
-#pages svg.page.page-modified,
-.page-pulse,
-.page-modified {
-  animation: page-pulse-glow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: box-shadow;
+/* Page modification pulse. The glow lives on the card wrapper's ::after and
+   only its opacity animates, so it runs on the compositor: animating
+   box-shadow on the <svg> card itself repainted thousands of glyph nodes on
+   every frame (≈1.5 s of main-thread paint per edit in Chrome). The classes
+   are removed on animationend (see preview.ts). */
+#pages .page-wrap {
+  position: relative;
 }
 
-@keyframes page-pulse-glow {
+#pages .page-wrap.page-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px #fac80a, 0 4px 16px rgba(250, 200, 10, 0.35);
+  opacity: 0;
+  animation: page-pulse-fade 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes page-pulse-fade {
   0% {
-    box-shadow: 0 0 0 3px #fac80a, 0 4px 16px rgba(250, 200, 10, 0.35);
+    opacity: 1;
   }
   100% {
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+    opacity: 0;
   }
 }
 
@@ -348,10 +358,7 @@ main {
     animation: none;
     opacity: 0;
   }
-  #pages svg.page.page-pulse,
-  #pages svg.page.page-modified,
-  .page-pulse,
-  .page-modified {
+  #pages .page-wrap.page-pulse::after {
     animation: none;
   }
 }
@@ -560,10 +567,7 @@ body.keyboard #vim-mode:not([hidden]) {
     transition: none !important;
   }
   #preview[aria-busy="true"]::after,
-  #pages svg.page.page-pulse,
-  #pages svg.page.page-modified,
-  .page-pulse,
-  .page-modified {
+  #pages .page-wrap.page-pulse::after {
     animation: none !important;
   }
 }

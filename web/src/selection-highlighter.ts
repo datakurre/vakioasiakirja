@@ -40,6 +40,25 @@ export function normalizeRaw(str: string): string {
 }
 
 /**
+ * Extracts text lines under `root`, drops Typst Table of Contents leader dots
+ * (. and …, which distort line distribution and cause false matches), and
+ * pre-normalizes each line for matching.
+ */
+function extractLineData(root: Element): { lines: TextLineInfo[]; data: NormalizedLineData[] } {
+  const lines: TextLineInfo[] = [];
+  const data: NormalizedLineData[] = [];
+  for (const line of extractTextLines(root)) {
+    const raw = (line.element.textContent || "").trim();
+    if (raw === "." || raw === "…" || /^[.\s]+$/.test(raw)) continue;
+    const norm = normalize(raw) || normalizeRaw(raw);
+    const words = norm ? norm.split(" ").filter(Boolean) : [];
+    data.push({ line, idx: lines.length, raw, norm, words });
+    lines.push(line);
+  }
+  return { lines, data };
+}
+
+/**
  * High-performance SVG text selection highlighter for viewers.
  * Matches host Vim visual mode selections to rendered SVG text lines and
  * injects persistent, rounded light-green highlight rectangles.
@@ -54,6 +73,10 @@ export class SelectionHighlighter {
   private cachedFirstChild: Element | null = null;
   private cachedLines: TextLineInfo[] | null = null;
   private cachedLineData: NormalizedLineData[] | null = null;
+  private cardCache = new WeakMap<
+    Element,
+    { target: Element; lines: TextLineInfo[]; data: NormalizedLineData[] }
+  >();
 
   constructor(options?: SelectionHighlighterOptions) {
     this.padX = options?.padX ?? 2;
@@ -76,7 +99,9 @@ export class SelectionHighlighter {
    * Removes all selection highlight rectangles from the given container.
    */
   clear(root: Element): void {
-    const highlights = root.querySelectorAll(".selection-highlight");
+    // getElementsByClassName skips selector parsing/matching and is cached by
+    // the engine, which matters on a glyph-heavy preview (10k+ nodes).
+    const highlights = Array.from(root.getElementsByClassName("selection-highlight"));
     for (const el of highlights) {
       el.remove();
     }
@@ -98,32 +123,35 @@ export class SelectionHighlighter {
 
     const cards = Array.from(root.querySelectorAll<SVGSVGElement>("svg.page"));
     let result: TextLineInfo[];
+    let data: NormalizedLineData[];
     if (cards.length > 0) {
+      // Per-card cache: page cards that survived a re-render untouched (see
+      // page-cards.ts) keep their extracted, pre-normalized lines, so only
+      // rebuilt cards pay for bbox parsing and normalization.
       result = [];
+      data = [];
       cards.forEach((card, i) => {
         const typstPages = card.querySelectorAll<SVGGElement>("g.typst-page");
         const target = typstPages.length === 1 ? typstPages[0] : (typstPages[i] ?? card);
-        result.push(...extractTextLines(target));
+        let entry = this.cardCache.get(card);
+        if (!entry || entry.target !== target) {
+          entry = { target, ...extractLineData(target) };
+          this.cardCache.set(card, entry);
+        }
+        for (let k = 0; k < entry.lines.length; k++) {
+          const d = entry.data[k];
+          data.push({ line: d.line, idx: result.length, raw: d.raw, norm: d.norm, words: d.words });
+          result.push(entry.lines[k]);
+        }
       });
     } else {
-      result = extractTextLines(root);
+      ({ lines: result, data } = extractLineData(root));
     }
-
-    // Filter out Typst Table of Contents leader dots (. and …) which distort line distribution and cause false matches
-    result = result.filter((line) => {
-      const t = (line.element.textContent || "").trim();
-      return t !== "." && t !== "…" && !/^[.\s]+$/.test(t);
-    });
 
     this.cachedRoot = root;
     this.cachedFirstChild = root.firstElementChild;
     this.cachedLines = result;
-    this.cachedLineData = result.map((line, idx) => {
-      const raw = (line.element.textContent || "").trim();
-      const norm = normalize(raw) || normalizeRaw(raw);
-      const words = norm ? norm.split(" ").filter(Boolean) : [];
-      return { line, idx, raw, norm, words };
-    });
+    this.cachedLineData = data;
 
     return result;
   }
