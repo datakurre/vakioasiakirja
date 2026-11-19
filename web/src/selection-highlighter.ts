@@ -102,7 +102,7 @@ export class SelectionHighlighter {
       result = [];
       cards.forEach((card, i) => {
         const typstPages = card.querySelectorAll<SVGGElement>("g.typst-page");
-        const target = typstPages[i] ?? card;
+        const target = typstPages.length === 1 ? typstPages[0] : (typstPages[i] ?? card);
         result.push(...extractTextLines(target));
       });
     } else {

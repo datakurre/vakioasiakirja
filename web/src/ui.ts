@@ -3,12 +3,12 @@
 // logo bytes through JSON/localStorage, and the transient error toast.
 
 // Build a <use> reference to an icon in the inline sprite (see index.html).
-export function iconSvg(id: string): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+export function iconSvg(id: string, doc: Document = typeof document !== "undefined" ? document : (globalThis as any).document): SVGSVGElement {
+  const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "icon");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  const use = doc.createElementNS("http://www.w3.org/2000/svg", "use");
   use.setAttribute("href", `#${id}`);
   svg.appendChild(use);
   return svg;
@@ -36,8 +36,14 @@ export function base64ToBytes(b64: string): Uint8Array {
 // Returns a `toast(message, type?)` bound to the given container.
 export type ToastType = "error" | "success" | "info" | "warning";
 
-export function createToaster(toastsEl: HTMLElement): (message: string, type?: ToastType) => void {
-  return function toast(message: string, type?: ToastType) {
+export interface Toaster {
+  (message: string, type?: ToastType): void;
+  clearErrors(): void;
+  clear(type?: ToastType): void;
+}
+
+export function createToaster(toastsEl: HTMLElement): Toaster {
+  function toast(message: string, type?: ToastType) {
     let resolvedType = type;
     if (!resolvedType) {
       if (/luotu|kopioitu|tallennettu|tuotu|onnistui|lisätty/i.test(message) && !/epäonnistui/i.test(message)) {
@@ -47,35 +53,53 @@ export function createToaster(toastsEl: HTMLElement): (message: string, type?: T
       }
     }
 
-    const el = document.createElement("div");
+    const doc = toastsEl.ownerDocument ?? (typeof document !== "undefined" ? document : (globalThis as any).document);
+    const el = doc.createElement("div");
     el.className = `toast toast-${resolvedType}`;
     el.setAttribute("role", resolvedType === "error" ? "alert" : "status");
 
-    const msg = document.createElement("div");
+    const msg = doc.createElement("div");
     msg.className = "toast-message";
     msg.textContent = message;
 
-    const close = document.createElement("button");
+    const close = doc.createElement("button");
     close.type = "button";
     close.className = "iconbtn toast-close";
     close.setAttribute("aria-label", "Sulje ilmoitus");
     close.title = "Sulje";
-    close.appendChild(iconSvg("i-close"));
+    close.appendChild(iconSvg("i-close", doc));
 
-    let timer = 0;
+    let timer: any = 0;
     const remove = () => {
-      window.clearTimeout(timer);
+      clearTimeout(timer);
       el.classList.add("leaving");
-      window.setTimeout(() => el.remove(), 300);
+      setTimeout(() => el.remove(), 300);
     };
     close.addEventListener("click", remove);
     el.addEventListener("keydown", (e) => {
       if (e.key === "Escape") remove();
     });
     // Auto-dismiss after a while; the fade is handled by the `.leaving` class.
-    timer = window.setTimeout(remove, 10000);
+    timer = setTimeout(remove, 10000);
 
     el.append(msg, close);
     toastsEl.appendChild(el);
+  }
+
+  toast.clearErrors = () => {
+    const errorToasts = toastsEl.querySelectorAll(".toast-error, [role='alert']");
+    for (const el of errorToasts) {
+      el.remove();
+    }
   };
+
+  toast.clear = (type?: ToastType) => {
+    const selector = type ? `.toast-${type}` : ".toast";
+    const toasts = toastsEl.querySelectorAll(selector);
+    for (const el of toasts) {
+      el.remove();
+    }
+  };
+
+  return toast;
 }

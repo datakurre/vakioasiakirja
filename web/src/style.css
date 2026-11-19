@@ -2,17 +2,30 @@
   box-sizing: border-box;
 }
 
+@font-face {
+  font-family: "Outfit";
+  src: url("/fonts/Outfit-VariableFont_wght.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
-  --brand-header-bg: #37474f;
+  --brand-header-bg: #05131d;
   --brand-header-text: #ffffff;
-  --brand-statusbar-bg: #263238;
-  --brand-statusbar-border: #455a64;
-  --brand-control-border: #607d8b;
-  --brand-control-active-bg: #546e7a;
-  --brand-accent: #1976d2;
-  --brand-focus-outline: #90caf9;
-  --brand-preview-bg: #e0e0e0;
-  --brand-panel-bg: #37474f;
+  --brand-statusbar-bg: #05131d;
+  --brand-statusbar-border: #334155;
+  --brand-control-border: #6b7280;
+  --brand-control-active-bg: #334155;
+  --brand-accent: #fac80a;
+  --brand-focus-outline: #05131d;
+  --brand-focus-dark: #fac80a;
+  --brand-preview-bg: #f3f4f6;
+  --brand-panel-bg: #05131d;
+  --brand-text: #05131d;
+  --brand-muted: #6b7280;
+  --brand-border: #e5e7eb;
+  --brand-danger: #c91a09;
 }
 
 /* The HTML `hidden` attribute must win over the display rules below (e.g.
@@ -24,7 +37,9 @@
 html,
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: "Outfit", system-ui, sans-serif;
+  color: var(--brand-text);
+  font-size: 16px;
 }
 
 html {
@@ -89,8 +104,16 @@ body {
 }
 
 .iconbtn:focus-visible {
-  outline: 2px solid var(--brand-focus-outline, #90caf9);
-  outline-offset: 1px;
+  outline: 2px solid var(--brand-focus-outline, #05131d);
+  outline-offset: 2px;
+}
+
+header .iconbtn:focus-visible,
+#statusbar .iconbtn:focus-visible,
+#files-panel .iconbtn:focus-visible,
+#share-panel .iconbtn:focus-visible,
+.share-row .iconbtn:focus-visible {
+  outline-color: var(--brand-focus-dark, #fac80a);
 }
 
 .iconbtn[disabled] {
@@ -112,7 +135,7 @@ header {
   gap: 1rem;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: var(--brand-header-bg, #37474f);
+  background: var(--brand-header-bg, #05131d);
   color: var(--brand-header-text, #fff);
   flex: 0 0 auto;
 }
@@ -125,7 +148,7 @@ header {
    both panes show side by side; the primary navigation on a phone. */
 .view-toggle {
   display: none;
-  border: 1px solid var(--brand-control-border, #607d8b);
+  border: 1px solid var(--brand-control-border, #6b7280);
   border-radius: 0.35rem;
   overflow: hidden;
 }
@@ -146,15 +169,15 @@ header {
 }
 
 .view-toggle button + button {
-  border-left: 1px solid var(--brand-control-border, #607d8b);
+  border-left: 1px solid var(--brand-control-border, #6b7280);
 }
 
 .view-toggle button[aria-pressed="true"] {
-  background: var(--brand-control-active-bg, #546e7a);
+  background: var(--brand-control-active-bg, #334155);
 }
 
 .view-toggle button:focus-visible {
-  outline: 2px solid var(--brand-focus-outline, #90caf9);
+  outline: 2px solid var(--brand-focus-dark, #fac80a);
   outline-offset: -2px;
 }
 
@@ -247,7 +270,7 @@ main {
   width: 1.4rem;
   height: 1.4rem;
   border: 3px solid rgba(0, 0, 0, 0.2);
-  border-top-color: #455a64;
+  border-top-color: #334155;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -282,16 +305,14 @@ main {
 
 /* Neon yellow marker highlighter for live edits */
 .neon-highlight {
-  fill: #ffea00;
-  mix-blend-mode: multiply;
+  fill: rgba(255, 234, 0, 0.45);
   animation: neon-fade 3s forwards;
   pointer-events: none;
 }
 
 /* Vim visual selection highlight (synchronized to viewers) */
 .selection-highlight {
-  fill: #86efac;
-  mix-blend-mode: multiply;
+  fill: rgba(134, 239, 172, 0.45);
   pointer-events: none;
 }
 
@@ -310,11 +331,12 @@ main {
 .page-pulse,
 .page-modified {
   animation: page-pulse-glow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: box-shadow;
 }
 
 @keyframes page-pulse-glow {
   0% {
-    box-shadow: 0 0 0 3px #1976d2, 0 4px 16px rgba(25, 118, 210, 0.45);
+    box-shadow: 0 0 0 3px #fac80a, 0 4px 16px rgba(250, 200, 10, 0.35);
   }
   100% {
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
@@ -347,11 +369,11 @@ main {
   padding: 0.3rem 1rem;
   /* Keep clear of a notched phone's home indicator in standalone mode. */
   padding-bottom: max(0.3rem, env(safe-area-inset-bottom));
-  background: var(--brand-statusbar-bg, #263238);
+  background: var(--brand-statusbar-bg, #05131d);
   color: #fff;
   flex: 0 0 auto;
   font-size: 0.85rem;
-  border-top: 1px solid var(--brand-statusbar-border, #455a64);
+  border-top: 1px solid var(--brand-statusbar-border, #334155);
 }
 
 #statusbar .bar-left,
@@ -395,7 +417,7 @@ body.keyboard #vim-label {
   letter-spacing: 0.05em;
   padding: 0.1rem 0.45rem;
   border-radius: 0.2rem;
-  background: #546e7a;
+  background: #334155;
   color: #fff;
 }
 
@@ -454,7 +476,7 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 #logo-label:focus-within {
-  outline: 2px solid #90caf9;
+  outline: 2px solid #fac80a;
   outline-offset: 1px;
 }
 
@@ -560,7 +582,7 @@ body.keyboard #vim-mode:not([hidden]) {
   max-height: min(28rem, calc(100vh - 5rem));
   display: flex;
   flex-direction: column;
-  background: var(--brand-panel-bg, #37474f);
+  background: var(--brand-panel-bg, #05131d);
   color: #fff;
   padding: 0.8rem;
   border-radius: 0.4rem;
@@ -574,7 +596,7 @@ body.keyboard #vim-mode:not([hidden]) {
   justify-content: space-between;
   margin-bottom: 0.6rem;
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid var(--brand-statusbar-border, #455a64);
+  border-bottom: 1px solid var(--brand-statusbar-border, #334155);
 }
 
 .files-title {
@@ -599,20 +621,20 @@ body.keyboard #vim-mode:not([hidden]) {
   font-size: 0.8rem;
   font-weight: 500;
   color: #fff;
-  background: #455a64;
-  border: 1px solid #546e7a;
+  background: #334155;
+  border: 1px solid #334155;
   border-radius: 0.25rem;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .files-new-btn:hover {
-  background: #546e7a;
+  background: #334155;
 }
 
 .files-new-btn:focus-visible {
-  outline: 2px solid #90caf9;
-  outline-offset: 1px;
+  outline: 2px solid #fac80a;
+  outline-offset: 2px;
 }
 
 .files-list {
@@ -643,7 +665,7 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .file-item.active {
-  background: #263238;
+  background: #05131d;
   border-left-color: #69f0ae;
 }
 
@@ -665,8 +687,8 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .file-select-btn:focus-visible {
-  outline: 2px solid #90caf9;
-  outline-offset: 1px;
+  outline: 2px solid #fac80a;
+  outline-offset: 2px;
 }
 
 .file-name {
@@ -682,7 +704,7 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .file-badge {
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   font-weight: 500;
   padding: 0.1rem 0.35rem;
   border-radius: 0.2rem;
@@ -712,18 +734,19 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .file-time {
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   color: #b0bec5;
   line-height: 1.2;
 }
 
 .files-save-collab-btn {
-  background: #1976d2;
-  border-color: #1e88e5;
+  background: #fac80a;
+  border-color: #eab308;
+  color: #05131d;
 }
 
 .files-save-collab-btn:hover {
-  background: #1565c0;
+  background: #fac80a;
 }
 
 /* Collab File Action Modal */
@@ -745,13 +768,13 @@ body.keyboard #vim-mode:not([hidden]) {
 }
 
 .collab-file-open-btn {
-  background: #37474f;
+  background: #05131d;
   color: #fff;
-  border: 1px solid #546e7a;
+  border: 1px solid #334155;
 }
 
 .collab-file-open-btn:hover {
-  background: #455a64;
+  background: #334155;
 }
 
 body.collab-mode #files-panel {
@@ -776,7 +799,7 @@ body.collab-mode #files-panel {
   width: min(24rem, 90vw);
   max-height: calc(100vh - 4.5rem - env(safe-area-inset-bottom));
   overflow-y: auto;
-  background: var(--brand-panel-bg, #37474f);
+  background: var(--brand-panel-bg, #05131d);
   color: #fff;
   padding: 0.8rem;
   border-radius: 0.4rem;
@@ -825,8 +848,8 @@ body.collab-mode #files-panel {
   gap: 0.75rem;
   width: 100%;
   padding: 0.75rem 0.9rem;
-  background: #263238;
-  border: 1px solid #455a64;
+  background: #05131d;
+  border: 1px solid #334155;
   border-radius: 0.4rem;
   text-align: left;
   cursor: pointer;
@@ -894,21 +917,21 @@ body.collab-mode #files-panel {
   font-family: inherit;
   font-size: 0.82rem;
   padding: 0.35rem 0.5rem;
-  border: 1px solid #546e7a;
+  border: 1px solid #334155;
   border-radius: 0.25rem;
-  background: #263238;
+  background: #05131d;
   color: #fff;
 }
 
 .share-row input:focus {
-  outline: 2px solid #90caf9;
-  outline-offset: 1px;
+  outline: 2px solid #fac80a;
+  outline-offset: 2px;
 }
 
 .share-row .iconbtn {
   color: #b0bec5;
-  background: #263238;
-  border: 1px solid #546e7a;
+  background: #05131d;
+  border: 1px solid #334155;
   border-radius: 0.25rem;
   min-width: 2rem;
   min-height: 2rem;
@@ -944,7 +967,7 @@ body.collab-mode #files-panel {
   right: 0.12rem;
   width: 0.45rem;
   height: 0.45rem;
-  border: 1px solid #263238;
+  border: 1px solid #05131d;
   border-radius: 50%;
   background: #69f0ae;
   pointer-events: none;
@@ -967,8 +990,12 @@ body.collab-mode #files-panel {
 }
 
 .textbtn:focus-visible {
-  outline: 2px solid #90caf9;
-  outline-offset: 1px;
+  outline: 2px solid var(--brand-focus-outline, #05131d);
+  outline-offset: 2px;
+}
+
+.share-panel .textbtn:focus-visible {
+  outline-color: var(--brand-focus-dark, #fac80a);
 }
 
 /* Viewer mode: a status banner above the preview, and the editor chrome hidden
@@ -977,8 +1004,8 @@ body.collab-mode #files-panel {
   flex: 0 0 auto;
   order: -1; /* sit at the top of the body column, above the preview */
   padding: 0.4rem 1rem;
-  background: #1565c0;
-  color: #fff;
+  background: #fac80a;
+  color: #05131d;
   font-size: 0.85rem;
   text-align: center;
 }
@@ -1099,7 +1126,7 @@ body.viewer main {
 .collab-stub-notice {
   text-align: left;
   background: #f5f5f5;
-  border-left: 4px solid #1976d2;
+  border-left: 4px solid #fac80a;
   padding: 0.8rem 1rem;
   margin: 1rem 0;
   border-radius: 0 0.25rem 0.25rem 0;
@@ -1126,7 +1153,7 @@ body.collab-error-view main {
   max-height: min(90vh, 700px);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
   background: #ffffff;
-  color: #263238;
+  color: #05131d;
 }
 
 .share-dialog::backdrop {
@@ -1162,7 +1189,7 @@ body.collab-error-view main {
 .share-dialog-title-icon {
   width: 1.35rem;
   height: 1.35rem;
-  color: #1565c0;
+  color: #fac80a;
   flex-shrink: 0;
 }
 
@@ -1174,7 +1201,7 @@ body.collab-error-view main {
 }
 
 .share-dialog-close {
-  color: #546e7a;
+  color: #334155;
   border-radius: 0.35rem;
   padding: 0.35rem;
 }
@@ -1188,7 +1215,7 @@ body.collab-error-view main {
   margin: 0 0 1rem;
   font-size: 0.86rem;
   line-height: 1.45;
-  color: #546e7a;
+  color: #334155;
   flex: 1 0 auto;
 }
 
@@ -1213,12 +1240,12 @@ body.collab-error-view main {
 }
 
 .share-action-btn.primary {
-  background: #1565c0;
-  color: #ffffff;
+  background: #fac80a;
+  color: #05131d;
 }
 
 .share-action-btn.primary:hover:not(:disabled) {
-  background: #0d47a1;
+  background: #eab308;
 }
 
 .share-action-btn.primary:disabled {
@@ -1238,7 +1265,7 @@ body.collab-error-view main {
 .share-error-box {
   background: #ffebee;
   border-left: 3px solid #c62828;
-  color: #b71c1c;
+  color: #c91a09;
   padding: 0.6rem 0.75rem;
   border-radius: 0 0.25rem 0.25rem 0;
   font-size: 0.82rem;
@@ -1247,17 +1274,17 @@ body.collab-error-view main {
 }
 
 .textbtn.primary {
-  background: #1565c0;
-  color: #ffffff;
+  background: #fac80a;
+  color: #05131d;
 }
 
 .textbtn.primary:hover {
-  background: #0d47a1;
+  background: #eab308;
 }
 
 .textbtn.secondary {
   background: #eceff1;
-  color: #37474f;
+  color: #05131d;
 }
 
 .textbtn.secondary:hover {
@@ -1266,7 +1293,7 @@ body.collab-error-view main {
 
 /* --- Collaborative Banner & Controls --- */
 #viewer-banner.collab-banner {
-  background: #263238;
+  background: #05131d;
   padding: 0.4rem 0.75rem;
   color: #ffffff;
 }
@@ -1529,26 +1556,35 @@ body.collab-error-view main {
   width: 100%;
 }
 
+.template-card-logo {
+  display: block;
+  max-width: 100%;
+  max-height: 3rem;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 0.75rem;
+}
+
 .template-card:hover {
-  border-color: var(--brand-accent, #1976d2);
+  border-color: var(--brand-accent, #fac80a);
   background: #f8fafc;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .template-card:focus-visible {
-  outline: 2px solid var(--brand-focus-outline, #90caf9);
-  outline-offset: 1px;
+  outline: 2px solid var(--brand-focus-outline, #05131d);
+  outline-offset: 2px;
 }
 
 .template-badge {
-  font-size: 0.7rem;
+  font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   padding: 0.2rem 0.5rem;
   border-radius: 0.25rem;
   background: #e2e8f0;
-  color: #475569;
+  color: #6b7280;
   margin-bottom: 0.5rem;
 }
 
@@ -1620,8 +1656,8 @@ dialog.download-dialog {
 }
 
 .download-format-btn:focus-visible {
-  outline: 2px solid var(--brand-focus-outline, #90caf9);
-  outline-offset: 1px;
+  outline: 2px solid var(--brand-focus-outline, #05131d);
+  outline-offset: 2px;
 }
 
 .download-format-badge {
@@ -1674,5 +1710,3 @@ dialog.download-dialog {
   border-top: 1px solid #eceff1;
   background: #f8f9fa;
 }
-
-

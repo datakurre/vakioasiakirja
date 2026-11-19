@@ -78,6 +78,7 @@ export interface PreviewElements {
 export interface PreviewCallbacks {
   setStatus(text: string, error?: boolean): void;
   fail(message: string): void;
+  clearErrors?(): void;
   // Called after a successful render (the editor uses it to enable Download).
   onRendered?(): void;
   // localStorage key for the zoom/fit/two-up preferences (optional).
@@ -429,6 +430,15 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       const w = parseFloat(page.getAttribute("data-page-width") ?? "0");
       const h = parseFloat(page.getAttribute("data-page-height") ?? "0");
       const card = baseSvg.cloneNode(true) as SVGSVGElement;
+
+      // Prune non-target typst-page groups from this cloned card to avoid mounting N x N page elements
+      const cardPages = card.querySelectorAll("g.typst-page");
+      for (let j = 0; j < cardPages.length; j++) {
+        if (j !== i) {
+          cardPages[j].remove();
+        }
+      }
+
       card.setAttribute("viewBox", `0 ${y} ${w} ${h}`);
       card.setAttribute("preserveAspectRatio", "xMidYMid meet");
       card.style.overflow = "hidden";
@@ -470,6 +480,7 @@ export function createPreview(els: PreviewElements, cb: PreviewCallbacks): Previ
       showPages(svg, options?.liveEdit ?? false);
       rendered = true;
       cb.setStatus("käännetty");
+      cb.clearErrors?.();
       setBusy(false);
       cb.onRendered?.();
     } catch (e: any) {

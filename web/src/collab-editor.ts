@@ -695,9 +695,11 @@ export async function initCollabEditor(roomId: string, token: string) {
     {
       setStatus,
       fail,
+      clearErrors: () => toast.clearErrors(),
       viewStorageKey: "sfs2487.collab.view",
       selectionHighlighter,
       onRendered: () => {
+        toast.clearErrors();
         downloadEl.disabled = false;
         collabSelectionManager?.render();
         autoscrollTracker?.scheduleSync("render");

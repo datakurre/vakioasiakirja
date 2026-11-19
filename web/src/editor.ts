@@ -99,9 +99,11 @@ export function initEditor() {
     {
       setStatus,
       fail,
+      clearErrors: () => toast.clearErrors(),
       viewStorageKey: "sfs2487.view",
       selectionHighlighter,
       onRendered: () => {
+        toast.clearErrors();
         downloadEl.disabled = false;
         autoscrollTracker?.scheduleSync("render");
       },
