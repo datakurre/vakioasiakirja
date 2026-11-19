@@ -6,6 +6,7 @@ export const AUTOSCROLL_STORAGE_KEY = "sfs2487.autoscroll";
 export const AUTOSCROLL_DEADBAND = 60; // px margin from top and bottom
 export const AUTOSCROLL_MIN_DELTA = 10; // px threshold to avoid micro-oscillation
 export const AUTOSCROLL_EDIT_DEBOUNCE_MS = 350; // ms cooldown for active typing
+export const AUTOSCROLL_LEAD_RATIO = 0.5; // fraction of viewport height to scroll ahead when revealing content
 
 export type AutoscrollSource = "selection" | "edit" | "render";
 
@@ -27,6 +28,7 @@ export interface AutoscrollTrackerOptions {
   debounceMs?: number;
   deadband?: number;
   minDelta?: number;
+  leadRatio?: number;
 }
 
 export function createAutoscrollTracker(options: AutoscrollTrackerOptions): AutoscrollTracker {
@@ -38,6 +40,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
     debounceMs = AUTOSCROLL_EDIT_DEBOUNCE_MS,
     deadband: configuredDeadband = AUTOSCROLL_DEADBAND,
     minDelta = AUTOSCROLL_MIN_DELTA,
+    leadRatio = AUTOSCROLL_LEAD_RATIO,
   } = options;
 
   const highlighter = options.selectionHighlighter ?? new SelectionHighlighter();
@@ -187,7 +190,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
                 if (elRect.height > 0 || elRect.width > 0 || elRect.top > 0) {
                   elementMatched = true;
 
-                  // 3. Hysteresis, Deadband & Minimal Displacement
+                  // 3. Hysteresis, Deadband & Minimal Displacement with Lead Margin
                   // Safe zone margins prevent unnecessary scrolling while cursor is within viewport.
                   const effectiveDeadband = Math.min(
                     configuredDeadband,
@@ -196,6 +199,7 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
                   const safeTop = previewRect.top + effectiveDeadband;
                   const safeBottom = previewRect.bottom - effectiveDeadband;
                   const fitsInSafeZone = elRect.height <= (safeBottom - safeTop);
+                  const leadDistance = Math.round(previewEl.clientHeight * leadRatio);
 
                   let targetScrollTop: number | null = null;
 
@@ -206,13 +210,20 @@ export function createAutoscrollTracker(options: AutoscrollTrackerOptions): Auto
 
                     if (!isComfortablyVisible) {
                       if (elRect.bottom > safeBottom) {
-                        // Slightly below bottom safe zone: scroll down just enough to bring into lower safe area
-                        const delta = elRect.bottom - safeBottom;
-                        targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                        const overflow = elRect.bottom - safeBottom;
+                        if (overflow >= minDelta) {
+                          // Below bottom safe zone: scroll down to bring element into safe area plus lead distance
+                          // so the edited region is revealed around mid-page rather than trapped at the bottom quarter.
+                          const delta = overflow + leadDistance;
+                          targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                        }
                       } else if (elRect.top < safeTop) {
-                        // Slightly above top safe zone: scroll up just enough to bring into upper safe area
-                        const delta = elRect.top - safeTop;
-                        targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                        const overflow = safeTop - elRect.top;
+                        if (overflow >= minDelta) {
+                          // Above top safe zone: scroll up to bring element into upper safe area plus lead distance
+                          const delta = -(overflow + leadDistance);
+                          targetScrollTop = Math.max(0, Math.min(maxScroll, Math.round(previewEl.scrollTop + delta)));
+                        }
                       }
                     }
                   } else {

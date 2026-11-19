@@ -229,11 +229,12 @@ test("AutoscrollTracker: cursor following matches rendered SVG element and scrol
   });
 
   tracker.sync();
-  // Minimal displacement: brings element bottom (620) to safeBottom (540) -> delta 80
-  assert.equal(scrolledTop, 80);
+  // Safe zone displacement with lead distance (0.5 * 600 = 300):
+  // Brings element bottom (620) to safeBottom (540) -> delta 80 + lead 300 = 380
+  assert.equal(scrolledTop, 380);
 });
 
-test("AutoscrollTracker: minimal displacement scrolls up when element is above top safe zone", () => {
+test("AutoscrollTracker: displacement with lead scrolls up when element is above top safe zone", () => {
   const mockStorage = createMockStorage();
   (globalThis as any).localStorage = mockStorage;
 
@@ -303,8 +304,9 @@ test("AutoscrollTracker: minimal displacement scrolls up when element is above t
   });
 
   tracker.sync();
-  // Minimal displacement: brings element top (30) to safeTop (60) -> 200 + (-30) = 170
-  assert.equal(scrolledTop, 170);
+  // Safe zone displacement with lead distance (0.5 * 600 = 300):
+  // Brings element top (30) to safeTop (60) with lead distance -> 200 + (-30 - 300) clamped to 0
+  assert.equal(scrolledTop, 0);
 });
 
 test("AutoscrollTracker: avoids jitter when rendered element is already comfortably in view", () => {
@@ -522,8 +524,8 @@ test("AutoscrollTracker: scans backward to nearest non-empty line when cursor is
   });
 
   tracker.sync();
-  // Minimal displacement: brings heading bottom (730) into safe area (540) -> delta 190
-  assert.equal(scrolledTop, 190);
+  // Safe zone displacement with lead: brings heading bottom (730) into safe area (540) + lead (300) -> delta 490
+  assert.equal(scrolledTop, 490);
 });
 
 test("AutoscrollTracker: debounces autoscroll during active typing (source === 'edit')", async () => {
@@ -833,8 +835,8 @@ test("AutoscrollTracker: long paragraph (>200 chars) windows around cursor head"
   });
 
   tracker.sync();
-  // Safe bottom is 600 - 60 = 540; target bottom is 630. Delta = 630 - 540 = 90
-  assert.equal(scrolledTop, 90);
+  // Safe bottom is 600 - 60 = 540; target bottom is 630. Delta = 630 - 540 + lead 300 = 390
+  assert.equal(scrolledTop, 390);
   tracker.destroy();
 });
 
@@ -942,8 +944,8 @@ test("AutoscrollTracker: post-render onRendered brings newly typed sentence into
 
   // onRendered fires scheduleSync("render")
   tracker.sync("render");
-  // Element bottom is at 640, safeBottom is 540 -> scrolls by 100px
-  assert.equal(scrolledTop, 100, "Newly rendered sentence post-compile is cleanly scrolled into view");
+  // Element bottom is at 640, safeBottom is 540 -> delta 100 + lead 300 = 400
+  assert.equal(scrolledTop, 400, "Newly rendered sentence post-compile is cleanly scrolled into view");
   tracker.destroy();
 });
 
@@ -1048,7 +1050,7 @@ test("AutoscrollTracker: Table of Contents leader dots do not prevent matching s
   });
 
   tracker.sync("render");
-  // sentenceNode bottom is at 750, safeBottom is 540 -> target is 750 - 540 = 210
-  assert.equal(scrolledTop, 210, "Focuses sentence on page 2 despite presence of TOC leader dots");
+  // sentenceNode bottom is at 750, safeBottom is 540 -> target is 750 - 540 + lead 300 = 510
+  assert.equal(scrolledTop, 510, "Focuses sentence on page 2 despite presence of TOC leader dots");
   tracker.destroy();
 });
