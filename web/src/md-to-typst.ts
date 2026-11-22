@@ -133,7 +133,7 @@ function parseFeatures(meta: Record<string, unknown>): Record<string, boolean> {
     out[name] = !off;
   }
   if (out["endmatter-newpage"] === undefined) {
-    out["endmatter-newpage"] = meta.attachments != null || meta.distribution != null || meta.forinformation != null;
+    out["endmatter-newpage"] = false;
   }
   if (out["runin"] === undefined) out["runin"] = true;
   if (out["gap"] === undefined) out["gap"] = true;
@@ -344,16 +344,33 @@ function nextBlockIsTable(tokens: Token[], j: number): boolean {
   return false;
 }
 
+function isDividerRow(rawTexts: string[]): boolean {
+  let hasSymbol = false;
+  for (const text of rawTexts) {
+    const s = text.replace(/\s+/g, "");
+    if (s !== "") {
+      if (/^:?-+:?$/.test(s) || /^:?=+(:?)$/.test(s) || /^:?[\u2013\u2014]+:?$/.test(s) || s === "\\hline" || s === "\\midrule") {
+        hasSymbol = true;
+      } else {
+        return false;
+      }
+    }
+  }
+  return hasSymbol;
+}
+
 // Pipe table -> a left-aligned #table with booktabs-style horizontal rules,
 // wrapped in #figure when a caption is pending so it is numbered "Taulukko N"
 // with the caption above (cls captionof[table], 6.5.1). Column alignment comes
 // from the delimiter row (markdown-it sets text-align on the header cells).
+// Intra-table divider rows (e.g. before totals / "Yhteenveto") emit table.hline().
 function table(tokens: Token[], cur: Cursor): string {
   const aligns: string[] = [];
   const header: string[] = [];
-  const rows: string[][] = [];
+  const rows: Array<{ isDivider: boolean; cells: string[] }> = [];
   let inHeader = false;
-  let row: string[] | null = null;
+  let rowCells: string[] | null = null;
+  let rowRawTexts: string[] = [];
   cur.i++; // table_open
   while (cur.i < tokens.length && tokens[cur.i].type !== "table_close") {
     const t = tokens[cur.i];
@@ -365,21 +382,28 @@ function table(tokens: Token[], cur: Cursor): string {
         inHeader = false;
         break;
       case "tr_open":
-        row = [];
+        rowCells = [];
+        rowRawTexts = [];
         break;
       case "tr_close":
-        if (row) {
-          if (inHeader) header.push(...row);
-          else rows.push(row);
+        if (inHeader) {
+          if (rowCells) header.push(...rowCells);
+        } else if (rowCells) {
+          const isDiv = isDividerRow(rowRawTexts);
+          rows.push({ isDivider: isDiv, cells: rowCells });
         }
-        row = null;
+        rowCells = null;
+        rowRawTexts = [];
         break;
       case "th_open":
       case "td_open": {
         const style = t.attrGet("style") ?? "";
         if (inHeader) aligns.push(style.includes("right") ? "right" : style.includes("center") ? "center" : "left");
-        const cell = inlines(tokens[cur.i + 1].children ?? []).trim();
-        row?.push(`[${cell}]`);
+        const inlineToken = tokens[cur.i + 1];
+        const rawContent = inlineToken?.content ?? "";
+        rowRawTexts.push(rawContent.trim());
+        const cell = inlines(inlineToken?.children ?? []).trim();
+        rowCells?.push(`[${cell}]`);
         cur.i += 2; // td_open, inline (td_close consumed by loop ++)
         break;
       }
@@ -388,12 +412,21 @@ function table(tokens: Token[], cur: Cursor): string {
   }
   cur.i++; // table_close
 
-  const cols = aligns.length || (rows[0]?.length ?? 1);
+  const cols = aligns.length || (rows.find((r) => !r.isDivider)?.cells.length ?? 1);
   const alignTuple = `(${aligns.join(", ")})`;
   let tbl = `table(\n  columns: ${cols},\n  align: ${alignTuple},\n  stroke: none,\n`;
   tbl += "  table.hline(),\n";
   if (header.length) tbl += `  table.header(${header.join(", ")}),\n  table.hline(),\n`;
-  for (const r of rows) tbl += "  " + r.join(", ") + ",\n";
+  for (let idx = 0; idx < rows.length; idx++) {
+    const r = rows[idx];
+    if (r.isDivider) {
+      if (idx > 0 && idx < rows.length - 1 && !rows[idx - 1].isDivider) {
+        tbl += "  table.hline(),\n";
+      }
+    } else {
+      tbl += "  " + r.cells.join(", ") + ",\n";
+    }
+  }
   tbl += "  table.hline(),\n)";
 
   const caption = pendingCaption;

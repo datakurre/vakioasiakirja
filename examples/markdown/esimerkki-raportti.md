@@ -54,6 +54,8 @@ kautta kirjattiin palautetta.
 | Verkkolomake      |            318 |      77 % |
 | Puhelinpalvelu    |             64 |      16 % |
 | Asiakastapaaminen |             30 |       7 % |
+|:------------------|---------------:|----------:|
+| **Yhteensä**      |        **412** |  **100 %**|
 
 ## Keskeiset havainnot
 

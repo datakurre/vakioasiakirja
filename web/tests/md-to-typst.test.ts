@@ -377,3 +377,60 @@ Kolmannen sivun sisältö.
   assert.ok(pages[2].textContent?.includes("Kolmannen sivun sisältö"), "Page 3 contains third section");
   assert.ok(pages[2].textContent?.includes("3 (3)"), "Page 3 header shows '3 (3)'");
 });
+
+test("md-to-typst: table divider rows convert to table.hline() for intra-table lines (e.g. Yhteenveto)", () => {
+  const md = `---
+doctype: Raportti
+title: Laskutus
+date: 2026-11-22
+---
+
+| Palvelu                              | Laskutus vuonna 2026   |
+|--------------------------------------|-----------------------:|
+| Domain suomenpalikkayhteiso.fi       |                21,21 € |
+| DNS-palvelu (suomenpalikkayhteiso.fi |                11,30 € |
+|--------------------------------------|-----------------------:|
+| Yhteenveto                           |                32,51 € |
+`;
+
+  const typst = markdownToTypst(md);
+  const hlineMatches = typst.match(/table\.hline\(\)/g) || [];
+  // Expected: top hline, header hline, divider hline, bottom hline = 4
+  assert.equal(hlineMatches.length, 4, "Expected 4 table.hline() calls in table");
+  assert.ok(typst.includes("[Domain suomenpalikkayhteiso\\.fi]"));
+  assert.ok(typst.includes("[Yhteenveto]"));
+  // Assert table.hline() sits between the DNS-palvelu row and the Yhteenveto row
+  const dnsIndex = typst.indexOf("DNS-palvelu");
+  const hlineIndex = typst.indexOf("table.hline(),\n  [Yhteenveto]");
+  assert.ok(dnsIndex > 0 && hlineIndex > dnsIndex, "table.hline() must appear directly before Yhteenveto row");
+});
+
+test("Real Typst SVG integration: table with intra-table horizontal line compiles and renders correctly", async () => {
+  await $typst.mapShadow("/sfs-2487-2024.typ", new TextEncoder().encode(sfsTypst));
+
+  const md = `---
+doctype: Raportti
+title: Laskutus
+date: 2026-11-22
+---
+
+: Palvelumaksut
+
+| Palvelu                              | Laskutus vuonna 2026   |
+|:-------------------------------------|-----------------------:|
+| Domain suomenpalikkayhteiso.fi       |                21,21 € |
+| DNS-palvelu (suomenpalikkayhteiso.fi |                11,30 € |
+|:-------------------------------------|-----------------------:|
+| **Yhteenveto**                       |                32,51 € |
+`;
+
+  const typst = markdownToTypst(md);
+  const svg = await $typst.svg({ mainContent: typst });
+  const dom = new JSDOM(svg);
+
+  assert.ok(svg.includes("Palvelu"), "SVG contains header text");
+  assert.ok(svg.includes("Yhteenveto"), "SVG contains total row label");
+  assert.ok(svg.includes("32,51"), "SVG contains calculated total value");
+  const paths = dom.window.document.querySelectorAll("path");
+  assert.ok(paths.length >= 4, "Expected at least 4 horizontal rule paths in table rendering");
+});

@@ -161,10 +161,16 @@ give the caption above the table:
 ```markdown
 : Vastaukset palautekanavittain
 
-| **Kanava**   | **Vastauksia** |
-|:-------------|---------------:|
-| Verkkolomake |            318 |
+| **Kanava**        | **Vastauksia** | **Osuus** |
+|:------------------|---------------:|----------:|
+| Verkkolomake      |            318 |      77 % |
+| Puhelinpalvelu    |             64 |      16 % |
+| Asiakastapaaminen |             30 |       7 % |
+|:------------------|---------------:|----------:|
+| **Yhteensä**      |        **412** |  **100 %**|
 ```
+
+Divider rows with dashes (`|---|---|` or `|:---|---:|`) within the table body add horizontal lines (`table.hline()` in the web editor, `\midrule` in LaTeX) across columns to separate sections or set off calculated totals and summaries ("Yhteenveto").
 
 ### Margin labels
 

@@ -299,3 +299,54 @@ function Quoted(quoted)
   inlines:insert(pandoc.Str(mark))
   return inlines
 end
+
+-- Intra-table horizontal rules:
+-- Rows inside a table whose cells contain only dashes, equals, colons, or \hline/\midrule
+-- represent horizontal dividing rules (e.g. before totals / summary rows).
+local function is_divider_row(row)
+  local has_symbol = false
+  for _, cell in ipairs(row.cells) do
+    local s = pandoc.utils.stringify(cell):gsub('%s+', '')
+    if s ~= '' then
+      if s:match('^:?%-+:?$') or s:match('^:?=+(:?)$') or
+         s:match('^:?[\226\128\148\226\128\147]+:?$') or
+         s == [[\hline]] or s == [[\midrule]] then
+        has_symbol = true
+      else
+        return false
+      end
+    end
+  end
+  return has_symbol
+end
+
+function Table(tbl)
+  for _, body in ipairs(tbl.bodies) do
+    local new_rows = {}
+    local pending_midrule = false
+    for _, row in ipairs(body.body) do
+      if is_divider_row(row) then
+        pending_midrule = true
+      else
+        if pending_midrule then
+          pending_midrule = false
+          if #new_rows > 0 and #row.cells > 0 then
+            local cell = row.cells[1]
+            if #cell.contents == 0 then
+              cell.contents = {pandoc.Plain({pandoc.RawInline('latex', [[\midrule\noalign{} ]])})}
+            elseif cell.contents[1].content then
+              table.insert(cell.contents[1].content, 1,
+                pandoc.RawInline('latex', [[\midrule\noalign{} ]]))
+            else
+              table.insert(cell.contents, 1,
+                pandoc.Plain({pandoc.RawInline('latex', [[\midrule\noalign{} ]])}))
+            end
+          end
+        end
+        table.insert(new_rows, row)
+      end
+    end
+    body.body = new_rows
+  end
+  return tbl
+end
